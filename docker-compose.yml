@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+
+  db:
+    container_name: db
+    image: postgres:14.6-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - .env
+    networks:
+      - main_prod
+
+  redis:
+    container_name: redis
+    image: redis:7.0.5-alpine
+    restart: unless-stopped
+    networks:
+      - main_prod
+
+  app:
+    container_name: app
+    image: app:kazakhstan
+    build:
+      context: crm_kazakhstan/crm_kazakhstan
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - '8000:8000'
+    env_file:
+      - .env
+    depends_on:
+      - db
+    networks:
+      - main_prod
+    command: >
+      sh -c "
+        ./manage.py migrate && \
+        ./manage.py runserver 0.0.0.0:8000
+      "
+
+  worker:
+    container_name: worker
+    image: worker:1
+    build:
+      context: crm_kazakhstan/crm_kazakhstan
+    restart: unless-stopped
+    volumes:
+      - ./crm_kazakhstan:/crm_kazakhstan
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+    networks:
+      - main_prod
+    command: celery -A crm_kazakhstan worker --loglevel=info
+
+  scheduler:
+    container_name: scheduler
+    image: scheduler:latest
+    build:
+      context: crm_kazakhstan/crm_kazakhstan
+    restart: unless-stopped
+    volumes:
+      - ./crm_kazakhstan:/crm_kazakhstan
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis
+      - app
+    networks:
+      - main_prod
+    command: celery -A crm_kazakhstan beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
+
+volumes:
+  postgres_data:
+
+networks:
+    main_prod:
+        driver: bridge
