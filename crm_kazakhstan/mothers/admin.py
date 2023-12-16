@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import pytz
 from dateutil import parser
 
@@ -12,7 +10,7 @@ from django.utils import formats, timezone
 from mothers.filters import AuthConditionListFilter
 from mothers.inlines import ConditionInline, CommentInline
 from mothers.models import Mother, Comment
-# from mothers.services import get_difference_time
+from mothers.services import get_difference_time
 
 Mother: models
 Comment: models
@@ -58,33 +56,14 @@ class MotherAdmin(admin.ModelAdmin):
 
     search_help_text = 'IN DATA QUERY USE PATTERNS LIKE  "D-M-Y"  "D-M"  "D"'
 
-    def __init__(self, *args, **kwargs):
-        self.request = None
-        super().__init__(*args, **kwargs)
-
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
         for instance in instances:
-            local_datetime = datetime.combine(instance.scheduled_date, instance.scheduled_time)
-            utc_datetime = local_datetime.astimezone(pytz.utc)
-            instance.scheduled_date = utc_datetime.date()
-            instance.scheduled_time = utc_datetime.time()
+            utc_aware_time = get_difference_time(request, instance)
+            instance.scheduled_time = utc_aware_time
             instance.save()
         formset.save_m2m()
-        return super().save_formset(request, form, formset, change)
-
-    def get_formsets_with_inlines(self, request, obj=None):
-        """
-        Perform before save_formset method
-        """
-        for inline in self.get_inline_instances(request, obj):
-            yield inline.get_formset(request, obj), inline
-
-    def get_actions(self, request):
-        actions = super().get_actions(request)
-        if 'make_revoke' in actions and not request.user.has_perm('mothers.revoke_mothers'):
-            del actions['make_revoke']
-        return actions
+        super().save_formset(request, form, formset, change)
 
     def get_search_results(self, request, queryset, search_term):
         queryset, use_distinct = super().get_search_results(request, queryset, search_term)
@@ -105,6 +84,12 @@ class MotherAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         qs = qs.exclude(comment__revoked=True)
         return qs
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        if 'make_revoke' in actions and not request.user.has_perm('mothers.revoke_mothers'):
+            del actions['make_revoke']
+        return actions
 
     @admin.action(description="Revoke mothers")
     def make_revoke(self, request, queryset):
@@ -163,3 +148,4 @@ class MotherAdmin(admin.ModelAdmin):
     #         html_string += '</select></div>'
     #
     #         return format_html(html_string)
+

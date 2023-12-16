@@ -1,31 +1,28 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
+from django.utils import timezone
 
 from mothers.models import Condition
 
 
 def get_difference_time(request, instance: Condition):
-    # get naive datetime
-    utc = datetime.now()
-    # Step 1: Get naive datetime bases on specific timezone
-    time_zone = pytz.timezone(str(request.user.timezone))
-    local_time = datetime.now(time_zone)
-    local_time = datetime.combine(local_time.date(), local_time.time())
+    # Step 1: Get aware datetime in UTC
+    utc_aware = timezone.now()
 
-    # Step 2: Get naive date additionally with user input time
-    user_input_date = datetime.combine(utc.date(), instance.scheduled_time)
+    # Step 2: Get aware datetime based on the user's timezone
+    user_timezone = pytz.timezone(str(request.user.timezone))
+    local_time_aware = utc_aware.astimezone(user_timezone)
 
-    # step 3: Get difference between user input time and local time
-    time_difference_input_and_local = user_input_date - local_time
+    # Step 3: Get aware datetime for the user's input time on the current date
+    user_input_datetime_aware = timezone.make_aware(
+        datetime.combine(utc_aware.date(), instance.scheduled_time),
+        user_timezone
+    )
 
-    # step 4: Total seconds remain after subtraction
-    total_seconds = time_difference_input_and_local.total_seconds()
+    # step 4: Calculate the time difference between user input time and local time
+    time_difference_input_and_local = user_input_datetime_aware - local_time_aware
 
-    # Calculate hours and minutes
-    hours = int(total_seconds // 3600)
-    minutes = int((total_seconds % 3600) // 60)
+    # step 5: Calculate the time that the server should save
+    server_time_must_be_aware = utc_aware + time_difference_input_and_local
 
-    # Step 5: Server time increase on time_difference_local_and_server
-    server_time_must_be = utc + timedelta(hours=hours, minutes=minutes)
-
-    return server_time_must_be.time()
+    return server_time_must_be_aware
