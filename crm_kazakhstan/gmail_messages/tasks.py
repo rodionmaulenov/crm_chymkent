@@ -1,10 +1,11 @@
 import imaplib
 import os
 
-from datetime import timedelta, datetime
+from datetime import timedelta
 from celery import shared_task
 
 from django.db import models
+from django.utils import timezone
 
 from gmail_messages.service_inbox import InboxMessages
 from mothers.models import Mother
@@ -19,7 +20,7 @@ email_pass = "wlcpfrqopczlvubc "
 email_server = "imap.gmail.com"
 email_chapter = 'inbox'
 
-date = datetime.today()
+date = timezone.now()
 search_criteria = (f'SINCE "{date.strftime("%d-%b-%Y")}" '
                    f'BEFORE "{(date + timedelta(days=1)).strftime("%d-%b-%Y")}"')
 
