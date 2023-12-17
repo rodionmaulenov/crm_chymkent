@@ -23,14 +23,14 @@ class MotherAdmin(admin.ModelAdmin):
     inlines = [ConditionInline, CommentInline]
     list_filter = ("date_create", AuthConditionListFilter)
     list_display = (
-        'id', 'name', 'your_date_created', 'number', 'residence', 'height_and_weight',
+        'id', 'name', 'mother_date_created', 'number', 'residence', 'height_and_weight',
         'bad_habits', 'caesarean', 'children_age', 'age', 'citizenship', 'blood', 'maried',
     )
 
     actions = ('delete_selected', 'make_revoke')
 
     list_display_links = ('name', 'residence',)
-    readonly_fields = ('your_date_created',)
+    readonly_fields = ('mother_date_created',)
     search_fields = ('number', 'program', 'residence__icontains',)
     view_on_site = False
     fieldsets = [
@@ -38,7 +38,7 @@ class MotherAdmin(admin.ModelAdmin):
             None,
             {
                 "fields": [(
-                    'name', 'number', 'program', 'residence', 'height_and_weight', 'your_date_created',
+                    'name', 'number', 'program', 'residence', 'height_and_weight', 'mother_date_created',
                     'bad_habits', 'caesarean', 'children_age', 'age', 'citizenship', 'blood', 'maried'
                 ), ],
 
@@ -110,7 +110,7 @@ class MotherAdmin(admin.ModelAdmin):
         )
 
     @admin.display(empty_value="no date", description='date created')
-    def your_date_created(self, obj):
+    def mother_date_created(self, obj):
         user_timezone = getattr(self.request, 'timezone', 'UTC')
 
         user_tz = pytz.timezone(user_timezone)

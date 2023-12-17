@@ -182,7 +182,7 @@ class ConditionListFilterTest(TestCase):
         self.client.logout()
 
     @freeze_time("2023-12-11 20:10:00")
-    def test_access_admin_interface_filtering_via_is_staff(self):
+    def test_access_admin_interface(self):
         can_view_mother_permission = Permission.objects.get(
             codename='view_mother')
         self.staff_user.user_permissions.add(can_view_mother_permission)
@@ -197,7 +197,7 @@ class ConditionListFilterTest(TestCase):
         self.client.logout()
 
     @freeze_time("2023-12-11 20:10:00")
-    def test_access_admin_interface_filtering_via_is_staff_and_main_permission(self):
+    def test_access_admin_interface_filtering_via_is_staff_view_and_main_permission(self):
         can_view_mother_permission = Permission.objects.get(
             codename='view_mother')
         can_view_condition_filter_permission = Permission.objects.get(
