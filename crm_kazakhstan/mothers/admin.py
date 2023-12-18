@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytz
 from dateutil import parser
 
@@ -10,7 +12,7 @@ from django.utils import formats, timezone
 from mothers.filters import AuthConditionListFilter
 from mothers.inlines import ConditionInline, CommentInline
 from mothers.models import Mother, Comment
-from mothers.services import get_difference_time
+from mothers.services import get_difference_time, aware_datetime_from_date
 
 Mother: models
 Comment: models
@@ -70,10 +72,12 @@ class MotherAdmin(admin.ModelAdmin):
         try:
             if search_term[:4].isdigit():
                 search_date = parser.parse(search_term).date()
+                aware_datetime = aware_datetime_from_date(search_date)
             else:
                 search_date = parser.parse(search_term, dayfirst=True).date()
+                aware_datetime = aware_datetime_from_date(search_date)
 
-            queryset |= self.model.objects.filter(date_create__gt=search_date)
+            queryset |= self.model.objects.filter(date_create__gte=aware_datetime)
         except parser.ParserError:
             pass
 

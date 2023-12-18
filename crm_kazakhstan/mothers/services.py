@@ -26,3 +26,9 @@ def get_difference_time(request, instance: Condition):
     server_time_must_be_aware = utc_aware + time_difference_input_and_local
 
     return server_time_must_be_aware
+
+
+def aware_datetime_from_date(search_date):
+    datetime_obj = datetime.combine(search_date, datetime.min.time())
+    aware_datetime = timezone.make_aware(datetime_obj, timezone=pytz.UTC)
+    return aware_datetime
