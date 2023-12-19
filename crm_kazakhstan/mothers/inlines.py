@@ -10,7 +10,6 @@ from mothers.models import Condition, Comment
 
 class CustomInlineFormset(BaseInlineFormSet):
     def __init__(self, *args, **kwargs):
-        self.initial_data = kwargs.get('initial', None)
         super().__init__(*args, **kwargs)
 
         conversion_date = timezone.localdate()

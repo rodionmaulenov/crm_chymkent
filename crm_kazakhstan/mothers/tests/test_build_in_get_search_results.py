@@ -14,7 +14,7 @@ User = get_user_model()
 Mother: models
 
 
-class YourModelAdminTest(TestCase):
+class GetSearchResultsTest(TestCase):
 
     def setUp(self):
         self.site = AdminSite()

@@ -11,7 +11,7 @@
 # Document: models
 #
 #
-# class MotherAdminTest(TestCase):
+# class CustomAdminFunctionTest(TestCase):
 #     def setUp(self):
 #         self.mother = Mother.objects.create(
 #             name='Test Mother',

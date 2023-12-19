@@ -14,7 +14,7 @@ User = get_user_model()
 Mother: models
 
 
-class MotherAdminTest(TestCase):
+class DisplayDecoratorTest(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.user_with_timezone = User.objects.create_user(username='user_with_tz', password='password',
@@ -25,7 +25,6 @@ class MotherAdminTest(TestCase):
             datetime.datetime(2023, 12, 16, 12, 0), timezone=timezone.utc
         )
 
-        # Now use this aware_datetime_utc when creating the Mother object
         self.mother_obj = Mother.objects.create(
             name='Test Mother',
             date_create=aware_datetime_utc,
