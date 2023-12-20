@@ -5,7 +5,7 @@ from django.forms import BaseInlineFormSet
 from datetime import datetime
 from django.utils import timezone
 
-from mothers.models import Condition, Comment
+from mothers.models import Condition, Comment, Planned
 
 
 class CustomInlineFormset(BaseInlineFormSet):
@@ -47,4 +47,10 @@ class ConditionInline(admin.TabularInline):
 class CommentInline(admin.TabularInline):
     model = Comment
     fields = ('description',)
+    extra = 0
+
+
+class PlannedInline(admin.TabularInline):
+    model = Planned
+    fields = ('plan', 'note')
     extra = 0

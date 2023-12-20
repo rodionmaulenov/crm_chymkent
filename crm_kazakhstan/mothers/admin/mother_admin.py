@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import pytz
 from dateutil import parser
 
@@ -10,26 +8,28 @@ from django.contrib import messages
 from django.utils import formats, timezone
 
 from mothers.filters import AuthConditionListFilter
-from mothers.inlines import ConditionInline, CommentInline
-from mothers.models import Mother, Comment
+from mothers.inlines import ConditionInline, CommentInline, PlannedInline
+from mothers.models import Mother, Comment, Condition, Stage
 from mothers.services import get_difference_time, aware_datetime_from_date
 
 Mother: models
 Comment: models
+Planned: models
+Stage: models
 
 
 @admin.register(Mother)
 class MotherAdmin(admin.ModelAdmin):
     empty_value_display = "-empty-"
     ordering = ('-date_create',)
-    inlines = [ConditionInline, CommentInline]
+    inlines = [PlannedInline, ConditionInline, CommentInline, ]
     list_filter = ("date_create", AuthConditionListFilter)
     list_display = (
         'id', 'name', 'mother_date_created', 'number', 'residence', 'height_and_weight',
         'bad_habits', 'caesarean', 'children_age', 'age', 'citizenship', 'blood', 'maried',
     )
 
-    actions = ('delete_selected', 'make_revoke')
+    actions = ('delete_selected', 'make_revoke', 'change_stage')
 
     list_display_links = ('name', 'residence',)
     readonly_fields = ('mother_date_created',)
@@ -61,9 +61,10 @@ class MotherAdmin(admin.ModelAdmin):
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
         for instance in instances:
-            utc_aware_time = get_difference_time(request, instance)
-            instance.scheduled_time = utc_aware_time
-            instance.save()
+            if isinstance(instances, Condition):
+                utc_aware_time = get_difference_time(request, instance)
+                instance.scheduled_time = utc_aware_time
+                instance.save()
         formset.save_m2m()
         super().save_formset(request, form, formset, change)
 
@@ -85,9 +86,12 @@ class MotherAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         self.request = request
-        qs = super().get_queryset(request)
-        qs = qs.exclude(comment__revoked=True)
-        return qs
+        queryset = super().get_queryset(request)
+        queryset = queryset.select_related(
+            'comment', 'condition', 'messanger'
+        ).exclude(comment__revoked=True)
+
+        return queryset
 
     def get_actions(self, request):
         actions = super().get_actions(request)
@@ -113,6 +117,24 @@ class MotherAdmin(admin.ModelAdmin):
             messages.SUCCESS,
         )
 
+    @admin.action(description="First visit")
+    def change_stage(self, request, queryset):
+        for mother in queryset:
+            try:
+                if mother.planned.plan and mother.planned.plan in mother.planned.PlannedChoices.values:
+                    obj, _ = Stage.objects.get_or_create(mother=mother, stage=Stage.StageChoices.PRIMARY)
+                    self.message_user(
+                        request,
+                        f"{mother} passed into first visit page.",
+                        messages.SUCCESS,
+                    )
+            except Mother.planned.RelatedObjectDoesNotExist:
+                self.message_user(
+                    request,
+                    f"{mother} has not planned event.",
+                    messages.WARNING,
+                )
+
     @admin.display(empty_value="no date", description='date created')
     def mother_date_created(self, obj):
         user_timezone = getattr(self.request, 'timezone', 'UTC')
@@ -124,32 +146,31 @@ class MotherAdmin(admin.ModelAdmin):
 
     admin.site.disable_action('delete_selected')
 
-    # @admin.display(empty_value="unknown", description='Documents')
-    # def formatted_document_list(self, mother: Mother) -> str:
-    #     """
-    #     From instance verifies if all related documents exist return check mark
-    #     otherwise return list documents that are not exist
-    #
-    #     :param mother: Mother model.Models
-    #     :return: html string
-    #     """
-    #     actual_document_names = {
-    #         'метрика ребенка', 'метрика мамы', 'нет судимости', 'нарколог', 'психиатр',
-    #         'не в браке', 'загранпаспорт'
-    #     }
-    #     document_names = Mother.objects.filter(pk=mother.pk).values_list('document__name', flat=True)
-    #
-    #     if len(document_names) == 7:
-    #         custom_icon_html = '<img src="/static/admin/img/icon-yes.svg" alt="True" style="width: 20px; height: 20px;" />'
-    #         return format_html(custom_icon_html)
-    #     else:
-    #         html_string = '<div><select>'
-    #
-    #         for document_name in actual_document_names:
-    #             if not (document_name in document_names):
-    #                 html_string += f'<option>{document_name}</option>'
-    #
-    #         html_string += '</select></div>'
-    #
-    #         return format_html(html_string)
-
+        # @admin.display(empty_value="unknown", description='Documents')
+        # def formatted_document_list(self, mother: Mother) -> str:
+        #     """
+        #     From instance verifies if all related documents exist return check mark
+        #     otherwise return list documents that are not exist
+        #
+        #     :param mother: Mother model.Models
+        #     :return: html string
+        #     """
+        #     actual_document_names = {
+        #         'метрика ребенка', 'метрика мамы', 'нет судимости', 'нарколог', 'психиатр',
+        #         'не в браке', 'загранпаспорт'
+        #     }
+        #     document_names = Mother.objects.filter(pk=mother.pk).values_list('document__name', flat=True)
+        #
+        #     if len(document_names) == 7:
+        #         custom_icon_html = '<img src="/static/admin/img/icon-yes.svg" alt="True" style="width: 20px; height: 20px;" />'
+        #         return format_html(custom_icon_html)
+        #     else:
+        #         html_string = '<div><select>'
+        #
+        #         for document_name in actual_document_names:
+        #             if not (document_name in document_names):
+        #                 html_string += f'<option>{document_name}</option>'
+        #
+        #         html_string += '</select></div>'
+        #
+        #         return format_html(html_string)

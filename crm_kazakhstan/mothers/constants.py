@@ -31,3 +31,5 @@ MESSANGER_CHOICES = [
     (WHATSAPP, 'WhatsApp'),
     (VIBER, 'Viber')
 ]
+
+
