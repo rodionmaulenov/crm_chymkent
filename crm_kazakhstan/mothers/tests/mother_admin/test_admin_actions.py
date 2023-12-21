@@ -1,18 +1,21 @@
+from django.contrib.messages import get_messages
 from django.test import TestCase, RequestFactory
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
-from django.db import models
 from django.contrib.auth.models import Permission
 from django.http import HttpRequest
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.urls import reverse
+from django.db import models
 
 from mothers.admin import MotherAdmin
-from mothers.models import Mother, Comment
+from mothers.models import Mother, Comment, Planned, Stage
 
 Mother: models
 Comment: models
+Stage: models
+Planned: models
 User = get_user_model()
 
 
@@ -109,4 +112,70 @@ class MotherAdminActionTest(TestCase):
         self.assertContains(response, 'make_revoke')
 
         self.client.logout()
+
+
+class ChangeStageTest(TestCase):
+
+    def setUp(self):
+        self.super_user = User.objects.create_user(username='user', password='user', is_superuser=True)
+        self.staff_user = User.objects.create_user(username='superuser', password='passworduser', is_staff=True)
+
+        can_view_mother_permission = Permission.objects.get(codename='view_mother')
+        self.main_on_primary_stage = Permission.objects.get(codename='to_manager_on_primary_stage')
+
+        self.staff_user.user_permissions.add(can_view_mother_permission)
+
+        admin_site = AdminSite()
+        self.mother_admin = MotherAdmin(Mother, admin_site)
+
+        self.factory = RequestFactory()
+
+    def test_mothers_move_on_first_visit_stage(self):
+        request = self.factory
+        setattr(request, 'session', 'session')
+        setattr(request, '_messages', FallbackStorage(request))
+
+        mother1 = Mother.objects.create(name='Mother 1', number='123', program='Test Program 1')
+        mother2 = Mother.objects.create(name='Mother 2', number='456', program='Test Program 2')
+
+        Planned.objects.create(mother=mother1, plan=Planned.PlannedChoices.TAKE_TESTS)
+        Planned.objects.create(mother=mother2, plan=Planned.PlannedChoices.TAKE_TESTS)
+
+        queryset = self.mother_admin.get_queryset(request)
+        self.assertEqual(2, len(queryset))
+
+        self.mother_admin.change_stage(request, queryset)
+
+        queryset = self.mother_admin.get_queryset(request)
+        self.assertEqual(0, len(queryset))
+
+        self.assertTrue(mother1.stage.stage == Stage.StageChoices.PRIMARY)
+        self.assertTrue(mother2.stage.stage == Stage.StageChoices.PRIMARY)
+
+    def test_raise_integrityerror(self):
+        request = self.factory
+        setattr(request, 'session', 'session')
+        setattr(request, '_messages', FallbackStorage(request))
+
+        mother1 = Mother.objects.create(name='Mother 1', number='123', program='Test Program 1')
+        mother2 = Mother.objects.create(name='Mother 2', number='456', program='Test Program 2')
+        mother3 = Mother.objects.create(name='Mother 3', number='4567', program='Test Program 3')
+
+        Planned.objects.create(mother=mother1, plan=Planned.PlannedChoices.TAKE_TESTS)
+        Planned.objects.create(mother=mother2, plan=Planned.PlannedChoices.TAKE_TESTS)
+        Planned.objects.create(mother=mother3, plan=Planned.PlannedChoices.TAKE_TESTS)
+        Stage.objects.create(mother=mother3, stage=Stage.StageChoices.PRIMARY)
+
+        Mother.objects.all()
+
+        queryset = self.mother_admin.get_queryset(request)
+        self.assertEqual(2, len(queryset))
+
+        self.mother_admin.change_stage(request, queryset)
+
+        mother1.refresh_from_db()
+
+        print(mother1.stage)
+
+
 

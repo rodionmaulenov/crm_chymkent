@@ -19,10 +19,10 @@ class Mother(models.Model):
 
     class Meta:
         permissions = [
-            ('main_manager_condition_filter_option', 'Can filter mothers by inline on their questionnaire'),
+            ('to_manager_on_primary_stage', 'Can do all with mother instance without specific actions'),
+            ('first_visit', 'transfer mothers to the first visit'),
             ('revoke_mothers', 'Can revoke mothers instance'),
             ('return_mothers', 'Can return mothers instance'),
-            ('can_view_first_visit_mothers', 'Can view mothers on first visit stage')
         ]
 
     def __str__(self):

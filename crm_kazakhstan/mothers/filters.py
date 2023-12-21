@@ -73,8 +73,7 @@ class AuthConditionListFilter(ConditionListFilter):
             return super().queryset(request, queryset)
 
     def can_view(self, request):
-        return (request.user.is_staff and request.user.has_perm('mothers.main_manager_condition_filter_option')) \
-            and (request.user.is_staff and request.user.has_perm('mothers.view_mother'))
+        return request.user.is_staff and request.user.has_perm('mothers.to_manager_on_primary_stage')
 
 
 

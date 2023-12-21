@@ -1,20 +1,21 @@
 import pytz
 from dateutil import parser
 
+from django.utils.html import format_html
+from django.db.models import Q
 from django.contrib import admin
-from django.db import models
+from django.db import models, IntegrityError, transaction
 from django.utils.translation import ngettext
 from django.contrib import messages
 from django.utils import formats, timezone
 
 from mothers.filters import AuthConditionListFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
-from mothers.models import Mother, Comment, Condition, Stage
+from mothers.models import Mother, Comment, Condition, Stage, Planned
 from mothers.services import get_difference_time, aware_datetime_from_date
 
 Mother: models
 Comment: models
-Planned: models
 Stage: models
 
 
@@ -61,7 +62,7 @@ class MotherAdmin(admin.ModelAdmin):
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
         for instance in instances:
-            if isinstance(instances, Condition):
+            if isinstance(instance, Condition):
                 utc_aware_time = get_difference_time(request, instance)
                 instance.scheduled_time = utc_aware_time
                 instance.save()
@@ -88,9 +89,8 @@ class MotherAdmin(admin.ModelAdmin):
         self.request = request
         queryset = super().get_queryset(request)
         queryset = queryset.select_related(
-            'comment', 'condition', 'messanger'
-        ).exclude(comment__revoked=True)
-
+            'comment', 'condition', 'messanger', 'stage'
+        ).exclude(Q(comment__revoked=True) | Q(stage__isnull=False))
         return queryset
 
     def get_actions(self, request):
@@ -101,6 +101,10 @@ class MotherAdmin(admin.ModelAdmin):
 
     @admin.action(description="Revoke mothers")
     def make_revoke(self, request, queryset):
+        """
+        Mother that already have Comment update this instance else
+        create new related Comment instance
+        """
         mother = queryset.count()
         Comment.objects.filter(mother__in=queryset).update(revoked=True)
 
@@ -119,21 +123,33 @@ class MotherAdmin(admin.ModelAdmin):
 
     @admin.action(description="First visit")
     def change_stage(self, request, queryset):
-        for mother in queryset:
+        """
+        Now instance have Stage__stage from None become Primary
+        If instance already have Stage__stage raise error IntegrityError
+        """
+        with transaction.atomic():
+            mother_have_plan = queryset.filter(planned__plan__isnull=False,
+                                               planned__plan=Planned.PlannedChoices.TAKE_TESTS)
+            mother_without_plan = queryset.filter(planned__plan__isnull=True)
+
+            new_stages = [Stage(mother=mother, stage=Stage.StageChoices.PRIMARY) for mother in mother_have_plan]
             try:
-                if mother.planned.plan and mother.planned.plan in mother.planned.PlannedChoices.values:
-                    obj, _ = Stage.objects.get_or_create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-                    self.message_user(
-                        request,
-                        f"{mother} passed into first visit page.",
-                        messages.SUCCESS,
-                    )
-            except Mother.planned.RelatedObjectDoesNotExist:
-                self.message_user(
-                    request,
-                    f"{mother} has not planned event.",
-                    messages.WARNING,
-                )
+                Stage.objects.bulk_create(new_stages)
+            except IntegrityError:
+                self.message_user(request, format_html('Something wrong. Try again'), messages.ERROR)
+                return
+
+        messages_to_user = [
+            (f"<strong>{mother}</strong> passed into the first visit page.", messages.SUCCESS)
+            for mother in mother_have_plan
+        ]
+
+        messages_to_user.extend(
+            (f"<strong>{mother}</strong> has not planned event.", messages.WARNING)
+            for mother in mother_without_plan
+        )
+        for message, level in messages_to_user:
+            self.message_user(request, format_html(message), level)
 
     @admin.display(empty_value="no date", description='date created')
     def mother_date_created(self, obj):
@@ -146,31 +162,72 @@ class MotherAdmin(admin.ModelAdmin):
 
     admin.site.disable_action('delete_selected')
 
-        # @admin.display(empty_value="unknown", description='Documents')
-        # def formatted_document_list(self, mother: Mother) -> str:
-        #     """
-        #     From instance verifies if all related documents exist return check mark
-        #     otherwise return list documents that are not exist
-        #
-        #     :param mother: Mother model.Models
-        #     :return: html string
-        #     """
-        #     actual_document_names = {
-        #         'метрика ребенка', 'метрика мамы', 'нет судимости', 'нарколог', 'психиатр',
-        #         'не в браке', 'загранпаспорт'
-        #     }
-        #     document_names = Mother.objects.filter(pk=mother.pk).values_list('document__name', flat=True)
-        #
-        #     if len(document_names) == 7:
-        #         custom_icon_html = '<img src="/static/admin/img/icon-yes.svg" alt="True" style="width: 20px; height: 20px;" />'
-        #         return format_html(custom_icon_html)
-        #     else:
-        #         html_string = '<div><select>'
-        #
-        #         for document_name in actual_document_names:
-        #             if not (document_name in document_names):
-        #                 html_string += f'<option>{document_name}</option>'
-        #
-        #         html_string += '</select></div>'
-        #
-        #         return format_html(html_string)
+    # @admin.display(empty_value="unknown", description='Documents')
+    # def formatted_document_list(self, mother: Mother) -> str:
+    #     """
+    #     From instance verifies if all related documents exist return check mark
+    #     otherwise return list documents that are not exist
+    #
+    #     :param mother: Mother model.Models
+    #     :return: html string
+    #     """
+    #     actual_document_names = {
+    #         'метрика ребенка', 'метрика мамы', 'нет судимости', 'нарколог', 'психиатр',
+    #         'не в браке', 'загранпаспорт'
+    #     }
+    #     document_names = Mother.objects.filter(pk=mother.pk).values_list('document__name', flat=True)
+    #
+    #     if len(document_names) == 7:
+    #         custom_icon_html = '<img src="/static/admin/img/icon-yes.svg" alt="True" style="width: 20px; height: 20px;" />'
+    #         return format_html(custom_icon_html)
+    #     else:
+    #         html_string = '<div><select>'
+    #
+    #         for document_name in actual_document_names:
+    #             if not (document_name in document_names):
+    #                 html_string += f'<option>{document_name}</option>'
+    #
+    #         html_string += '</select></div>'
+    #
+    #         return format_html(html_string)
+
+    # @admin.action(description="First visit")
+    # def change_stage(self, request, queryset):
+    #     for mother in queryset:
+    #         try:
+    #             if mother.planned.plan and mother.planned.plan in mother.planned.PlannedChoices.values:
+    #                 obj, _ = Stage.objects.get_or_create(mother=mother, stage=Stage.StageChoices.PRIMARY)
+    #                 self.message_user(
+    #                     request,
+    #                     format_html(f"<strong>{mother}</strong>  passed into first visit page."),
+    #                     messages.SUCCESS,
+    #                 )
+    #         except Mother.planned.RelatedObjectDoesNotExist:
+    #             self.message_user(
+    #                 request,
+    #                 format_html(f"<strong>{mother}</strong> has not planned event."),
+    #                 messages.WARNING,
+    #             )
+
+    # @admin.action(description="First visit")
+    # def change_stage(self, request, queryset):
+    #     # Prefetch related planned objects to reduce database queries
+    #     queryset = queryset.select_related('planned')
+    #
+    #     # Bulk updates can be used if applicable in your logic
+    #     # stages_to_create = []
+    #     messages_to_user = []
+    #
+    #     with transaction.atomic():  # Ensures database integrity
+    #         for mother in queryset:
+    #             if mother.planned.plan and mother.planned.plan in mother.planned.PlannedChoices.values:
+    #                 Stage.objects.get_or_create(mother=mother, stage=Stage.StageChoices.PRIMARY)
+    #                 messages_to_user.append(
+    #                     (f"<strong>{mother}</strong> passed into first visit page.", messages.SUCCESS))
+    #             else:
+    #                 messages_to_user.append((f"<strong>{mother}</strong> has not planned event.", messages.WARNING))
+    #
+    #     # Send messages outside the loop
+    #     for message, level in messages_to_user:
+    #         self.message_user(request, format_html(message), level)
+

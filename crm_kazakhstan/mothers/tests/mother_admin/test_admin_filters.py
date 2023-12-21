@@ -205,7 +205,7 @@ class ConditionListFilterTest(TestCase):
         can_view_mother_permission = Permission.objects.get(
             codename='view_mother')
         can_view_condition_filter_permission = Permission.objects.get(
-            codename='main_manager_condition_filter_option')
+            codename='to_manager_on_primary_stage')
         self.staff_user.user_permissions.add(can_view_mother_permission, can_view_condition_filter_permission)
 
         self.client.force_login(self.staff_user)

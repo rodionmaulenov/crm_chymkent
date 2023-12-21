@@ -33,12 +33,10 @@ class SaveFormsetTest(TestCase):
     def test_save_formset_saves_utc_aware_time(self):
         # Server's UTC time
         utc_time = timezone.now()
-        # print("Server UTC time:", utc_time)
 
         # Convert to user's local time + 2 hours equal "2023-12-20 12:15:00"
         user_timezone = pytz.timezone(self.user.timezone)
         local_time = utc_time.astimezone(user_timezone)
-        # print("User's local time:", local_time)
 
         request = self.factory.post('/')
         request.user = self.user

@@ -32,3 +32,4 @@ def aware_datetime_from_date(search_date):
     datetime_obj = datetime.combine(search_date, datetime.min.time())
     aware_datetime = timezone.make_aware(datetime_obj, timezone=pytz.UTC)
     return aware_datetime
+
