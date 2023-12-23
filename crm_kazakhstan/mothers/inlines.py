@@ -4,8 +4,25 @@ from django.contrib import admin
 from django.forms import BaseInlineFormSet
 from datetime import datetime
 from django.utils import timezone
+from django import forms
 
 from mothers.models import Condition, Comment, Planned
+
+
+class ConditionInlineForm(forms.ModelForm):
+    class Meta:
+        model = Condition
+        fields = '__all__'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        scheduled_time = cleaned_data.get("scheduled_time")
+        scheduled_date = cleaned_data.get("scheduled_date")
+
+        if scheduled_time and not scheduled_date:
+            self.add_error('scheduled_date', "Date must be provided if time is set.")
+
+        return cleaned_data
 
 
 class CustomInlineFormset(BaseInlineFormSet):
@@ -37,6 +54,7 @@ class ConditionInline(admin.TabularInline):
     model = Condition
     extra = 0
     formset = CustomInlineFormset
+    form = ConditionInlineForm
 
     def get_formset(self, request, obj=None, **kwargs):
         FormsetClass = super().get_formset(request, obj, **kwargs)
@@ -52,10 +70,12 @@ class CommentInline(admin.TabularInline):
 
 class PlannedInline(admin.TabularInline):
     model = Planned
-    fields = ('plan', 'note')
+    fields = ('plan', 'note', 'scheduled_date')
     extra = 0
 
     def formfield_for_choice_field(self, db_field, request, **kwargs):
         if db_field.name == "plan" and request.user.has_perm('mothers.to_manager_on_primary_stage'):
             kwargs["choices"] = [(Planned.PlannedChoices.TAKE_TESTS.value, Planned.PlannedChoices.TAKE_TESTS.label)]
+        else:
+            kwargs["choices"] = []
         return super().formfield_for_choice_field(db_field, request, **kwargs)

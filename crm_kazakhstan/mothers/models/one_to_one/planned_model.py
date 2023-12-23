@@ -11,6 +11,7 @@ class Planned(models.Model):
     mother = models.OneToOneField("Mother", on_delete=models.CASCADE)
     plan = models.CharField(max_length=15, choices=PlannedChoices.choices)
     note = models.CharField(max_length=255, blank=True, null=True)
+    scheduled_date = models.DateField(blank=True, null=True)
 
     def __str__(self):
         return 'Stage in program'

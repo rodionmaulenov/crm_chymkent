@@ -16,7 +16,7 @@ Mother:models
 Condition:models
 
 
-class ConditionInlineTest(TestCase):
+class ConditionInlineFormSetTest(TestCase):
     def setUp(self):
         self.site = AdminSite()
         self.admin = MotherAdmin(Mother, self.site)
@@ -52,3 +52,33 @@ class ConditionInlineTest(TestCase):
         expected_local_time = self.utc_time.astimezone(user_timezone).time()
         self.assertEqual(initial_time, expected_local_time,
                          "The initial time in the form does not match the expected local time.")
+
+
+class ConditionInlineFormTest(TestCase):
+    def setUp(self):
+        self.site = AdminSite()
+        self.factory = RequestFactory()
+        self.user = User.objects.create_superuser('admin', 'admin@example.com', 'password')
+        self.mother = Mother.objects.create(name='Test Mother', number='123', program='Test Program')
+
+    def test_condition_inline_form_clean(self):
+        request = self.factory.post('/', {
+            'condition-TOTAL_FORMS': '1',
+            'condition-INITIAL_FORMS': '0',
+            'condition-MIN_NUM_FORMS': '0',
+            'condition-MAX_NUM_FORMS': '1000',
+            'condition-0-mother': self.mother.pk,
+            'condition-0-condition': 'we talk',
+            'condition-0-scheduled_time': '10:00',
+            'condition-0-scheduled_date': '',  # Deliberately left blank to test validation
+        })
+        request.user = self.user
+
+        # Create the formset instance
+        inline = ConditionInline(Mother, self.site)
+        Formset = inline.get_formset(request, self.mother)
+        Formset = Formset(request.POST, instance=self.mother)
+
+        # Assert the formset is not valid due to the custom validation
+        self.assertFalse(Formset.is_valid())
+        self.assertIn('Date must be provided if time is set.', Formset.errors[0]['scheduled_date'])

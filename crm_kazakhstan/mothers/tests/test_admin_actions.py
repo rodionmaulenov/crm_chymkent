@@ -1,4 +1,3 @@
-from django.contrib.messages import get_messages
 from django.test import TestCase, RequestFactory
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.admin.sites import AdminSite
@@ -121,7 +120,7 @@ class ChangeStageTest(TestCase):
         self.staff_user = User.objects.create_user(username='superuser', password='passworduser', is_staff=True)
 
         can_view_mother_permission = Permission.objects.get(codename='view_mother')
-        self.main_on_primary_stage = Permission.objects.get(codename='to_manager_on_primary_stage')
+        self.transfer_on_first_visit = Permission.objects.get(codename='action_first_visit')
 
         self.staff_user.user_permissions.add(can_view_mother_permission)
 
@@ -163,19 +162,40 @@ class ChangeStageTest(TestCase):
 
         Planned.objects.create(mother=mother1, plan=Planned.PlannedChoices.TAKE_TESTS)
         Planned.objects.create(mother=mother2, plan=Planned.PlannedChoices.TAKE_TESTS)
-        Planned.objects.create(mother=mother3, plan=Planned.PlannedChoices.TAKE_TESTS)
-        Stage.objects.create(mother=mother3, stage=Stage.StageChoices.PRIMARY)
-
-        Mother.objects.all()
 
         queryset = self.mother_admin.get_queryset(request)
-        self.assertEqual(2, len(queryset))
+        self.assertEqual(3, len(queryset))
 
         self.mother_admin.change_stage(request, queryset)
 
-        mother1.refresh_from_db()
+        queryset = self.mother_admin.get_queryset(request)
+        self.assertEqual(1, len(queryset))
 
-        print(mother1.stage)
+        self.assertTrue(mother1.stage.stage == Stage.StageChoices.PRIMARY)
+        self.assertTrue(mother2.stage.stage == Stage.StageChoices.PRIMARY)
 
+        with self.assertRaises(Mother.stage.RelatedObjectDoesNotExist):
+            x = mother3.stage.stage
 
+    def test_actions_with_permission(self):
+        self.staff_user.user_permissions.add(self.transfer_on_first_visit)
+        request = HttpRequest()
+        request.user = self.staff_user
 
+        actions = self.mother_admin.get_actions(request)
+        self.assertIn('change_stage', actions)
+
+    def test_actions_without_permission(self):
+        self.staff_user.user_permissions.remove(self.transfer_on_first_visit)
+        request = HttpRequest()
+        request.user = self.staff_user
+
+        actions = self.mother_admin.get_actions(request)
+        self.assertNotIn('change_stage', actions)
+
+    def test_actions_superuser_permission_success(self):
+        request = HttpRequest()
+        request.user = self.super_user
+
+        actions = self.mother_admin.get_actions(request)
+        self.assertIn('change_stage', actions)

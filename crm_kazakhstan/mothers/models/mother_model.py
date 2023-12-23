@@ -20,9 +20,10 @@ class Mother(models.Model):
     class Meta:
         permissions = [
             ('to_manager_on_primary_stage', 'Can do all with mother instance without specific actions'),
-            ('first_visit', 'transfer mothers to the first visit'),
+            ('action_first_visit', 'transfer mothers to the first visit'),
             ('revoke_mothers', 'Can revoke mothers instance'),
             ('return_mothers', 'Can return mothers instance'),
+            ('to_manager_on_first_stage', 'Can do all with mother instance without specific actions'),
         ]
 
     def __str__(self):

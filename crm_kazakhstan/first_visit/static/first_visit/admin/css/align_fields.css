@@ -1,0 +1,22 @@
+/* Override field widths to ensure alignment */
+.fieldBox, .field-box {
+    display: inline-block;
+    width: calc(33.333% - 20px); /* Adjust width to fit three fields in a row, minus some padding */
+    margin-right: 10px; /* Right margin for spacing between fields */
+    vertical-align: top; /* Align fields at the top of the row */
+    box-sizing: border-box; /* Include padding in the element's total width */
+}
+
+/* Clear the float for each row */
+.form-row {
+    display: flex;
+    justify-content: space-between; /* Distribute space between fields evenly */
+    align-items: flex-start; /* Align fields at the top */
+    flex-wrap: wrap; /* Wrap fields onto the next line if needed */
+    margin-right: -10px; /* Negative margin to counteract field spacing on the right */
+}
+
+/* Last field in the row should not have a right margin */
+.form-row .field-box:last-child, .form-row .fieldBox:last-child {
+    margin-right: 0;
+}

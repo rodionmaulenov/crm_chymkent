@@ -45,6 +45,7 @@ INSTALLED_APPS = [
 
     # MY APPS
     'mothers',
+    'first_visit',
     'revoke_mothers',
     'gmail_messages',
     # many-to-one relationships with mother

@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.db import models
 
 from mothers.models import Mother, Comment, Stage
-from mothers.admin import PrimaryVisitAdmin
+from first_visit.admin import PrimaryVisitAdmin
 
 User = get_user_model()
 Comment: models

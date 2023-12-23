@@ -36,7 +36,7 @@ class SaveFormsetTest(TestCase):
 
         # Convert to user's local time + 2 hours equal "2023-12-20 12:15:00"
         user_timezone = pytz.timezone(self.user.timezone)
-        local_time = utc_time.astimezone(user_timezone)
+        utc_time.astimezone(user_timezone)
 
         request = self.factory.post('/')
         request.user = self.user
@@ -65,3 +65,40 @@ class SaveFormsetTest(TestCase):
             if condition:
                 self.assertIsNotNone(condition.scheduled_time)
                 self.assertEqual(condition.scheduled_time, datetime.time(10, 45))
+
+    @freeze_time("2023-12-20 10:15:00")
+    def test_save_formset_saves_utc_aware_time_when_scheduled_time_is_None(self):
+        # Server's UTC time
+        utc_time = timezone.now()
+
+        # Convert to user's local time + 2 hours equal "2023-12-20 12:15:00"
+        user_timezone = pytz.timezone(self.user.timezone)
+        utc_time.astimezone(user_timezone)
+
+        request = self.factory.post('/')
+        request.user = self.user
+
+        # Simulate form data submission using user's local time
+        form_data = {
+            'condition-TOTAL_FORMS': '1',
+            'condition-INITIAL_FORMS': '0',
+            'condition-MIN_NUM_FORMS': '0',
+            'condition-MAX_NUM_FORMS': '1000',
+            'condition-0-mother': str(self.mother_instance.pk),
+            'condition-0-condition': 'WWW',
+            'condition-0-scheduled_date': '2023-12-20',
+            'condition-0-scheduled_time': None,
+        }
+
+        # Create formset instance with the form data
+        formset = self.ConditionFormSet(form_data, instance=self.mother_instance)
+        # Check if the formset is valid
+        if formset.is_valid():
+            # Call the save_formset method
+            self.admin.save_formset(request, None, formset, None)
+
+            # Retrieve the saved condition instance and verify the time
+            condition = Condition.objects.first()
+            if condition:
+                self.assertIsNone(condition.scheduled_time)
+                self.assertTrue(condition.scheduled_date)
