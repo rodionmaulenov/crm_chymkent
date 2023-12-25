@@ -3,7 +3,7 @@ from django.db import models
 
 class Stage(models.Model):
     class StageChoices(models.TextChoices):
-        PRIMARY = 'Primary', 'get tested'
+        PRIMARY = 'Primary', 'undergoing medical tests'
         PARTICIPATION_IN_PROGRAM = 'Dipherelin', 'dipherelin'
         __empty__ = "(Unknown)"
 

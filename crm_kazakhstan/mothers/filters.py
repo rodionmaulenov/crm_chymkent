@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.utils import timezone
 
+from mothers.models import Planned
+
 
 class ConditionListFilter(admin.SimpleListFilter):
     title = 'scheduler'
@@ -19,14 +21,14 @@ class ConditionListFilter(admin.SimpleListFilter):
                 condition__scheduled_date__lte=timezone.now().date(),
                 condition__scheduled_time__isnull=True,
         ).exists():
-            yield "by_date", "Entries by Date"
+            yield "by_date", "entries by Date"
 
         if qs.filter(
                 condition__condition__isnull=False,
                 condition__scheduled_date__lte=timezone.now().date(),
                 condition__scheduled_time__lte=timezone.now().time()
         ).exists():
-            yield "by_date_and_time", "Entries by Time"
+            yield "by_date_and_time", "entries by Time"
 
     def queryset(self, request, queryset):
         """
@@ -76,5 +78,61 @@ class AuthConditionListFilter(ConditionListFilter):
         return request.user.is_staff and request.user.has_perm('mothers.to_manager_on_primary_stage')
 
 
+class ReturnedFromFirstVisitListFilter(admin.SimpleListFilter):
+    title = 'first visit'
+    parameter_name = "returned"
+
+    def lookups(self, request, model_admin):
+        """
+        Returned from first visit stage
+        """
+
+        qs = model_admin.get_queryset(request)
+
+        if qs.filter(
+                planned__plan=Planned.PlannedChoices.TAKE_TESTS,
+                planned__note__isnull=False,
+                planned__scheduled_date__isnull=False,
+        ).exists():
+            yield "mothers", "returned from first visit"
+
+    def queryset(self, request, queryset):
+        """
+        Returns the filtered queryset based on the value
+        provided in the query string and retrievable via
+        `self.value()`.
+        """
+        if self.value() == "mothers":
+            return queryset.filter(
+                planned__plan=Planned.PlannedChoices.TAKE_TESTS,
+                planned__note__isnull=False,
+                planned__scheduled_date__isnull=False,
+            )
+
+    def choices(self, changelist):
+        yield {
+            "selected": self.value() is None,
+            "query_string": changelist.get_query_string(remove=[self.parameter_name]),
+        }
+        for lookup, title in self.lookup_choices:
+            yield {
+                "selected": self.value() == str(lookup),
+                "query_string": changelist.get_query_string(
+                    {self.parameter_name: lookup}
+                ),
+                "display": title,
+            }
 
 
+class AuthReturnedFromFirstVisitListFilter(ReturnedFromFirstVisitListFilter):
+
+    def lookups(self, request, model_admin):
+        if request.user.is_superuser or self.can_view(request):
+            return super().lookups(request, model_admin)
+
+    def queryset(self, request, queryset):
+        if request.user.is_superuser or self.can_view(request):
+            return super().queryset(request, queryset)
+
+    def can_view(self, request):
+        return request.user.is_staff and request.user.has_perm('mothers.to_manager_on_primary_stage')

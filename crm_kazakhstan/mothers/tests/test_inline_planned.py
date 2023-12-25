@@ -30,7 +30,10 @@ class PlannedInlineTest(TestCase):
         formfield = inline.formfield_for_choice_field(Planned._meta.get_field('plan'), request)
 
         self.assertEqual(formfield.choices,
-                         [(Planned.PlannedChoices.TAKE_TESTS.value, Planned.PlannedChoices.TAKE_TESTS.label)])
+                         [
+                             ('', Planned.PlannedChoices.__empty__),
+                             (Planned.PlannedChoices.TAKE_TESTS.value, Planned.PlannedChoices.TAKE_TESTS.label)
+                         ])
 
     def test_plan_field_choices_without_permission(self):
         request = self.factory.get('/')
@@ -39,4 +42,4 @@ class PlannedInlineTest(TestCase):
         inline = PlannedInline(Mother, self.site)
         formfield = inline.formfield_for_choice_field(Planned._meta.get_field('plan'), request)
 
-        self.assertEqual(formfield.choices, [])
+        self.assertEqual(formfield.choices, [('', '(Unknown)')])

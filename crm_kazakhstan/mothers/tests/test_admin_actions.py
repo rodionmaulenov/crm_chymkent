@@ -32,7 +32,7 @@ def add_messages_to_request(request: HttpRequest) -> HttpRequest:
     return request
 
 
-class MotherAdminActionTest(TestCase):
+class MakeRevokeTest(TestCase):
     def setUp(self):
         self.staff_user = User.objects.create_user(username='user', password='user', is_staff=True)
 
@@ -143,7 +143,7 @@ class ChangeStageTest(TestCase):
         queryset = self.mother_admin.get_queryset(request)
         self.assertEqual(2, len(queryset))
 
-        self.mother_admin.change_stage(request, queryset)
+        self.mother_admin.first_visit_stage(request, queryset)
 
         queryset = self.mother_admin.get_queryset(request)
         self.assertEqual(0, len(queryset))
@@ -166,7 +166,7 @@ class ChangeStageTest(TestCase):
         queryset = self.mother_admin.get_queryset(request)
         self.assertEqual(3, len(queryset))
 
-        self.mother_admin.change_stage(request, queryset)
+        self.mother_admin.first_visit_stage(request, queryset)
 
         queryset = self.mother_admin.get_queryset(request)
         self.assertEqual(1, len(queryset))
@@ -183,7 +183,7 @@ class ChangeStageTest(TestCase):
         request.user = self.staff_user
 
         actions = self.mother_admin.get_actions(request)
-        self.assertIn('change_stage', actions)
+        self.assertIn('first_visit_stage', actions)
 
     def test_actions_without_permission(self):
         self.staff_user.user_permissions.remove(self.transfer_on_first_visit)
@@ -191,11 +191,11 @@ class ChangeStageTest(TestCase):
         request.user = self.staff_user
 
         actions = self.mother_admin.get_actions(request)
-        self.assertNotIn('change_stage', actions)
+        self.assertNotIn('first_visit_stage', actions)
 
     def test_actions_superuser_permission_success(self):
         request = HttpRequest()
         request.user = self.super_user
 
         actions = self.mother_admin.get_actions(request)
-        self.assertIn('change_stage', actions)
+        self.assertIn('first_visit_stage', actions)

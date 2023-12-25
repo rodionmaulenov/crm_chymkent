@@ -158,10 +158,10 @@ class ConditionListFilterTest(TestCase):
         response = self.client.get('/admin/mothers/mother/', {'date_or_time': 'by_date_and_time'})
 
         self.assertEqual(response.status_code, 200, msg='User should have access to the admin interface')
-        self.assertContains(response, 'Entries by Time')
+        self.assertContains(response, 'entries by Time')
 
         response = self.client.get('/admin/mothers/mother/', {'date_or_time': 'by_date'})
-        self.assertContains(response, 'Entries by Date')
+        self.assertContains(response, 'entries by Date')
 
         self.client.logout()
 
@@ -211,9 +211,9 @@ class ConditionListFilterTest(TestCase):
         self.client.force_login(self.staff_user)
         response = self.client.get('/admin/mothers/mother/', {'date_or_time': 'by_date'})
         self.assertEqual(response.status_code, 200, msg='Staff User should have access to view the admin interface')
-        self.assertContains(response, 'Entries by Date')
+        self.assertContains(response, 'entries by Date')
         response = self.client.get('/admin/mothers/mother/', {'date_or_time': 'by_date_and_time'})
-        self.assertContains(response, 'Entries by Time')
+        self.assertContains(response, 'entries by Time')
 
         self.client.logout()
 

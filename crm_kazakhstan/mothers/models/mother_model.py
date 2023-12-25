@@ -24,6 +24,7 @@ class Mother(models.Model):
             ('revoke_mothers', 'Can revoke mothers instance'),
             ('return_mothers', 'Can return mothers instance'),
             ('to_manager_on_first_stage', 'Can do all with mother instance without specific actions'),
+            ('action_on_primary_stage', 'Return mother on primary stage'),
         ]
 
     def __str__(self):

@@ -3,13 +3,12 @@ from dateutil import parser
 
 from django.utils.html import format_html
 from django.db.models import Q
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.db import models
 from django.utils.translation import ngettext
-from django.contrib import messages
 from django.utils import formats, timezone
 
-from mothers.filters import AuthConditionListFilter
+from mothers.filters import AuthConditionListFilter, AuthReturnedFromFirstVisitListFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
 from mothers.models import Mother, Comment, Condition, Stage, Planned
 from mothers.services import get_difference_time, aware_datetime_from_date
@@ -23,14 +22,14 @@ Stage: models
 class MotherAdmin(admin.ModelAdmin):
     empty_value_display = "-empty-"
     ordering = ('-date_create',)
-    inlines = [PlannedInline, ConditionInline, CommentInline, ]
-    list_filter = ("date_create", AuthConditionListFilter)
+    inlines = (PlannedInline, ConditionInline, CommentInline,)
+    list_filter = ("date_create", AuthConditionListFilter, AuthReturnedFromFirstVisitListFilter)
     list_display = (
         'id', 'name', 'mother_date_created', 'number', 'residence', 'height_and_weight',
         'bad_habits', 'caesarean', 'children_age', 'age', 'citizenship', 'blood', 'maried',
     )
 
-    actions = ('delete_selected', 'make_revoke', 'change_stage')
+    actions = ('first_visit_stage', 'delete_selected', 'make_revoke')
 
     list_display_links = ('name', 'residence',)
     readonly_fields = ('mother_date_created',)
@@ -51,6 +50,20 @@ class MotherAdmin(admin.ModelAdmin):
     ]
 
     search_help_text = 'Search description'
+
+    # def get_list_display(self, request):
+    #     """
+    #     Dynamically return a different list_display based on the filter selection
+    #     """
+    #     # Call the parent method to get the default list_display
+    #     list_display = super().get_list_display(request)
+    #
+    #     # Check if your specific filter is being used
+    #     if 'returned' in request.GET and request.GET['returned'] == 'mothers':
+    #         # Return a custom list_display
+    #         return 'name', 'first_planned_visit', 'first_planned_visit_date'
+    #
+    #     return list_display
 
     def save_formset(self, request, form, formset, change):
         """
@@ -94,8 +107,8 @@ class MotherAdmin(admin.ModelAdmin):
         actions = super().get_actions(request)
         if 'make_revoke' in actions and not request.user.has_perm('mothers.revoke_mothers'):
             del actions['make_revoke']
-        if 'change_stage' in actions and not request.user.has_perm('mothers.action_first_visit'):
-            del actions['change_stage']
+        if 'first_visit_stage' in actions and not request.user.has_perm('mothers.action_first_visit'):
+            del actions['first_visit_stage']
         return actions
 
     @admin.action(description="Revoke mothers")
@@ -121,7 +134,7 @@ class MotherAdmin(admin.ModelAdmin):
         )
 
     @admin.action(description="First visit")
-    def change_stage(self, request, queryset):
+    def first_visit_stage(self, request, queryset):
         """
         Initially queryset mother instances not contain relation with Stage because get_queryset exclude their
         Stage__stage for mother becomes Primary if planned__plan=TAKE_TESTS already exists
@@ -140,7 +153,8 @@ class MotherAdmin(admin.ModelAdmin):
         for mother in mother_without_plan:
             self.message_user(
                 request,
-                format_html(f"<strong>{mother}</strong> has not planned event.", messages.WARNING)
+                format_html(f"<strong>{mother}</strong> has not planned event."),
+                messages.WARNING
             )
 
     @admin.display(empty_value="no date", description='date created')
@@ -153,9 +167,6 @@ class MotherAdmin(admin.ModelAdmin):
         return formatted_date
 
     admin.site.disable_action('delete_selected')
-
-
-
 
     # @admin.display(empty_value="unknown", description='Documents')
     # def formatted_document_list(self, mother: Mother) -> str:

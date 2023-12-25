@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils import timezone
 
 from mothers.models import Planned
 
@@ -12,12 +13,17 @@ class PlannedVisitListFilter(admin.SimpleListFilter):
         Show mothers instance on first visit with planned TAKE_TESTS and scheduled_date
         """
         qs = model_admin.get_queryset(request)
+        if qs.filter(
+                planned__plan=Planned.PlannedChoices.TAKE_TESTS,
+                planned__scheduled_date__gte=timezone.now().date()
+        ).exists():
+            yield "tests", "take tests"
 
         if qs.filter(
                 planned__plan=Planned.PlannedChoices.TAKE_TESTS,
-                planned__scheduled_date__isnull=False
+                planned__scheduled_date__lt=timezone.now().date()
         ).exists():
-            yield "tests", "Take tests"
+            yield "after_tests", "after tests day"
 
     def queryset(self, request, queryset):
         """
@@ -28,8 +34,14 @@ class PlannedVisitListFilter(admin.SimpleListFilter):
         if self.value() == "tests":
             return queryset.filter(
                 planned__plan=Planned.PlannedChoices.TAKE_TESTS,
-                planned__scheduled_date__isnull=False
-            ).order_by('-planned__scheduled_date')
+                planned__scheduled_date__gte=timezone.now().date()
+            )
+
+        if self.value() == "after_tests":
+            return queryset.filter(
+                planned__plan=Planned.PlannedChoices.TAKE_TESTS,
+                planned__scheduled_date__lt=timezone.now().date()
+            )
 
     def choices(self, changelist):
         yield {
