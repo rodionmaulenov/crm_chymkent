@@ -44,7 +44,7 @@ class PrimaryVisitAdmin(admin.ModelAdmin):
         qs = Mother.objects.all()
         qs = qs.select_related(
             'comment', 'condition', 'messanger', 'stage', 'planned'
-        ).filter(stage__stage=Stage.StageChoices.PRIMARY).exclude(comment__revoked=True)
+        ).filter(stage__stage=Stage.StageChoices.PRIMARY).exclude(comment__banned=True)
         return qs
 
     def get_list_display(self, request):

@@ -22,14 +22,14 @@ class GetQuerySetTest(TestCase):
 
         # Create Mothers and Comments
         self.mother_with_revoked_comment = Mother.objects.create(name='Mother 1')
-        Comment.objects.create(mother=self.mother_with_revoked_comment, revoked=True)
+        Comment.objects.create(mother=self.mother_with_revoked_comment, banned=True)
         Stage.objects.create(mother=self.mother_with_revoked_comment, stage=Stage.StageChoices.PRIMARY)
 
         self.mother_with_revoked_comment2 = Mother.objects.create(name='Mother 2')
-        Comment.objects.create(mother=self.mother_with_revoked_comment2, revoked=False)
+        Comment.objects.create(mother=self.mother_with_revoked_comment2, banned=False)
 
         self.mother_without_revoked_comment = Mother.objects.create(name='Mother 3')
-        Comment.objects.create(mother=self.mother_without_revoked_comment, revoked=False)
+        Comment.objects.create(mother=self.mother_without_revoked_comment, banned=False)
 
     def test_get_queryset_excludes_revoked_comments(self):
         request = self.factory.get('/')

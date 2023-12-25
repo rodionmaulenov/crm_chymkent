@@ -21,7 +21,7 @@ class Mother(models.Model):
         permissions = [
             ('to_manager_on_primary_stage', 'Can do all with mother instance without specific actions'),
             ('action_first_visit', 'transfer mothers to the first visit'),
-            ('revoke_mothers', 'Can revoke mothers instance'),
+            ('move_to_ban', 'Can banned mother instances'),
             ('return_mothers', 'Can return mothers instance'),
             ('to_manager_on_first_stage', 'Can do all with mother instance without specific actions'),
             ('action_on_primary_stage', 'Return mother on primary stage'),

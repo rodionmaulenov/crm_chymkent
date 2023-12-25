@@ -21,7 +21,7 @@ class RevokeMotherAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.filter(comment__revoked=True)
+        return qs.filter(comment__banned=True)
 
     def get_actions(self, request):
         actions = super().get_actions(request)
@@ -35,7 +35,7 @@ class RevokeMotherAdmin(admin.ModelAdmin):
     @admin.action(description="Return mothers")
     def mother_return(self, request, queryset):
         mother = queryset.count()
-        Comment.objects.filter(mother__in=queryset).update(revoked=False)
+        Comment.objects.filter(mother__in=queryset).update(banned=False)
         self.message_user(
             request,
             ngettext(

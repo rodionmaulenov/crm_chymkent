@@ -10,8 +10,8 @@ class ConditionListFilter(admin.SimpleListFilter):
 
     def lookups(self, request, model_admin):
         """
-        Only show search results that actually match
-        the scheduled dates and times.
+        Show search results that actually match
+        the scheduled date or datetime.
         """
 
         qs = model_admin.get_queryset(request)
@@ -20,13 +20,15 @@ class ConditionListFilter(admin.SimpleListFilter):
                 condition__condition__isnull=False,
                 condition__scheduled_date__lte=timezone.now().date(),
                 condition__scheduled_time__isnull=True,
+                condition__finished=False,
         ).exists():
             yield "by_date", "entries by Date"
 
         if qs.filter(
                 condition__condition__isnull=False,
                 condition__scheduled_date__lte=timezone.now().date(),
-                condition__scheduled_time__lte=timezone.now().time()
+                condition__scheduled_time__lte=timezone.now().time(),
+                condition__finished=False,
         ).exists():
             yield "by_date_and_time", "entries by Time"
 
@@ -35,18 +37,22 @@ class ConditionListFilter(admin.SimpleListFilter):
         Returns the filtered queryset based on the value
         provided in the query string and retrievable via
         `self.value()`.
+
+        If Condition finished equals True the instance revert into main queryset
         """
         if self.value() == "by_date":
             return queryset.filter(
                 condition__condition__isnull=False,
                 condition__scheduled_date__lte=timezone.now().date(),
                 condition__scheduled_time__isnull=True,
+                condition__finished=False,
             )
         if self.value() == "by_date_and_time":
             return queryset.filter(
                 condition__condition__isnull=False,
                 condition__scheduled_date__lte=timezone.now().date(),
-                condition__scheduled_time__lte=timezone.now().time()
+                condition__scheduled_time__lte=timezone.now().time(),
+                condition__finished=False,
             )
 
     def choices(self, changelist):

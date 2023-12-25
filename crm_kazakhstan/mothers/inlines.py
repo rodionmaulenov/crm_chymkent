@@ -6,13 +6,14 @@ from datetime import datetime
 from django.utils import timezone
 from django import forms
 
-from mothers.models import Condition, Comment, Planned
+from mothers.models import Comment, Planned
+from mothers.models.one_to_many import Condition
 
 
 class ConditionInlineForm(forms.ModelForm):
     class Meta:
         model = Condition
-        fields = '__all__'
+        fields = ('condition', 'reason', 'scheduled_date', 'scheduled_time')
 
     def clean(self):
         cleaned_data = super().clean()
@@ -23,6 +24,12 @@ class ConditionInlineForm(forms.ModelForm):
             self.add_error('scheduled_date', "Date must be provided if time is set.")
 
         return cleaned_data
+
+
+class WithAllFieldsConditionInlineForm(ConditionInlineForm):
+    class Meta:
+        model = Condition
+        fields = '__all__'
 
 
 class CustomInlineFormset(BaseInlineFormSet):

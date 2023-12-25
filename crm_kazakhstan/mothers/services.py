@@ -1,8 +1,11 @@
-from datetime import datetime
 import pytz
+
+from datetime import datetime
+
 from django.utils import timezone
 
-from mothers.models import Condition
+from mothers.inlines import ConditionInline, WithAllFieldsConditionInlineForm
+from mothers.models.one_to_many import Condition
 
 
 def get_difference_time(request, instance: Condition):
@@ -33,3 +36,15 @@ def aware_datetime_from_date(search_date):
     aware_datetime = timezone.make_aware(datetime_obj, timezone=pytz.UTC)
     return aware_datetime
 
+
+def get_specific_fields(request, inline):
+    """
+    Substitute Inline form on another to adding extra fields
+    for ConditionListFilter instances when change ConditionInline
+    """
+    if isinstance(inline, ConditionInline):
+        parameter_name, value = request.GET.get('_changelist_filters', '1=1').split('=')
+        if parameter_name == 'date_or_time' and value in ['by_date', 'by_date_and_time']:
+            inline.form = WithAllFieldsConditionInlineForm
+
+    return inline

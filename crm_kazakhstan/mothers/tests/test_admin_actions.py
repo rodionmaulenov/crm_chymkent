@@ -32,88 +32,104 @@ def add_messages_to_request(request: HttpRequest) -> HttpRequest:
     return request
 
 
-class MakeRevokeTest(TestCase):
+class BannedActionTest(TestCase):
     def setUp(self):
         self.staff_user = User.objects.create_user(username='user', password='user', is_staff=True)
 
         can_view_mother_permission = Permission.objects.get(codename='view_mother')
-        self.revoke_mothers = Permission.objects.get(codename='revoke_mothers')
+        self.banned_mothers = Permission.objects.get(codename='move_to_ban')
 
         self.staff_user.user_permissions.add(can_view_mother_permission)
 
-        self.mother1 = Mother.objects.create(name='Mother 1', number='123', program='Test Program 1')
-        self.mother2 = Mother.objects.create(name='Mother 2', number='456', program='Test Program 2')
-        self.mother3 = Mother.objects.create(name='Mother 3', number='678', program='Test Program 3')
+        mother1 = Mother.objects.create(name='Mother 1')
+        mother2 = Mother.objects.create(name='Mother 2')
+        mother3 = Mother.objects.create(name='Mother 3')
 
-        Comment.objects.create(mother=self.mother1)
-        Comment.objects.create(mother=self.mother2)
-        Comment.objects.create(mother=self.mother3)
+        Comment.objects.create(mother=mother1, description='it is a man')
+        Comment.objects.create(mother=mother2, description='it is a man')
+        Comment.objects.create(mother=mother3, description='it is a man')
 
         admin_site = AdminSite()
         self.mother_admin = MotherAdmin(Mother, admin_site)
+        self.request_factory = RequestFactory()
 
-    def test_make_revoke_action_with_access(self):
+    def test_make_ban_action(self):
         queryset = Mother.objects.all()
         request = HttpRequest()
         request = add_session_to_request(request)
         request = add_messages_to_request(request)
 
-        comments_before = Comment.objects.filter(mother__in=queryset, revoked=True).count()
-        self.mother_admin.make_revoke(request=request, queryset=queryset)
-        comments_after = Comment.objects.filter(mother__in=queryset, revoked=True).count()
+        comments_before = Comment.objects.filter(mother__in=queryset, banned=True).count()
+        self.mother_admin.banned(request=request, queryset=queryset)
+        comments_after = Comment.objects.filter(mother__in=queryset, banned=True).count()
 
         self.assertGreater(comments_after, comments_before)
 
-    def test_make_revoke_action_with_access_another_way(self):
-        request = RequestFactory()
-        request = request.post('/')
+    def test_make_ban_another_way(self):
+        request = self.request_factory.post('/')
         setattr(request, 'session', 'session')
         setattr(request, '_messages', FallbackStorage(request))
 
         queryset = Mother.objects.all()
 
-        comments_before = Comment.objects.filter(mother__in=queryset, revoked=True).count()
-        self.mother_admin.make_revoke(request=request, queryset=queryset)
-        comments_after = Comment.objects.filter(mother__in=queryset, revoked=True).count()
+        comments_before = Comment.objects.filter(mother__in=queryset, banned=True).count()
+        self.mother_admin.banned(request=request, queryset=queryset)
+        comments_after = Comment.objects.filter(mother__in=queryset, banned=True).count()
 
         self.assertGreater(comments_after, comments_before)
 
+    def test_make_ban_when_comment_has_not_description(self):
+        mother4 = Mother.objects.create(name='Mother 4')
+        Comment.objects.create(mother=mother4)
+
+        request = self.request_factory.post('/')
+        setattr(request, 'session', 'session')
+        setattr(request, '_messages', FallbackStorage(request))
+
+        queryset = self.mother_admin.get_queryset(request)
+        self.assertEqual(4, len(queryset))
+
+        self.mother_admin.banned(request, queryset)
+
+        queryset_after_banned_action = self.mother_admin.get_queryset(request)
+        self.assertEqual(1, len(queryset_after_banned_action))
+
     def test_actions_with_permission(self):
-        self.staff_user.user_permissions.add(self.revoke_mothers)
-        request = HttpRequest()
+        self.staff_user.user_permissions.add(self.banned_mothers)
+        request = self.request_factory.get('/')
         request.user = self.staff_user
 
         actions = self.mother_admin.get_actions(request)
-        self.assertIn('make_revoke', actions)
+        self.assertIn('banned', actions)
 
     def test_actions_without_permission(self):
-        self.staff_user.user_permissions.remove(self.revoke_mothers)
-        request = HttpRequest()
+        self.staff_user.user_permissions.remove(self.banned_mothers)
+        request = self.request_factory.get('/')
         request.user = self.staff_user
 
         actions = self.mother_admin.get_actions(request)
-        self.assertNotIn('make_revoke', actions)
+        self.assertNotIn('banned', actions)
 
     def test_request_actions_without_permission(self):
         self.client.force_login(self.staff_user)
         response = self.client.post(reverse('admin:mothers_mother_changelist'))
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'make_revoke')
+        self.assertNotContains(response, 'banned')
 
         self.client.logout()
 
     def test_request_actions_with_permission(self):
         self.client.force_login(self.staff_user)
-        self.staff_user.user_permissions.add(self.revoke_mothers)
+        self.staff_user.user_permissions.add(self.banned_mothers)
         response = self.client.post(reverse('admin:mothers_mother_changelist'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'make_revoke')
+        self.assertContains(response, 'banned')
 
         self.client.logout()
 
 
-class ChangeStageTest(TestCase):
+class FirstVisitStageActionTest(TestCase):
 
     def setUp(self):
         self.super_user = User.objects.create_user(username='user', password='user', is_superuser=True)

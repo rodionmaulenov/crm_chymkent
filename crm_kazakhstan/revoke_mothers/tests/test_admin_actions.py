@@ -15,7 +15,7 @@ Comment: models
 User = get_user_model()
 
 
-class RevokeMotherAdminActionTest(TestCase):
+class BannedMotherAdminActionTest(TestCase):
     def setUp(self):
         self.staff_user = User.objects.create_user(username='user', password='user', is_staff=True)
 
@@ -28,9 +28,9 @@ class RevokeMotherAdminActionTest(TestCase):
         self.mother2 = Mother.objects.create(name='Mother 2', number='456', program='Test Program 2')
         self.mother3 = Mother.objects.create(name='Mother 3', number='678', program='Test Program 3')
 
-        Comment.objects.create(mother=self.mother1, revoked=True)
-        Comment.objects.create(mother=self.mother2, revoked=False)
-        Comment.objects.create(mother=self.mother3, revoked=True)
+        Comment.objects.create(mother=self.mother1, banned=True)
+        Comment.objects.create(mother=self.mother2, banned=False)
+        Comment.objects.create(mother=self.mother3, banned=True)
 
         admin_site = AdminSite()
         self.mother_admin = RevokeMotherAdmin(Mother, admin_site)
@@ -43,9 +43,9 @@ class RevokeMotherAdminActionTest(TestCase):
 
         queryset = Mother.objects.all()
 
-        comments_before = Comment.objects.filter(mother__in=queryset, revoked=True).count()
+        comments_before = Comment.objects.filter(mother__in=queryset, banned=True).count()
         self.mother_admin.mother_return(request=request, queryset=queryset)
-        comments_after = Comment.objects.filter(mother__in=queryset, revoked=False).count()
+        comments_after = Comment.objects.filter(mother__in=queryset, banned=False).count()
 
         self.assertGreater(comments_after, comments_before)
 

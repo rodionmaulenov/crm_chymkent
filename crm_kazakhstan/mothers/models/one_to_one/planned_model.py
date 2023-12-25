@@ -12,6 +12,7 @@ class Planned(models.Model):
     plan = models.CharField(max_length=15, choices=PlannedChoices.choices, null=True, blank=True)
     note = models.CharField(max_length=255, blank=True, null=True)
     scheduled_date = models.DateField(blank=True, null=True)
+    finished = models.BooleanField(default=False)
 
     def __str__(self):
         return 'The planned events'

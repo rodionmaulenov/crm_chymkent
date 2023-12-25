@@ -5,13 +5,13 @@ from django.utils.html import format_html
 from django.db.models import Q
 from django.contrib import admin, messages
 from django.db import models
-from django.utils.translation import ngettext
 from django.utils import formats, timezone
 
 from mothers.filters import AuthConditionListFilter, AuthReturnedFromFirstVisitListFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
-from mothers.models import Mother, Comment, Condition, Stage, Planned
-from mothers.services import get_difference_time, aware_datetime_from_date
+from mothers.models import Mother, Comment, Stage, Planned
+from mothers.models.one_to_many import Condition
+from mothers.services import get_difference_time, aware_datetime_from_date, get_specific_fields
 
 Mother: models
 Comment: models
@@ -29,7 +29,7 @@ class MotherAdmin(admin.ModelAdmin):
         'bad_habits', 'caesarean', 'children_age', 'age', 'citizenship', 'blood', 'maried',
     )
 
-    actions = ('first_visit_stage', 'delete_selected', 'make_revoke')
+    actions = ('first_visit_stage', 'delete_selected', 'banned')
 
     list_display_links = ('name', 'residence',)
     readonly_fields = ('mother_date_created',)
@@ -51,19 +51,13 @@ class MotherAdmin(admin.ModelAdmin):
 
     search_help_text = 'Search description'
 
-    # def get_list_display(self, request):
-    #     """
-    #     Dynamically return a different list_display based on the filter selection
-    #     """
-    #     # Call the parent method to get the default list_display
-    #     list_display = super().get_list_display(request)
-    #
-    #     # Check if your specific filter is being used
-    #     if 'returned' in request.GET and request.GET['returned'] == 'mothers':
-    #         # Return a custom list_display
-    #         return 'name', 'first_planned_visit', 'first_planned_visit_date'
-    #
-    #     return list_display
+    def get_formsets_with_inlines(self, request, obj=None):
+        """
+        Replace inline form to another for specific conditions
+        """
+        for inline in self.get_inline_instances(request, obj):
+            inline = get_specific_fields(request, inline)
+            yield inline.get_formset(request, obj), inline
 
     def save_formset(self, request, form, formset, change):
         """
@@ -100,38 +94,39 @@ class MotherAdmin(admin.ModelAdmin):
         queryset = super().get_queryset(request)
         queryset = queryset.select_related(
             'comment', 'condition', 'messanger', 'stage'
-        ).exclude(Q(comment__revoked=True) | Q(stage__isnull=False))
+        ).exclude(Q(comment__banned=True) | Q(stage__isnull=False))
         return queryset
 
     def get_actions(self, request):
         actions = super().get_actions(request)
-        if 'make_revoke' in actions and not request.user.has_perm('mothers.revoke_mothers'):
-            del actions['make_revoke']
+        if 'banned' in actions and not request.user.has_perm('mothers.move_to_ban'):
+            del actions['banned']
         if 'first_visit_stage' in actions and not request.user.has_perm('mothers.action_first_visit'):
             del actions['first_visit_stage']
         return actions
 
-    @admin.action(description="Revoke mothers")
-    def make_revoke(self, request, queryset):
+    @admin.action(description="Ban")
+    def banned(self, request, queryset):
         """
-        Updates Comment if already have related mother instance else
-        creates new Comment instance with relations
+        Moved to ban instances if their Comment description is not equal None
         """
-        mother = queryset.count()
-        Comment.objects.filter(mother__in=queryset).update(revoked=True)
+        queryset_to_ban = queryset.filter(comment__description__isnull=False)
+        Comment.objects.filter(mother__in=queryset_to_ban).update(banned=True)
 
-        for mother in queryset.exclude(comment__isnull=False):
-            Comment.objects.create(mother=mother, revoked=True)
+        for mother in queryset_to_ban:
+            self.message_user(
+                request,
+                format_html(f"<strong>{mother}</strong> has moved to ban"),
+                messages.SUCCESS
+            )
 
-        self.message_user(
-            request,
-            ngettext(
-                f"{mother} mother was successfully revoked.",
-                f"{mother} mothers were successfully revoked.",
-                mother
-            ),
-            messages.SUCCESS,
-        )
+        queryset_not_to_ban = queryset.exclude(comment__description__isnull=False)
+        for mother in queryset_not_to_ban:
+            self.message_user(
+                request,
+                format_html(f"<strong>{mother}</strong> has no reason moved to ban"),
+                messages.WARNING
+            )
 
     @admin.action(description="First visit")
     def first_visit_stage(self, request, queryset):
@@ -142,14 +137,15 @@ class MotherAdmin(admin.ModelAdmin):
         mother_have_plan = queryset.filter(planned__plan__isnull=False,
                                            planned__plan=Planned.PlannedChoices.TAKE_TESTS)
         for mother in mother_have_plan:
-            obj, _ = Stage.objects.get_or_create(mother=mother, stage=Stage.StageChoices.PRIMARY)
+            Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
             self.message_user(
                 request,
                 format_html(f"<strong>{mother}</strong>  passed into first visit page."),
                 messages.SUCCESS
             )
 
-        mother_without_plan = queryset.filter(planned__plan__isnull=True)
+        mother_without_plan = queryset.exclude(planned__plan__isnull=False,
+                                               planned__plan=Planned.PlannedChoices.TAKE_TESTS)
         for mother in mother_without_plan:
             self.message_user(
                 request,

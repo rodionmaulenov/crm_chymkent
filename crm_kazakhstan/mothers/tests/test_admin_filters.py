@@ -28,46 +28,23 @@ class ConditionListFilterTest(TestCase):
         self.staff_user = User.objects.create_user(username='staffuser', password='staffuserpassword', is_staff=True)
         self.user = User.objects.create_user(username='user', password='userpassword')
 
-        self.mother = Mother.objects.create(
-            id=1,
-            name='Test Mother',
-            number='123',
-            program='Test Program',
-            residence='Test Residence',
-            height_and_weight='Test Height and Weight',
-        )
-
-        self.mother2 = Mother.objects.create(
-            id=2,
-            name='Test2 Mother',
-            number='1234',
-            program='Test2 Program',
-            residence='Test2 Residence',
-            height_and_weight='Test2 Height and Weight',
-        )
-
-        self.mother3 = Mother.objects.create(
-            id=3,
-            name='Test3 Mother',
-            number='12345',
-            program='Test3 Program',
-            residence='Test3 Residence',
-            height_and_weight='Test3 Height and Weight',
-        )
+        mother = Mother.objects.create(name='Test Mother')
+        mother2 = Mother.objects.create(name='Test2 Mother')
+        mother3 = Mother.objects.create(name='Test3 Mother')
 
         self.condition_smaller_date = Condition.objects.create(
-            mother=self.mother,
+            mother=mother,
             scheduled_date=datetime(2023, 12, 11, tzinfo=timezone.utc),
             condition='FR3'
         )
         self.condition_equal_date = Condition.objects.create(
-            mother=self.mother2,
+            mother=mother2,
             scheduled_date=datetime(2023, 12, 13, tzinfo=timezone.utc),
             condition='FR2'
         )
-
+        # this case not include in {'date_or_time': 'by_date'} verifying
         self.condition_date_and_time = Condition.objects.create(
-            mother=self.mother3,
+            mother=mother3,
             scheduled_date=datetime(2023, 12, 10, tzinfo=timezone.utc),
             scheduled_time=time(14, 30, 0),
             condition='SC'
@@ -88,7 +65,62 @@ class ConditionListFilterTest(TestCase):
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
-        self.assertEqual(len(queryset), 1, msg='must be 1 instances because planed dates smaller than date today')
+        self.assertEqual(len(queryset), 1)
+
+    @freeze_time("2023-12-12")
+    def test_by_date_if_mother_instance_in_filters_conditions_but_finished_True(self):
+        mother4 = Mother.objects.create(name='Test Mother4')
+
+        self.condition_smaller_date = Condition.objects.create(
+            mother=mother4,
+            scheduled_date=datetime(2023, 12, 11, tzinfo=timezone.utc),
+            condition='FR3',
+        )
+        mother4 = Mother.objects.create(name='Test Mother4')
+
+        self.condition_smaller_date = Condition.objects.create(
+            mother=mother4,
+            scheduled_date=datetime(2023, 12, 10, tzinfo=timezone.utc),
+            condition='FR3',
+            finished=True
+        )
+        request = self.factory.get('/')
+        request.user = self.user
+        request.GET = {'date_or_time': 'by_date'}
+        filter_instance = ConditionListFilter(
+            request, {'date_or_time': 'by_date'}, Mother, self.mother_admin_instance
+        )
+        queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
+
+        self.assertEqual(len(queryset), 2)
+
+    @freeze_time("2023-12-12")
+    def test_by_date_and_time_if_mother_instance_in_filters_conditions_but_finished_True(self):
+        mother4 = Mother.objects.create(name='Test Mother4')
+
+        self.condition_smaller_date = Condition.objects.create(
+            mother=mother4,
+            scheduled_date=datetime(2023, 12, 11, tzinfo=timezone.utc),
+            condition='FR3',
+        )
+        mother4 = Mother.objects.create(name='Test Mother4')
+
+        self.condition_smaller_date = Condition.objects.create(
+            mother=mother4,
+            scheduled_date=datetime(2023, 12, 10, tzinfo=timezone.utc),
+            scheduled_time=time(14, 30, 0),
+            condition='FR3',
+            finished=True
+        )
+        request = self.factory.get('/')
+        request.user = self.user
+        request.GET = {'date_or_time': 'by_date_and_time'}
+        filter_instance = ConditionListFilter(
+            request, {'date_or_time': 'by_date'}, Mother, self.mother_admin_instance
+        )
+        queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
+
+        self.assertEqual(len(queryset), 2)
 
     @freeze_time("2023-12-13")
     def test_filter_if_date_condition_equal(self):
