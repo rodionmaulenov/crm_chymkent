@@ -42,9 +42,7 @@ class PrimaryVisitAdmin(admin.ModelAdmin):
         We are getting queryset on Primary stage excluding instances that sent to the Ban
         """
         qs = Mother.objects.all()
-        qs = qs.select_related(
-            'comment', 'condition', 'messanger', 'stage', 'planned'
-        ).filter(stage__stage=Stage.StageChoices.PRIMARY).exclude(comment__banned=True)
+        qs = qs.filter(stage__stage=Stage.StageChoices.PRIMARY).exclude(comment__banned=True)
         return qs
 
     def get_list_display(self, request):

@@ -20,7 +20,7 @@ class BannedMotherAdminActionTest(TestCase):
         self.staff_user = User.objects.create_user(username='user', password='user', is_staff=True)
 
         can_view_mother_permission = Permission.objects.get(codename='view_mother')
-        self.return_mothers = Permission.objects.get(codename='return_mothers')
+        self.return_from_ban = Permission.objects.get(codename='return_from_ban')
 
         self.staff_user.user_permissions.add(can_view_mother_permission)
 
@@ -50,7 +50,7 @@ class BannedMotherAdminActionTest(TestCase):
         self.assertGreater(comments_after, comments_before)
 
     def test_get_actions_with_permission(self):
-        self.staff_user.user_permissions.add(self.return_mothers)
+        self.staff_user.user_permissions.add(self.return_from_ban)
         request = HttpRequest()
         request.user = self.staff_user
 
@@ -58,7 +58,7 @@ class BannedMotherAdminActionTest(TestCase):
         self.assertIn('mother_return', actions)
 
     def test_get_actions_without_permission(self):
-        self.staff_user.user_permissions.remove(self.return_mothers)
+        self.staff_user.user_permissions.remove(self.return_from_ban)
         request = HttpRequest()
         request.user = self.staff_user
 

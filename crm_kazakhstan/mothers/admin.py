@@ -1,19 +1,36 @@
+"""
+This MotherAdmin class is the main class for mothers on primary stage.
+This class implements the logical action of moving the mother instance to ban if the program conditions are not met.
+This class implements the logical action of moving the mother instance to on first stage when planned to pass the tests.
+
+It realizes the method what calculate the date and the time when created instantiation in user local timezone.
+It overrides get_queryset by displaying only instances not in ban or on first_stage.
+It overrides get_search_results to find instance in range from date input to date today.
+It overrides save_formset that convert entered from user in local time into UTC.
+It overrides get_actions which allow specific users get actions for ban and first visit.
+It overrides get_formsets_with_inlines which with specific conditions dynamically changing what fields will be displaying on inline form.
+
+Also it has inline Classes that instantiating embedded objects this classes.
+Also it has Classes for filtering queryset in specific way. This possibility allow planned day and time for specific condition
+
+"""
+
 import pytz
 from dateutil import parser
 
+from django.http import HttpResponseRedirect
 from django.utils.html import format_html
-from django.db.models import Q
+from django.db.models import Q, Count, Case, When
 from django.contrib import admin, messages
 from django.db import models
 from django.utils import formats, timezone
+from django.urls import reverse
 
 from mothers.filters import AuthConditionListFilter, AuthReturnedFromFirstVisitListFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
-from mothers.models import Mother, Comment, Stage, Planned
-from mothers.models.one_to_many import Condition
-from mothers.services import get_difference_time, aware_datetime_from_date, get_specific_fields
+from mothers.models import Mother, Comment, Stage, Planned, Condition
+from mothers.services import get_difference_time, aware_datetime_from_date, get_specific_fields, by_date_or_by_datatime
 
-Mother: models
 Comment: models
 Stage: models
 
@@ -51,6 +68,22 @@ class MotherAdmin(admin.ModelAdmin):
 
     search_help_text = 'Search description'
 
+    def response_post_save_change(self, request, obj):
+        """
+        Determines the HttpResponse after an object is successfully changed.
+        """
+        condition = obj.condition_set.aggregate(
+            unfinished_count=Count(Case(When(finished=False, then=1)))
+        )
+
+        time = by_date_or_by_datatime(request)
+
+        if condition['unfinished_count'] == 0 and time:
+            changelist_url = reverse('admin:mothers_mother_changelist')
+            return HttpResponseRedirect(changelist_url)
+        else:
+            return super().response_post_save_change(request, obj)
+
     def get_formsets_with_inlines(self, request, obj=None):
         """
         Replace inline form to another for specific conditions
@@ -61,16 +94,23 @@ class MotherAdmin(admin.ModelAdmin):
 
     def save_formset(self, request, form, formset, change):
         """
-        Pre-filling the “schauled_time” form field with data
+        Pre-filling the “scheduled_time” form field with data
         that converts the time stored on the server into the user’s equivalent local time.
         """
         instances = formset.save(commit=False)
         for instance in instances:
+            """
+            verify 2 conditions
+            when date and time
+            local future datetime convert in utc time 
+            and when date
+            """
             if isinstance(instance, Condition) and instance.scheduled_time is not None:
                 utc_aware_time = get_difference_time(request, instance)
                 instance.scheduled_time = utc_aware_time
                 instance.save()
         formset.save_m2m()
+
         super().save_formset(request, form, formset, change)
 
     def get_search_results(self, request, queryset, search_term):
@@ -92,9 +132,7 @@ class MotherAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         self.request = request
         queryset = super().get_queryset(request)
-        queryset = queryset.select_related(
-            'comment', 'condition', 'messanger', 'stage'
-        ).exclude(Q(comment__banned=True) | Q(stage__isnull=False))
+        queryset = queryset.exclude(Q(comment__banned=True) | Q(stage__isnull=False))
         return queryset
 
     def get_actions(self, request):
@@ -155,10 +193,11 @@ class MotherAdmin(admin.ModelAdmin):
 
     @admin.display(empty_value="no date", description='date created')
     def mother_date_created(self, obj):
-        user_timezone = getattr(self.request, 'timezone', 'UTC')
+        user_timezone = getattr(self.request.user, 'timezone', 'UTC')
 
-        user_tz = pytz.timezone(user_timezone)
+        user_tz = pytz.timezone(str(user_timezone))
         local_time = timezone.localtime(obj.date_create, timezone=user_tz)
+
         formatted_date = formats.date_format(local_time, "j M H:i")
         return formatted_date
 

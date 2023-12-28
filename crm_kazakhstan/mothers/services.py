@@ -4,31 +4,40 @@ from datetime import datetime
 
 from django.utils import timezone
 
-from mothers.inlines import ConditionInline, WithAllFieldsConditionInlineForm
 from mothers.models.one_to_many import Condition
 
 
 def get_difference_time(request, instance: Condition):
-    # Step 1: Get aware datetime in UTC
-    utc_aware = timezone.now()
-
-    # Step 2: Get aware datetime based on the user's timezone
+    # Convert string to a timezone object
     user_timezone = pytz.timezone(str(request.user.timezone))
-    local_time_aware = utc_aware.astimezone(user_timezone)
+    # Combine date and time strings into a datetime object
+    future_local_datetime = datetime.strptime(f"{instance.scheduled_date} {instance.scheduled_time}",
+                                              "%Y-%m-%d %H:%M:%S")
 
-    # Step 3: Get aware datetime for the user's input time on the current date
-    user_input_datetime_aware = timezone.make_aware(
-        datetime.combine(utc_aware.date(), instance.scheduled_time),
-        user_timezone
-    )
+    # Make the datetime object timezone-aware in the user's local timezone
+    future_local_aware = user_timezone.localize(future_local_datetime)
 
-    # step 4: Calculate the time difference between user input time and local time
-    time_difference_input_and_local = user_input_datetime_aware - local_time_aware
+    # Convert the local timezone-aware datetime to UTC
+    utc_datetime = future_local_aware.astimezone(pytz.utc)
 
-    # step 5: Calculate the time that the server should save
-    server_time_must_be_aware = utc_aware + time_difference_input_and_local
+    return utc_datetime.time()
 
-    return server_time_must_be_aware
+
+def convert_utc_to_local(utc_date, utc_time, user_timezone_str):
+    # Convert string to a timezone object
+    user_timezone = pytz.timezone(str(user_timezone_str))
+
+    # Combine UTC date and time strings into a datetime object
+    utc_datetime_str = f"{utc_date} {utc_time}"
+    utc_datetime_naive = datetime.strptime(utc_datetime_str, "%Y-%m-%d %H:%M:%S")
+
+    # Make the datetime object timezone-aware in UTC
+    utc_datetime_aware = pytz.utc.localize(utc_datetime_naive)
+
+    # Convert the UTC timezone-aware datetime to user's local timezone
+    local_datetime = utc_datetime_aware.astimezone(user_timezone)
+
+    return local_datetime
 
 
 def aware_datetime_from_date(search_date):
@@ -37,14 +46,21 @@ def aware_datetime_from_date(search_date):
     return aware_datetime
 
 
+def by_date_or_by_datatime(request):
+    list_parameters = request.GET.get('_changelist_filters', '').split('=')
+    time = any(value in list_parameters for value in ['by_date', 'by_date_and_time'])
+    return time
+
+
 def get_specific_fields(request, inline):
+    from mothers.inlines import ConditionInlineFormWithFinished, ConditionInline
     """
     Substitute Inline form on another to adding extra fields
     for ConditionListFilter instances when change ConditionInline
     """
     if isinstance(inline, ConditionInline):
-        parameter_name, value = request.GET.get('_changelist_filters', '1=1').split('=')
-        if parameter_name == 'date_or_time' and value in ['by_date', 'by_date_and_time']:
-            inline.form = WithAllFieldsConditionInlineForm
+        time = by_date_or_by_datatime(request)
+        if time:
+            inline.form = ConditionInlineFormWithFinished
 
     return inline

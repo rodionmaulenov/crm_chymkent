@@ -26,7 +26,7 @@ class RevokeMotherAdmin(admin.ModelAdmin):
     def get_actions(self, request):
         actions = super().get_actions(request)
 
-        if 'mother_return' in actions and not request.user.has_perm('mothers.return_mothers'):
+        if 'mother_return' in actions and not request.user.has_perm('mothers.return_from_ban'):
             del actions['mother_return']
 
         return actions

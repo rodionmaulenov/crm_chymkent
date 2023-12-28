@@ -19,11 +19,11 @@ class Mother(models.Model):
 
     class Meta:
         permissions = [
-            ('to_manager_on_primary_stage', 'Can do all with mother instance without specific actions'),
+            ('to_manager_on_primary_stage', 'Can do all without actions on primary stage'),
             ('action_first_visit', 'transfer mothers to the first visit'),
             ('move_to_ban', 'Can banned mother instances'),
-            ('return_mothers', 'Can return mothers instance'),
-            ('to_manager_on_first_stage', 'Can do all with mother instance without specific actions'),
+            ('return_from_ban', 'Can return mothers instance from ban'),
+            ('to_manager_on_first_stage', 'Can do all without actions  on first stage'),
             ('action_on_primary_stage', 'Return mother on primary stage'),
         ]
 

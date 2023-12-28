@@ -8,7 +8,7 @@ class Planned(models.Model):
         ADDITIONAL_VERIFYING = 'Verifying', 'Extra treatment'
         __empty__ = "(Unknown)"
 
-    mother = models.OneToOneField("Mother", on_delete=models.CASCADE)
+    mother = models.ForeignKey("Mother", on_delete=models.CASCADE)
     plan = models.CharField(max_length=15, choices=PlannedChoices.choices, null=True, blank=True)
     note = models.CharField(max_length=255, blank=True, null=True)
     scheduled_date = models.DateField(blank=True, null=True)
