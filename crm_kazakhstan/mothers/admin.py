@@ -99,12 +99,6 @@ class MotherAdmin(admin.ModelAdmin):
         """
         instances = formset.save(commit=False)
         for instance in instances:
-            """
-            verify 2 conditions
-            when date and time
-            local future datetime convert in utc time 
-            and when date
-            """
             if isinstance(instance, Condition) and instance.scheduled_time is not None:
                 utc_aware_time = get_difference_time(request, instance)
                 instance.scheduled_time = utc_aware_time
