@@ -70,7 +70,7 @@ class MotherAdmin(admin.ModelAdmin):
 
     def response_post_save_change(self, request, obj):
         """
-        Determines the HttpResponse after an object is successfully changed.
+        Redirect to the changelist url if condition is equal 0 and mother instance get from filtered list.
         """
         condition = obj.condition_set.aggregate(
             unfinished_count=Count(Case(When(finished=False, then=1)))
