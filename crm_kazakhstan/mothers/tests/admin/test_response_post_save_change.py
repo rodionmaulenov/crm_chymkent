@@ -19,16 +19,18 @@ class ResponsePostSaveChangeTest(TestCase):
 
         # Create a user
         self.user = User.objects.create_superuser('admin', 'admin@test.com', 'password')
+        self.client.login(username='admin', password='password')
 
         # Create a mother instance
         self.mother = Mother.objects.create(name="Test Mother")
 
-    def test_redirect_on_main_changelist(self):
-        condition = Condition.objects.create(mother=self.mother, finished=True)
+    def test_redirect_on_main_changelist_after_filter(self):
+        Condition.objects.create(mother=self.mother, finished=True)
 
-        request = self.factory.get('/admin/mothers/mother/')
-        request.GET = {'_changelist_filters': 'date_or_time=by_date'}
+        url = reverse('admin:mothers_mother_change', args=[self.mother.pk])
+        url += '?_changelist_filters=date_or_time%3Dby_date_and_time'
 
+        request = self.factory.post(url)
         request.user = self.user
 
         response = self.mother_admin.response_post_save_change(request, self.mother)
@@ -36,13 +38,10 @@ class ResponsePostSaveChangeTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response['Location'].endswith(reverse('admin:mothers_mother_changelist')))
 
-        condition.delete()
+    def test_redirect_on_url_by_default(self):
+        Condition.objects.create(mother=self.mother, finished=False)
 
-    def test_redirect_on_filteres_changelist(self):
-        condition = Condition.objects.create(mother=self.mother, finished=False)
-
-        request = self.factory.get('/admin/mothers/mother/')
-        request.GET = {'_changelist_filters': 'date_or_time=by_date'}
+        request = self.factory.post('')
 
         request.user = self.user
 
@@ -50,5 +49,3 @@ class ResponsePostSaveChangeTest(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response['Location'].endswith(reverse('admin:mothers_mother_changelist')))
-
-        condition.delete()

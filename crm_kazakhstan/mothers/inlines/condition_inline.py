@@ -11,7 +11,7 @@ from mothers.services import convert_utc_to_local, by_date_or_by_datatime
 from mothers.models import Condition
 
 
-class ReadOnlyFieldWrapper:
+class EmptyOnlyFieldWrapper:
     """
     This class exists only for pre-populate form that will render "empty" string if field blank
     """
@@ -50,6 +50,15 @@ class ConditionInlineFormWithoutFinished(forms.ModelForm):
     class Meta:
         model = Condition
         fields = ('condition', 'reason', 'scheduled_date', 'scheduled_time')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # If finished = True instance stand be not changeable
+        instance = kwargs.get('instance')
+        if instance and instance.finished:
+            for field in self.fields:
+                self.fields[field].disabled = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -91,7 +100,7 @@ class CustomConditionInlineFormset(BaseInlineFormSet):
         if form.instance.pk:  # Check if the instance is saved
             for field_name, field in form.fields.items():
                 if not form.initial.get(field_name) and field_name != 'finished' and field_name != 'DELETE':
-                    form.fields[field_name].widget = ReadOnlyFieldWrapper(field.widget)
+                    form.fields[field_name].widget = EmptyOnlyFieldWrapper(field.widget)
         return form
 
 

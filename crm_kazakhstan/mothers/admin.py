@@ -114,6 +114,9 @@ class MotherAdmin(admin.ModelAdmin):
         super().save_formset(request, form, formset, change)
 
     def get_search_results(self, request, queryset, search_term):
+        """
+        User has possibility search instances from includes date input to date.today()
+        """
         queryset, use_distinct = super().get_search_results(request, queryset, search_term)
         try:
             if search_term[:4].isdigit():
@@ -193,6 +196,9 @@ class MotherAdmin(admin.ModelAdmin):
 
     @admin.display(empty_value="no date", description='date created')
     def mother_date_created(self, obj):
+        """
+        Returns time converted from UTC to user local timezone time
+        """
         user_timezone = getattr(self.request.user, 'timezone', 'UTC')
 
         user_tz = pytz.timezone(str(user_timezone))

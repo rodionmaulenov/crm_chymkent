@@ -12,7 +12,7 @@ Mother: models
 Condition: models
 
 
-class CleanMethodConditionInlineFormTest(TestCase):
+class CleanMethodConditionInlineFormWithoutFinishedTest(TestCase):
     def setUp(self):
         self.site = AdminSite()
         self.factory = RequestFactory()
@@ -41,3 +41,27 @@ class CleanMethodConditionInlineFormTest(TestCase):
         self.assertFalse(formset_instance.is_valid())
 
         self.assertIn('Date must be provided if time is set.', formset_instance.errors[0]['scheduled_date'])
+
+    def test_condition_inline_form_when_clean_method_work_without_error_message(self):
+        request = self.factory.post('/', {
+            'condition_set-TOTAL_FORMS': '1',
+            'condition_set-INITIAL_FORMS': '0',
+            'condition_set-MIN_NUM_FORMS': '0',
+            'condition_set-MAX_NUM_FORMS': '1000',
+            'condition_set-0-mother': self.mother.pk,
+            'condition_set-0-condition': 'WWW',
+            'condition_set-0-scheduled_time': '10:00',
+            'condition_set-0-scheduled_date': '2022-12-10',  # Deliberately left blank to test validation
+        })
+        request.user = self.user
+
+        # Create the formset instance
+        inline = ConditionInline(Mother, self.site)
+        Formset = inline.get_formset(request, self.mother)
+        formset_instance = Formset(request.POST, instance=self.mother)
+
+        # Assert the formset is not valid due to the custom validation
+        self.assertTrue(formset_instance.is_valid())
+
+        with self.assertRaises(KeyError):
+            self.assertNotIn('Date must be provided if time is set.', formset_instance.errors[0]['scheduled_date'])
