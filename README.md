@@ -39,7 +39,7 @@ Future developments and enhancements will be added here.
 
 ## Installation Instructions
 1. **Clone the Repository**
-git clone [repository-url]
+git clone git@github.com:rodionmaulenov/crm_chymkent.git
 2. **Set up a Virtual Environment**
 python -m venv venv
 source venv/bin/activate # On Windows use venv\Scripts\activate
