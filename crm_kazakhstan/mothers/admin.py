@@ -1,26 +1,57 @@
 """
-This MotherAdmin class is the main class for mothers on primary stage.
-This class implements the logical action of moving the mother instance to ban if the program conditions are not met.
-This class implements the logical action of moving the mother instance to on first stage when planned to pass the tests.
+MotherAdmin Description:
 
-It realizes the method what calculate the date and the time when created instantiation in user local timezone.
-It overrides get_queryset by displaying only instances not in ban or on first_stage.
-It overrides get_search_results to find instance in range from date input to date today.
-It overrides save_formset that convert entered from user in local time into UTC.
-It overrides get_actions which allow specific users get actions for ban and first visit.
-It overrides get_formsets_with_inlines which with specific conditions dynamically changing what fields will be displaying on inline form.
+    The MotherAdmin class is a customized Django admin interface for managing Mother instances.
+    It provides tailored inline editing capabilities, search functionalities, and action handlers to manage
+    the lifecycle and status of Mother instances based on specific business logic.
 
-Also it has inline Classes that instantiating embedded objects this classes.
-Also it has Classes for filtering queryset in specific way. This possibility allow planned day and time for specific condition
+Custom Behaviors and Overriding:
 
+    Inline Formsets:
+        Incorporates inline formsets (PlannedInline, ConditionInline, CommentInline) allowing related objects
+        to be edited directly within the Mother instance's admin page.
+
+    Custom Queryset Handling:
+        Customizes the queryset to exclude Mother instances that are banned or have moved to the first stage,
+        ensuring only relevant instances are displayed for action.
+
+    Search Enhancements:
+        Extends search capabilities to include date-based filtering,
+        enabling search for Mother instances from a specified date to the current date.
+
+    Local Time Conversion:
+        Converts date_create from UTC to the user's local timezone for display,
+        providing a more contextually relevant timestamp for users.
+
+    Custom Actions:
+        Defines custom admin actions (banned and first_visit_stage) to transition Mother instances to different stages
+        based on their associated data.
+
+    Formset Customization:
+        Dynamically adjusts inline form fields displayed, based on the finished state of conditions
+        and certain time-based conditions met by the by_date_or_by_datatime service function.
+
+    Field Rendering:
+        Utilizes EmptyOnlyFieldWrapper for certain fields within inline forms to display custom content
+        when fields are empty or when the associated Condition instance is finished.
+
+    User Feedback:
+        Provides user feedback messages for actions performed on Mother instances, indicating the outcome of each action.
+
+    Date Formatting:
+        Offers a custom display for the date_create field that formats the date according to user's local timezone settings.
+
+By customizing the default admin behavior, MotherAdmin serves a specific workflow, providing a tailored administrative
+interface that caters to the nuanced requirements of managing Mother instances in the system.
 """
 
 import pytz
 from dateutil import parser
+from django.core.handlers.wsgi import WSGIRequest
 
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html
-from django.db.models import Q, Count, Case, When
+from django.db.models import Count, Case, When, QuerySet
 from django.contrib import admin, messages
 from django.db import models
 from django.utils import formats, timezone
@@ -29,7 +60,8 @@ from django.urls import reverse
 from mothers.filters import AuthConditionListFilter, AuthReturnedFromFirstVisitListFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
 from mothers.models import Mother, Comment, Stage, Planned, Condition
-from mothers.services import get_difference_time, aware_datetime_from_date, get_specific_fields, by_date_or_by_datatime
+from mothers.services import (get_difference_time, aware_datetime_from_date, get_specific_fields,
+                              by_date_or_by_datatime, check_queryset_logic)
 
 Comment: models
 Stage: models
@@ -127,10 +159,15 @@ class MotherAdmin(admin.ModelAdmin):
         return queryset, use_distinct
 
     def get_queryset(self, request):
+        """
+        Queryset contains exclusively the Mother instance where Stage.finished=True 
+        and not Comment.banned=True if exists
+        """
+        # assign request for using in custom MotherAdmin methods
         self.request = request
-        queryset = super().get_queryset(request)
-        queryset = queryset.exclude(Q(comment__banned=True) | Q(stage__isnull=False))
-        return queryset
+        qs = super().get_queryset(request)
+        qs = check_queryset_logic(qs)
+        return qs
 
     def get_actions(self, request):
         actions = super().get_actions(request)
@@ -193,6 +230,7 @@ class MotherAdmin(admin.ModelAdmin):
         """
         Returns time converted from UTC to user local timezone time
         """
+        # receive this request from get_queryset method
         user_timezone = getattr(self.request.user, 'timezone', 'UTC')
 
         user_tz = pytz.timezone(str(user_timezone))

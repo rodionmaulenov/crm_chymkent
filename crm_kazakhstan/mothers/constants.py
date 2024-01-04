@@ -1,3 +1,4 @@
+CREATED = 'created'
 WE_TALK = 'WT'
 CYCLE = 'CYC'
 DOESNT_ANSWER_THE_CALL = 'DAC'
@@ -10,6 +11,7 @@ HUSBAND_FORBIDS = 'HF'
 EXAMINES_CHILDREN_OR_RELATIVES = 'ECR'
 ANOTHER = 'AN'
 CONDITION_CHOICES = [
+    (CREATED, 'recently created'),
     (WE_TALK, 'we talk'),
     (CYCLE, 'cycle'),
     (DOESNT_ANSWER_THE_CALL, "doesn't answer the call"),

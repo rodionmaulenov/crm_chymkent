@@ -42,7 +42,7 @@ class PrimaryVisitAdmin(admin.ModelAdmin):
         We are getting queryset on Primary stage excluding instances that sent to the Ban
         """
         qs = Mother.objects.all()
-        qs = qs.filter(stage__stage=Stage.StageChoices.PRIMARY).exclude(comment__banned=True)
+        qs = qs.filter(stage__stage=Stage.StageChoices.PRIMARY, stage__finished=False).exclude(comment__banned=True)
         return qs
 
     def get_list_display(self, request):
@@ -75,8 +75,12 @@ class PrimaryVisitAdmin(admin.ModelAdmin):
             planned__note__isnull=False,
             planned__scheduled_date__isnull=False,
         )
+        # do this when instance is not can touch anybody else
         for mother in mother_have_plan:
-            mother.stage.delete()
+            stage = mother.stage_set.last()
+            stage.finished = True
+            stage.save()
+
             self.message_user(
                 request,
                 format_html(f"<strong>{mother}</strong> returned on primary page."),

@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.utils import timezone
+from django.db.models import Q
 
 from mothers.models import Planned
 
@@ -8,28 +9,42 @@ class ConditionListFilter(admin.SimpleListFilter):
     title = 'scheduler'
     parameter_name = "date_or_time"
 
+    def __init__(self, *args, **kwargs):
+        self.current_date = timezone.now().date()
+        self.current_time = timezone.now().time()
+        self.filtered_queryset = (
+            # by_date: when scheduled_date <= current_date and scheduled_time is Empty
+            Q(condition__scheduled_date__lte=self.current_date,
+                condition__scheduled_time__isnull=True) |  # OR
+            # by_date_and_time: when scheduled_date == current_date then compare scheduled_time <= current_time
+            Q(condition__scheduled_date=self.current_date,
+                condition__scheduled_time__lte=self.current_time) |  # OR
+            # by_date_and_time: if condition above wrong compare scheduled_date < current_date
+            Q(condition__scheduled_date__lt=self.current_date)
+                ) & Q(condition__finished=False)
+        super().__init__(*args, **kwargs)
+
     def lookups(self, request, model_admin):
         """
-        Show search results that actually match
-        the scheduled date or datetime.
+        Filtered queryset by this conditions:
+
+            first: based on date. When date.today() >= Condition.scheduled_date and Condition.finished=False
+        and Condition.condition is not Empty
+
+            second: based on date_and_time. When date.today() == Condition.scheduled_date then
+        Condition.scheduled_time <= date.today.time() and Condition.finished=False
+        and Condition.condition is not Empty
+             OR
+        date.today() > Condition.scheduled_date and Condition.finished=False
+        and Condition.condition is not Empty
         """
 
         qs = model_admin.get_queryset(request)
 
-        if qs.filter(
-                condition__condition__isnull=False,
-                condition__scheduled_date__lte=timezone.now().date(),
-                condition__scheduled_time__isnull=True,
-                condition__finished=False,
-        ).exists():
+        if qs.filter(self.filtered_queryset).exists():
             yield "by_date", "entries by Date"
 
-        if qs.filter(
-                condition__condition__isnull=False,
-                condition__scheduled_date__lte=timezone.now().date(),
-                condition__scheduled_time__lte=timezone.now().time(),
-                condition__finished=False,
-        ).exists():
+        if qs.filter(self.filtered_queryset).exists():
             yield "by_date_and_time", "entries by Time"
 
     def queryset(self, request, queryset):
@@ -41,19 +56,9 @@ class ConditionListFilter(admin.SimpleListFilter):
         If Condition finished equals True the instance revert into main queryset
         """
         if self.value() == "by_date":
-            return queryset.filter(
-                condition__condition__isnull=False,
-                condition__scheduled_date__lte=timezone.now().date(),
-                condition__scheduled_time__isnull=True,
-                condition__finished=False,
-            )
+            return queryset.filter(self.filtered_queryset)
         if self.value() == "by_date_and_time":
-            return queryset.filter(
-                condition__condition__isnull=False,
-                condition__scheduled_date__lte=timezone.now().date(),
-                condition__scheduled_time__lte=timezone.now().time(),
-                condition__finished=False,
-            )
+            return queryset.filter(self.filtered_queryset)
 
     def choices(self, changelist):
         yield {
@@ -99,6 +104,7 @@ class ReturnedFromFirstVisitListFilter(admin.SimpleListFilter):
                 planned__plan=Planned.PlannedChoices.TAKE_TESTS,
                 planned__note__isnull=False,
                 planned__scheduled_date__isnull=False,
+                stage__finished=True
         ).exists():
             yield "mothers", "returned from first visit"
 
@@ -113,6 +119,7 @@ class ReturnedFromFirstVisitListFilter(admin.SimpleListFilter):
                 planned__plan=Planned.PlannedChoices.TAKE_TESTS,
                 planned__note__isnull=False,
                 planned__scheduled_date__isnull=False,
+                stage__finished=True
             )
 
     def choices(self, changelist):

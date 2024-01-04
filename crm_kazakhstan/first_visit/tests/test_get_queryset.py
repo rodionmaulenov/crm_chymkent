@@ -23,7 +23,8 @@ class GetQuerySetTest(TestCase):
         # Create Mothers and Comments
         self.mother_without_revoked_comment = Mother.objects.create(name='Mother 1')
         Comment.objects.create(mother=self.mother_without_revoked_comment, banned=False)
-        Stage.objects.create(mother=self.mother_without_revoked_comment, stage=Stage.StageChoices.PRIMARY)
+        Stage.objects.create(mother=self.mother_without_revoked_comment, stage=Stage.StageChoices.PRIMARY,
+                             finished=False)
 
         self.mother_with_revoked_comment2 = Mother.objects.create(name='Mother 2')
         Comment.objects.create(mother=self.mother_with_revoked_comment2, banned=True)
@@ -33,13 +34,14 @@ class GetQuerySetTest(TestCase):
 
         self.mother_with_revoked_comment4 = Mother.objects.create(name='Mother 4')
         Comment.objects.create(mother=self.mother_with_revoked_comment4, banned=True)
-        Stage.objects.create(mother=self.mother_with_revoked_comment4, stage=Stage.StageChoices.PRIMARY)
+        Stage.objects.create(mother=self.mother_with_revoked_comment4, stage=Stage.StageChoices.PRIMARY, finished=False)
 
         self.mother_without_revoked_comment5 = Mother.objects.create(name='Mother 5')
         Comment.objects.create(mother=self.mother_without_revoked_comment5, banned=False)
-        Stage.objects.create(mother=self.mother_without_revoked_comment5, stage=Stage.StageChoices.PRIMARY)
+        Stage.objects.create(mother=self.mother_without_revoked_comment5, stage=Stage.StageChoices.PRIMARY,
+                             finished=False)
 
-    def test_get_queryset_excludes_revoked_comments(self):
+    def test_get_queryset_excludes_revoked_comments_and_last_stage_equal_True(self):
         request = self.factory.get('/')
         request.user = self.user
         queryset = self.admin.get_queryset(request)

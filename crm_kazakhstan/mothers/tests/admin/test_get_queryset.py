@@ -18,27 +18,103 @@ class GetQuerySetTest(TestCase):
         self.site = AdminSite()
         self.admin = MotherAdmin(Mother, self.site)
         self.factory = RequestFactory()
-        self.user = User.objects.create_superuser('admin', 'admin@example.com', 'password')
+        self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
 
-        # Create Mothers and Comments
-        self.mother_with_revoked_comment = Mother.objects.create(name='Mother 1')
-        Comment.objects.create(mother=self.mother_with_revoked_comment, banned=True)
-        Stage.objects.create(mother=self.mother_with_revoked_comment, stage=Stage.StageChoices.PRIMARY)
-
-        self.mother_with_revoked_comment2 = Mother.objects.create(name='Mother 2')
-        Comment.objects.create(mother=self.mother_with_revoked_comment2, banned=False)
-
-        self.mother_without_revoked_comment = Mother.objects.create(name='Mother 3')
-        Comment.objects.create(mother=self.mother_without_revoked_comment, banned=False)
-
-    def test_get_queryset_excludes_revoked_comments(self):
+    def test_Mother_has_relate_Stage_instance_finished_equal_True(self):
         request = self.factory.get('/')
-        request.user = self.user
+        request.user = self.superuser
         queryset = self.admin.get_queryset(request)
 
-        # Check if mothers with revoked comments are not in queryset
-        self.assertNotIn(self.mother_with_revoked_comment, queryset)
-        self.assertEqual(2, len(queryset))
+        mother = Mother.objects.create(name='Mother 1')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY,
+                             finished=True)
 
-        # Check if mothers without revoked comments are in queryset
-        self.assertIn(self.mother_without_revoked_comment, queryset)
+        self.assertEqual(len(queryset), 1)
+
+    def test_Mother_has_relate_Stage_instance_finished_equal_False(self):
+        request = self.factory.get('/')
+        request.user = self.superuser
+        queryset = self.admin.get_queryset(request)
+
+        mother = Mother.objects.create(name='Mother 1')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY,
+                             finished=False)
+
+        self.assertEqual(len(queryset), 0)
+
+    def test_Mother_has_relate_Comment_instance_banned_equal_False(self):
+        request = self.factory.get('/')
+        request.user = self.superuser
+        queryset = self.admin.get_queryset(request)
+
+        mother = Mother.objects.create(name='Mother 1')
+        Comment.objects.create(mother=mother, banned=False)
+
+        self.assertEqual(len(queryset), 1)
+
+    def test_Mother_has_relate_Comment_instance_banned_equal_True(self):
+        request = self.factory.get('/')
+        request.user = self.superuser
+        queryset = self.admin.get_queryset(request)
+
+        mother = Mother.objects.create(name='Mother 1')
+        Comment.objects.create(mother=mother, banned=True)
+
+        self.assertEqual(len(queryset), 0)
+
+    def test_Mother_has_relate_Comment_instance_banned_equal_False_and_Stage_instance_finished_equal_True(self):
+        request = self.factory.get('/')
+        request.user = self.superuser
+        queryset = self.admin.get_queryset(request)
+
+        mother = Mother.objects.create(name='Mother 1')
+        Comment.objects.create(mother=mother, banned=False)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY,
+                             finished=True)
+
+        self.assertEqual(len(queryset), 1)
+
+    def test_Mother_has_relate_Comment_instance_banned_equal_False_and_Stage_instance_finished_equal_False(self):
+        request = self.factory.get('/')
+        request.user = self.superuser
+        queryset = self.admin.get_queryset(request)
+
+        mother = Mother.objects.create(name='Mother 1')
+        Comment.objects.create(mother=mother, banned=False)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY,
+                             finished=False)
+
+        self.assertEqual(len(queryset), 0)
+
+    def test_Mother_has_relate_Comment_instance_banned_equal_True_and_Stage_instance_finished_equal_True(self):
+        request = self.factory.get('/')
+        request.user = self.superuser
+        queryset = self.admin.get_queryset(request)
+
+        mother = Mother.objects.create(name='Mother 1')
+        Comment.objects.create(mother=mother, banned=True)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY,
+                             finished=True)
+
+        self.assertEqual(len(queryset), 0)
+
+    def test_Mother_has_relate_Comment_instance_banned_equal_True_and_Stage_instance_finished_equal_False(self):
+        request = self.factory.get('/')
+        request.user = self.superuser
+        queryset = self.admin.get_queryset(request)
+
+        mother = Mother.objects.create(name='Mother 1')
+        Comment.objects.create(mother=mother, banned=True)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY,
+                             finished=True)
+
+        self.assertEqual(len(queryset), 0)
+
+    def test_Mother_has_not_relate_Stage_instance_and_comment_instance(self):
+        request = self.factory.get('/')
+        request.user = self.superuser
+        queryset = self.admin.get_queryset(request)
+
+        Mother.objects.create(name='Mother 1')
+
+        self.assertEqual(len(queryset), 1)

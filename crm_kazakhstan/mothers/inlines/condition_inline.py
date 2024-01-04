@@ -1,28 +1,53 @@
 """
-This class create condition states for mothers in different termsThe ConditionInline class is a custom inline admin for the Condition model in a Django application. It allows Condition instances to be edited inline on the Mother model's admin change page. Here's a detailed description of its functionality and the customizations made:
+The ConditionInline class is a custom inline admin for the Condition model in a Django application.
+It allows Condition instances to be edited inline on the Mother model's admin change page.
+Here's a detailed description of its functionality and the customizations made:
+
 Description of ConditionInline:
 
-    Model Association: The inline is associated with the Condition model, which seems to be related to a Mother model via a foreign key.
-    Formset Customization: It uses a custom formset class, CustomConditionInlineFormset, to handle the creation and rendering of forms for Condition instances.
-    Form Customization: The inline specifies ConditionInlineFormWithoutFinished as the form to use when rendering each Condition instance. This form includes custom logic to handle instances differently based on their finished state.
-    Maximum Number of Forms: The max_num property is initially set to 1, indicating that only one empty form should be displayed by default for adding a new Condition. This value may be increased dynamically based on certain conditions.
+    Model Association:
+        The inline is associated with the Condition model, which seems to be related to a Mother
+        model via a foreign key.
+    Formset Customization:
+        It uses a custom formset class, CustomConditionInlineFormset,
+        to handle the creation and rendering of forms for Condition instances.
+    Form Customization:
+        The inline specifies ConditionInlineFormWithoutFinished as the form to use when rendering
+        each Condition instance. This form includes custom logic to handle instances differently
+        based on their finished state.
+    Maximum Number of Forms:
+        The max_num property is initially set to 1,
+        indicating that only one empty form should be displayed by default for adding a new Condition.
+        This value may be increased dynamically based on certain conditions.
 
 Custom Code and Overriding:
 
     CustomConditionInlineFormset:
-        Overrides the __init__ method to set the initial values for scheduled_date and scheduled_time fields based on the user's timezone.
-        The _construct_form method is overridden to customize the field rendering. For each form in the formset, if the associated Condition instance is marked as finished, the form fields are wrapped with EmptyOnlyFieldWrapper to display a span with 'empty' or the actual value instead of the default form widget. This is particularly applied to the scheduled_date, scheduled_time, and condition fields.
+        Overrides the __init__ method to set the initial values for scheduled_date and scheduled_time fields based
+        on the user's timezone.
+        The _construct_form method is overridden to customize the field rendering. For each form in the formset,
+        if the associated Condition instance is marked as finished,
+        the form fields are wrapped with EmptyOnlyFieldWrapper to display a span with 'empty' or the actual value
+        instead of the default form widget. This is particularly applied to the scheduled_date, scheduled_time,
+        and condition fields.
 
     ConditionInlineFormWithoutFinished:
-        In its __init__ method, if the Condition instance is finished, all form fields are disabled, making them read-only.
-        The clean method includes custom validation logic to ensure that if a scheduled_time is provided, a scheduled_date must also be set.
+        In its __init__ method, if the Condition instance is finished, all form fields are disabled,
+        making them read-only.
+        The clean method includes custom validation logic to ensure that if a scheduled_time is provided,
+        a scheduled_date must also be set.
 
     get_formset Method in ConditionInline:
-        Overridden to provide custom logic for determining the max_num of inline forms. It increases the max_num by 1 if there are existing Condition instances related to the mother that are marked as finished, and certain time-based conditions (time = by_date_or_by_datatime(request)) are not met.
+        The get_formset method in ConditionInline is overridden to adjust the max_num attribute based on two factors:
+        the finished state of Condition instances and the request's query parameters.
 
 Usage in Admin Interface:
 
-This inline admin configuration allows users to view and edit Condition instances directly from the Mother instance's admin page. It handles different states of Condition instances and presents them accordingly, providing a user-friendly and context-aware interface for managing related data. The custom formset and form ensure that the admin interface behaves as expected when dealing with Condition instances, taking into account the time zone of the user and the finished state of the conditions.
+This inline admin configuration allows users to view and edit Condition instances directly from the Mother instance's
+admin page. It handles different states of Condition instances and presents them accordingly, providing a user-friendly
+and context-aware interface for managing related data. The custom formset and form ensure that the admin interface
+behaves as expected when dealing with Condition instances, taking into account the time zone of the user and the finished
+state of the conditions.
 """
 
 from django.contrib import admin

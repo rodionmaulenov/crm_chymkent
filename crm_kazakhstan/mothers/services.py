@@ -3,8 +3,13 @@ import pytz
 from datetime import datetime
 
 from django.utils import timezone
+from django.db import models
+from django.db.models import Q, Case, When, BooleanField, Subquery, OuterRef, Value, QuerySet
 
+from mothers.models import Stage
 from mothers.models.one_to_many import Condition
+
+Stage: models
 
 
 def get_difference_time(request, instance: Condition):
@@ -64,3 +69,38 @@ def get_specific_fields(request, inline):
             inline.form = ConditionInlineFormWithFinished
 
     return inline
+
+
+def check_queryset_logic(queryset: QuerySet) -> QuerySet:
+    """
+    Main logic filtering for MotherAdmin.get_queryset method
+    revert only Mother instance which has last Stage instance.finished = True if exists
+    else always return True.
+    Then exclude Comment.banned=True
+    """
+    # Subquery to get the 'finished' status of the latest stage for each mother
+    latest_stage_finished = Stage.objects.filter(
+        mother=OuterRef('pk')
+    ).order_by('-date_create').values('finished')[:1]
+
+    # Annotate with the latest stage's 'finished' status, or False if no stage exists
+    queryset = queryset.annotate(
+        latest_stage_finished=Case(
+            # finished status True or False on last existing Stage instance
+            When(stage__isnull=False, then=Subquery(latest_stage_finished)),
+            # always set True when related Stage instances not exist, because return Mother instance
+            # only if latest_stage_finished equal True
+            default=Value(True),
+            output_field=BooleanField()
+        )
+    )
+
+    # Filter based on the latest stage's 'finished' status or lack of stage
+    queryset = queryset.filter(
+        latest_stage_finished=True
+    )
+
+    # Exclude based on your previous conditions
+    queryset = queryset.exclude(Q(comment__banned=True))
+
+    return queryset

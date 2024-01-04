@@ -164,8 +164,8 @@ class FirstVisitStageActionTest(TestCase):
         queryset = self.mother_admin.get_queryset(request)
         self.assertEqual(0, len(queryset))
 
-        self.assertTrue(mother1.stage.stage == Stage.StageChoices.PRIMARY)
-        self.assertTrue(mother2.stage.stage == Stage.StageChoices.PRIMARY)
+        self.assertTrue(mother1.stage_set.last().stage == Stage.StageChoices.PRIMARY)
+        self.assertTrue(mother2.stage_set.last().stage == Stage.StageChoices.PRIMARY)
 
     def test_raise_integrityerror(self):
         request = self.factory
@@ -187,11 +187,11 @@ class FirstVisitStageActionTest(TestCase):
         queryset = self.mother_admin.get_queryset(request)
         self.assertEqual(1, len(queryset))
 
-        self.assertTrue(mother1.stage.stage == Stage.StageChoices.PRIMARY)
-        self.assertTrue(mother2.stage.stage == Stage.StageChoices.PRIMARY)
+        self.assertTrue(mother1.stage_set.last().stage == Stage.StageChoices.PRIMARY)
+        self.assertTrue(mother2.stage_set.last().stage == Stage.StageChoices.PRIMARY)
 
-        with self.assertRaises(Mother.stage.RelatedObjectDoesNotExist):
-            x = mother3.stage.stage
+        with self.assertRaises(AttributeError):
+            x = mother3.stage_set.last().stage
 
     def test_actions_with_permission(self):
         self.staff_user.user_permissions.add(self.transfer_on_first_visit)
