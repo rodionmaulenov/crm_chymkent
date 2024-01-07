@@ -10,6 +10,7 @@ from django.contrib import admin, messages
 from django.db import models
 from django.utils import formats, timezone
 from django.urls import reverse
+from django.utils.http import urlencode
 
 from mothers.filters import AuthConditionListFilter, AuthReturnedFromFirstVisitListFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
@@ -32,6 +33,7 @@ class MotherAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'name', 'mother_date_created', 'number', 'residence', 'height_and_weight',
         'bad_habits', 'caesarean', 'children_age', 'age', 'citizenship', 'blood', 'maried',
+        "create_condition_link",
     )
 
     actions = ('first_visit_stage', 'delete_selected', 'banned')
@@ -116,7 +118,7 @@ class MotherAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         """
-        Queryset contains exclusively the Mother instance where Stage.finished=True 
+        Queryset contains exclusively the Mother instance where Stage.finished=True
         and not Comment.banned=True if exists
         """
         # assign request for using in custom MotherAdmin methods
@@ -229,31 +231,19 @@ class MotherAdmin(admin.ModelAdmin):
 
     admin.site.disable_action('delete_selected')
 
-    # @admin.display(empty_value="unknown", description='Documents')
-    # def formatted_document_list(self, mother: Mother) -> str:
-    #     """
-    #     From instance verifies if all related documents exist return check mark
-    #     otherwise return list documents that are not exist
-    #
-    #     :param mother: Mother model.Models
-    #     :return: html string
-    #     """
-    #     actual_document_names = {
-    #         'метрика ребенка', 'метрика мамы', 'нет судимости', 'нарколог', 'психиатр',
-    #         'не в браке', 'загранпаспорт'
-    #     }
-    #     document_names = Mother.objects.filter(pk=mother.pk).values_list('document__name', flat=True)
-    #
-    #     if len(document_names) == 7:
-    #         custom_icon_html = '<img src="/static/admin/img/icon-yes.svg" alt="True" style="width: 20px; height: 20px;" />'
-    #         return format_html(custom_icon_html)
-    #     else:
-    #         html_string = '<div><select>'
-    #
-    #         for document_name in actual_document_names:
-    #             if not (document_name in document_names):
-    #                 html_string += f'<option>{document_name}</option>'
-    #
-    #         html_string += '</select></div>'
-    #
-    #         return format_html(html_string)
+    @admin.display(description='condition')
+    def create_condition_link(self, obj: Mother) -> format_html:
+        """
+        Generates a link to add a new Condition instance for a specific Mother.
+        This method creates an HTML anchor element ('<a>') in the Django admin list view for the Mother model.
+        The link leads to the 'add Condition' page with the 'mother' field pre-filled with the ID
+        of the Mother instance.
+        The method also preserves the current list view's filters by including them in the link's query parameters.
+        This ensures that after adding a new Condition, the user can return to the same filtered view
+        of the Mother list.
+        """
+        condition_add_url = reverse('admin:mothers_condition_add')
+        current_path = self.request.get_full_path()
+        # Use urlencode to ensure the querystring is correctly encoded
+        return_path = urlencode({'_changelist_filters': current_path})
+        return format_html('<a href="{}?mother={}&{}">state</a>', condition_add_url, obj.pk, return_path)

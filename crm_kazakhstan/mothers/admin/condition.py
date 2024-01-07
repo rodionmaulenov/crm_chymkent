@@ -1,0 +1,24 @@
+from django.contrib import admin
+from django.http import HttpRequest, HttpResponseRedirect
+
+from mothers.models import Condition
+
+
+@admin.register(Condition)
+class ConditionAdmin(admin.ModelAdmin):
+
+    def response_add(self, request: HttpRequest, obj: Condition, post_url_continue=None) -> HttpResponseRedirect:
+        """
+        Overrides the response after adding a new 'Condition' instance in the admin.
+        If the 'Condition' instance is successfully created and the user hasn't chosen to continue editing or add another,
+        this method redirects to the URL specified by the '_changelist_filters' parameter in the request.
+        This allows the user to return to the 'Mother' admin page with the same filters applied as before they left to add the 'Condition'.
+        """
+        res = super().response_add(request, obj, post_url_continue)
+        if obj and '_continue' not in request.POST and '_addanother' not in request.POST:
+            # Check if the '_changelist_filters' parameter is in the request
+            return_path = request.GET.get('_changelist_filters')
+            if return_path:
+                # Redirect to the URL that's been passed in the '_changelist_filters' parameter
+                return HttpResponseRedirect(return_path)
+        return res

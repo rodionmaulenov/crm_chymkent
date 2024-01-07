@@ -14,7 +14,7 @@ User = get_user_model()
 Mother: models
 
 
-class DisplayDecoratorTest(TestCase):
+class MotherDateCreateTest(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.user_with_timezone = User.objects.create_user(username='user_with_tz', password='password',

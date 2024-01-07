@@ -3,7 +3,7 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import Permission
 from django.contrib.auth import get_user_model
 from mothers.models import Mother, Planned
-from mothers.admin import PlannedInline
+from mothers.inlines import PlannedInline
 
 User = get_user_model()
 

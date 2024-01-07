@@ -14,7 +14,7 @@ Planned: models
 Comment: models
 
 
-class BannedActionMethodTest(TestCase):
+class GetActionMethodTest(TestCase):
     def setUp(self):
         self.staff_user = User.objects.create_user(username='user', password='user', is_staff=True)
         self.superuser = User.objects.create_superuser(username='superuser', password='user')
@@ -46,15 +46,6 @@ class BannedActionMethodTest(TestCase):
         actions = self.mother_admin.get_actions(request)
         self.assertIn('banned', actions)
 
-
-class BannedActionMethodExistOrNoTOnChangeListPageTest(TestCase):
-    def setUp(self):
-        self.superuser = User.objects.create_superuser(username='superuser', password='user')
-
-        admin_site = AdminSite()
-        self.mother_admin = MotherAdmin(Mother, admin_site)
-        self.request_factory = RequestFactory()
-
     def test_banned_exists_when_Mother_instance_have_related_Comment_instance_with_description(self):
         request = self.request_factory.get('/')
         request.user = self.superuser
@@ -74,33 +65,21 @@ class BannedActionMethodExistOrNoTOnChangeListPageTest(TestCase):
         actions = self.mother_admin.get_actions(request)
         self.assertNotIn('banned', actions)
 
-
-class FirstVisitActionMethodTest(TestCase):
-
-    def setUp(self):
-        self.super_user = User.objects.create_user(username='user', password='user', is_superuser=True)
-        self.staff_user = User.objects.create_user(username='superuser', password='passworduser', is_staff=True)
-
-        admin_site = AdminSite()
-        self.mother_admin = MotherAdmin(Mother, admin_site)
-
-        self.request_factory = RequestFactory()
-
-    def test_actions_first_superuser_access(self):
+    def test_actions_first_visit_superuser_access(self):
         request = self.request_factory.get('/')
-        request.user = self.super_user
+        request.user = self.superuser
 
         actions = self.mother_admin.get_actions(request)
         self.assertIn('first_visit_stage', actions)
 
-    def test_actions_staff_without_permission(self):
+    def test_actions_first_visit_staff_without_permission(self):
         request = self.request_factory.get('/')
         request.user = self.staff_user
 
         actions = self.mother_admin.get_actions(request)
         self.assertNotIn('first_visit_stage', actions)
 
-    def test_actions_staff_with_permission(self):
+    def test_actions_first_visit_staff_with_permission(self):
         transfer_on_first_visit_permission = Permission.objects.get(codename='action_first_visit')
         self.staff_user.user_permissions.add(transfer_on_first_visit_permission)
         request = self.request_factory.get('/')
@@ -111,7 +90,7 @@ class FirstVisitActionMethodTest(TestCase):
 
     def test_banned_exists_when_Mother_instance_have_related_Planned_instance_with_plan_and_finished_False(self):
         request = self.request_factory.get('/')
-        request.user = self.super_user
+        request.user = self.superuser
 
         mother = Mother.objects.create(name='Test 1')
         Planned.objects.create(mother=mother, plan=Planned.PlannedChoices.TAKE_TESTS, finished=False)
@@ -121,7 +100,7 @@ class FirstVisitActionMethodTest(TestCase):
 
     def test_banned_exists_when_Mother_instance_not_have_related_Planned_instance(self):
         request = self.request_factory.get('/')
-        request.user = self.super_user
+        request.user = self.superuser
 
         Mother.objects.create(name='Test 1')
 
