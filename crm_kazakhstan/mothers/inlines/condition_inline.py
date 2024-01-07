@@ -103,6 +103,10 @@ class EmptyOnlyFieldWrapper:
         return self.original_widget.attrs
 
     @property
+    def value_omitted_from_data(self):
+        return self.original_widget.value_omitted_from_data
+
+    @property
     def value_from_datadict(self):
         return self.original_widget.value_from_datadict
 

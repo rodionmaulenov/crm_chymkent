@@ -1,15 +1,19 @@
+from typing import Tuple
+
 import pytz
 
 from datetime import datetime
 
 from django.utils import timezone
 from django.db import models
-from django.db.models import Q, Case, When, BooleanField, Subquery, OuterRef, Value, QuerySet
+from django.db.models import Q, Case, When, BooleanField, Subquery, OuterRef, Value, QuerySet, Max, Exists
 
-from mothers.models import Stage
+from mothers.models import Stage, Planned, Mother
 from mothers.models.one_to_many import Condition
 
 Stage: models
+Planned: Stage
+Mother: models
 
 
 def get_difference_time(request, instance: Condition):
@@ -104,3 +108,63 @@ def check_queryset_logic(queryset: QuerySet) -> QuerySet:
     queryset = queryset.exclude(Q(comment__banned=True))
 
     return queryset
+
+
+def first_visit_action_logic_for_queryset(queryset: QuerySet) -> Tuple[QuerySet, QuerySet]:
+    """
+    Processes a queryset of Mother instances, dividing it into two groups based on the criteria
+    of their latest Planned instance:
+    - One group includes Mothers whose latest Planned instance meets specified criteria.
+    - The other group excludes those Mothers.
+
+    Returns:
+        Tuple[QuerySet, QuerySet]: A tuple of two querysets - one including and one excluding
+                                   Mother instances based on the criteria.
+    """
+
+    # Subquery to find the latest Planned instance for each Mother that meets the criteria
+    latest_planned_subquery = Planned.objects.filter(
+        mother=OuterRef('pk'),
+        plan=Planned.PlannedChoices.TAKE_TESTS,
+        finished=False
+    ).order_by('-id')
+
+    # Filter Mothers based on the existence of a matching latest Planned instance
+    mothers_with_latest_planned_meeting_criteria = queryset.filter(
+        Exists(latest_planned_subquery[:1])
+    )
+
+    # Find Mothers who do not meet the criteria
+    mothers_without_latest_planned_meeting_criteria = queryset.exclude(
+        Exists(latest_planned_subquery[:1])
+    )
+
+    return mothers_with_latest_planned_meeting_criteria, mothers_without_latest_planned_meeting_criteria
+
+
+def check_existence_of_latest_unfinished_plan():
+    """
+    Checks whether there exists at least one Mother whose most recent Planned instance
+    (the latest one based on ID) meets specific criteria:
+    - The plan is set to 'TAKE_TESTS', and
+    - The plan is not marked as finished (finished=False).
+
+    Returns:
+        bool: True if such a Mother exists, False otherwise.
+    """
+
+    # Subquery to find the latest Planned instance for each Mother
+    latest_planned_subquery = Planned.objects.filter(
+        mother=OuterRef('pk'),
+        plan=Planned.PlannedChoices.TAKE_TESTS,
+        finished=False
+    ).order_by('-id').values('id')[:1]
+
+    # Query to find Mothers with a latest Planned instance that meets the criteria
+    mothers_with_latest_planned = Mother.objects.filter(
+        Exists(latest_planned_subquery)
+    )
+
+    # Check if there exists at least one Mother meeting the criteria
+    exists = mothers_with_latest_planned.exists()
+    return exists

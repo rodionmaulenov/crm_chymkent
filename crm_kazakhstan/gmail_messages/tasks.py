@@ -8,7 +8,7 @@ from django.db import models
 from django.utils import timezone
 
 from gmail_messages.service_inbox import InboxMessages
-from mothers.models import Mother
+from mothers.models import Mother, Condition
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
@@ -40,6 +40,7 @@ translation_dict = {
 }
 
 Mother: models
+Condition: models
 
 
 @shared_task
@@ -51,13 +52,16 @@ def save_message():
 
         for pk in inbox.email_ids:
             try:
-                Mother.objects.get(pk=pk)
+                mother = Mother.objects.get(pk=pk)
+                if not mother.condition_set.exists():
+                    Condition.objects.create(mother=mother, condition=Condition.ConditionChoices.CREATED)
             except Mother.DoesNotExist:
                 inbox(pk)
 
         for email in inbox.extract_message():
             mother_data = inbox.get_body_email(translation_dict, email)
-            Mother.objects.create(**mother_data)
+            mother = Mother.objects.create(**mother_data)
+            Condition.objects.create(mother=mother, condition=Condition.ConditionChoices.CREATED)
 
         inbox.not_proceed_emails.clear()
         # Close the mailbox

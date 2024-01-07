@@ -63,9 +63,10 @@ class SaveMessageTestCase(TestCase):
 
         self.assertEqual(len(Mother.objects.all()), 3)
         self.assertEqual(Mother.objects.first().id, 12)
+        self.assertEqual(len(Mother.objects.first().condition_set.all()), 1)
 
     @patch('gmail_messages.service_inbox.imaplib.IMAP4_SSL')
-    def test_save_message_when_all_some_messages_repeat(self, mock_imap):
+    def test_save_message_when_from_all_some_messages_repeat(self, mock_imap):
         Mother.objects.create(id=12, name="Bober")
         Mother.objects.create(id=13)
         mock_mail_instance = MagicMock()
@@ -78,6 +79,8 @@ class SaveMessageTestCase(TestCase):
         save_message()
         self.assertEqual(len(Mother.objects.all()), 4)
         self.assertNotEquals(Mother.objects.first().name, Mother.objects.last().name)
+        for mother in Mother.objects.all():
+            self.assertTrue(mother.condition_set.all())
 
     @patch('gmail_messages.service_inbox.imaplib.IMAP4_SSL')
     def test_login_and_extract_messages(self, mock_imap):

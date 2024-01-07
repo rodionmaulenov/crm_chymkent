@@ -1,51 +1,5 @@
-"""
-MotherAdmin Description:
-
-    The MotherAdmin class is a customized Django admin interface for managing Mother instances.
-    It provides tailored inline editing capabilities, search functionalities, and action handlers to manage
-    the lifecycle and status of Mother instances based on specific business logic.
-
-Custom Behaviors and Overriding:
-
-    Inline Formsets:
-        Incorporates inline formsets (PlannedInline, ConditionInline, CommentInline) allowing related objects
-        to be edited directly within the Mother instance's admin page.
-
-    Custom Queryset Handling:
-        Customizes the queryset to exclude Mother instances that are banned or have moved to the first stage,
-        ensuring only relevant instances are displayed for action.
-
-    Search Enhancements:
-        Extends search capabilities to include date-based filtering,
-        enabling search for Mother instances from a specified date to the current date.
-
-    Local Time Conversion:
-        Converts date_create from UTC to the user's local timezone for display,
-        providing a more contextually relevant timestamp for users.
-
-    Custom Actions:
-        Defines custom admin actions (banned and first_visit_stage) to transition Mother instances to different stages
-        based on their associated data.
-
-    Formset Customization:
-        Dynamically adjusts inline form fields displayed, based on the finished state of conditions
-        and certain time-based conditions met by the by_date_or_by_datatime service function.
-
-    Field Rendering:
-        Utilizes EmptyOnlyFieldWrapper for certain fields within inline forms to display custom content
-        when fields are empty or when the associated Condition instance is finished.
-
-    User Feedback:
-        Provides user feedback messages for actions performed on Mother instances, indicating the outcome of each action.
-
-    Date Formatting:
-        Offers a custom display for the date_create field that formats the date according to user's local timezone settings.
-
-By customizing the default admin behavior, MotherAdmin serves a specific workflow, providing a tailored administrative
-interface that caters to the nuanced requirements of managing Mother instances in the system.
-"""
-
 import pytz
+
 from dateutil import parser
 from django.core.handlers.wsgi import WSGIRequest
 
@@ -59,12 +13,14 @@ from django.urls import reverse
 
 from mothers.filters import AuthConditionListFilter, AuthReturnedFromFirstVisitListFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
-from mothers.models import Mother, Comment, Stage, Planned, Condition
+from mothers.models import Mother, Comment, Stage, Condition
 from mothers.services import (get_difference_time, aware_datetime_from_date, get_specific_fields,
-                              by_date_or_by_datatime, check_queryset_logic)
+                              by_date_or_by_datatime, check_queryset_logic, first_visit_action_logic_for_queryset,
+                              check_existence_of_latest_unfinished_plan)
 
 Comment: models
 Stage: models
+Mother: models
 
 
 @admin.register(Mother)
@@ -170,17 +126,40 @@ class MotherAdmin(admin.ModelAdmin):
         return qs
 
     def get_actions(self, request):
+        """
+        It first retrieves the standard set of actions.
+        Then, it checks the user's permissions for specific actions (like banning or performing first visit actions).
+        Additionally, it verifies database conditions such as the existence of Mothers with comments and the presence
+        of unfinished plans. Based on these checks, it dynamically removes certain actions from the available set
+        if the user lacks permissions or if the relevant conditions in the database are not met.
+        This ensures that the admin interface presents only the relevant and permitted actions to the user.
+        """
         actions = super().get_actions(request)
-        if 'banned' in actions and not request.user.has_perm('mothers.move_to_ban'):
+        # Check user permissions
+        has_ban_permission = request.user.has_perm('mothers.move_to_ban')
+        has_first_visit_permission = request.user.has_perm('mothers.action_first_visit')
+
+        # Check database conditions
+        if Mother.objects.exists():
+            has_comments = Mother.objects.filter(comment__description__isnull=False).exists()
+            has_unfinished_plan = check_existence_of_latest_unfinished_plan()
+            if not has_comments:
+                del actions['banned']
+            if not has_unfinished_plan:
+                del actions['first_visit_stage']
+
+        if 'banned' in actions and not has_ban_permission:
             del actions['banned']
-        if 'first_visit_stage' in actions and not request.user.has_perm('mothers.action_first_visit'):
+
+        if 'first_visit_stage' in actions and not has_first_visit_permission:
             del actions['first_visit_stage']
+
         return actions
 
     @admin.action(description="Ban")
-    def banned(self, request, queryset):
+    def banned(self, request: WSGIRequest, queryset: QuerySet) -> None:
         """
-        Moved to ban instances if their Comment description is not equal None
+        Comment.banned`s assign True when Comment.description not None and then move to Ban list
         """
         queryset_to_ban = queryset.filter(comment__description__isnull=False)
         Comment.objects.filter(mother__in=queryset_to_ban).update(banned=True)
@@ -201,24 +180,33 @@ class MotherAdmin(admin.ModelAdmin):
             )
 
     @admin.action(description="First visit")
-    def first_visit_stage(self, request, queryset):
+    def first_visit_stage(self, request: WSGIRequest, queryset: QuerySet) -> None:
         """
-        Initially queryset mother instances not contain relation with Stage because get_queryset exclude their
-        Stage__stage for mother becomes Primary if planned__plan=TAKE_TESTS already exists
+        The queryset already contains Stage instances with finished True
+
+        Admin action to categorize and update selected 'Mother' instances based on their planning status.
+
+        This function divides the mothers into two groups:
+        - Those with an unfinished plan for a specific event (TAKE_TESTS).
+        - Those without such a plan.
+
+        Actions taken:
+        - For the first group, a 'PRIMARY' stage instance is created and a success message is displayed.
+        - For the second group, a warning message is shown about the lack of a planned event.
+
+        This facilitates efficient tracking and management of mothers' progress.
         """
-        mother_have_plan = queryset.filter(planned__plan__isnull=False,
-                                           planned__plan=Planned.PlannedChoices.TAKE_TESTS)
-        for mother in mother_have_plan:
+        mothers_with_plan, mothers_without_plan = first_visit_action_logic_for_queryset(queryset)
+
+        for mother in mothers_with_plan:
             Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
             self.message_user(
                 request,
-                format_html(f"<strong>{mother}</strong>  passed into first visit page."),
+                format_html(f"<strong>{mother}</strong> passed into first visit page."),
                 messages.SUCCESS
             )
 
-        mother_without_plan = queryset.exclude(planned__plan__isnull=False,
-                                               planned__plan=Planned.PlannedChoices.TAKE_TESTS)
-        for mother in mother_without_plan:
+        for mother in mothers_without_plan:
             self.message_user(
                 request,
                 format_html(f"<strong>{mother}</strong> has not planned event."),
