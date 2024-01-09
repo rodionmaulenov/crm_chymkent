@@ -235,13 +235,18 @@ class MotherAdmin(admin.ModelAdmin):
     @admin.display(description='Status/Time')
     def create_condition_link(self, obj: Mother) -> format_html:
         """
-        Generates a condition link or status for a Mother object in the Django admin interface.
-        The display logic varies based on whether a comment or plan exists, or based on the
-        state of the latest condition associated with the Mother object.
+        Generates a link or displays status for a Mother object in Django admin, based on the state
+         of associated Comment, Planned, and Condition instances. The output varies as follows:
 
-        :param obj: The Mother object for which the condition link/status is being generated.
-        :param request: The HttpRequest object, used for timezone and path information.
-        :return: A format_html object containing the appropriate link or status.
+        1. If there's a non-empty Comment or an unfinished Planned instance, and the latest Condition is finished,
+         it shows the condition status.
+        2. If the latest Condition is unfinished without a scheduled date, it provides a link to edit this Condition.
+        3. If the latest Condition is unfinished with a scheduled date, it displays the status and the date
+         in the user's timezone.
+        4. If the latest Condition is finished, it shows the status and a link to add a new Condition.
+
+        :param obj: The Mother object.
+        :return: An HTML string containing a link or status.
         """
         condition_display = shortcut_bold_text(obj)
 
@@ -251,7 +256,7 @@ class MotherAdmin(admin.ModelAdmin):
             return format_html('{}', condition_display)
 
         if not condition.finished and not condition.scheduled_date:
-            return last_condition_finished_and_scheduled_date_false(condition, condition_display)
+            return last_condition_finished_and_scheduled_date_false(condition, self.request, condition_display)
 
         if not condition.finished and condition.scheduled_date:
             return last_condition_finished_false(obj, condition_display, self.request)

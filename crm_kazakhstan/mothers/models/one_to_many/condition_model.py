@@ -15,4 +15,4 @@ class Condition(models.Model):
     finished = models.BooleanField(default=False)
 
     def __str__(self):
-        return ''
+        return self.get_condition_display()

@@ -10,10 +10,10 @@ from django.utils.http import urlencode
 from django.utils.timezone import localtime, make_aware, activate, deactivate
 from django.db import models
 from django.db.models import Q, Case, When, BooleanField, Subquery, OuterRef, Value, QuerySet, Exists
-from django.utils.html import format_html
+from django.utils.html import format_html, mark_safe
 
-from mothers.models import Stage, Planned, Mother, Comment
-from mothers.models.one_to_many import Condition
+from mothers.models import Stage, Planned, Mother, Comment, Condition
+
 
 Stage: models
 Planned: Stage
@@ -177,13 +177,13 @@ def check_existence_of_latest_unfinished_plan():
 
 def shortcut_bold_text(obj: Mother) -> format_html:
     """
-    Retrieves the most recent 'finished' condition for a `Mother` object, and returns
+    Retrieves the last condition for a `Mother` object, and returns
     its display string in a bold HTML format. The display string is truncated to 18 characters
     if it's longer than 17 characters.
     """
     # Using 'exists' to check if there is at least one finished condition
-    if obj.condition_set.filter(finished=True).exists():
-        latest_condition = obj.condition_set.filter(finished=True).latest('id')
+    if obj.condition_set.order_by('-id').exists():
+        latest_condition = obj.condition_set.order_by('-id').first()
         for_display = latest_condition.get_condition_display()
 
         # Truncate and format the display text
@@ -254,13 +254,35 @@ def comment_plann_and_comment_finished_true(obj: Mother) -> Tuple[Planned, Comme
     return planned, comment, condition
 
 
-def last_condition_finished_and_scheduled_date_false(condition: Condition, condition_display: str) -> format_html:
+def last_condition_finished_and_scheduled_date_false(condition: Condition, request: HttpRequest,
+                                                     condition_display: str) -> format_html:
     """
     Create url to the specific 'Condition' instance where finished and scheduled_date are None
     """
 
-    change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
-    return format_html('<a href="{}">{}</a>', change_url, condition_display)
+    change_url = reverse('admin:mothers_condition_change', args=[condition.id])
+    current_path = request.get_full_path()
+    return_path = urlencode({'_changelist_filters': current_path})
+    # Define the CSS style for the link color and hover effect
+    css_style = """
+    <style>
+        a.blue-link {
+            color: green; /* Default color */
+        }
+        a.blue-link:hover {
+            color: rgba(0, 0, 255, 0.5); /* Semi-transparent blue on hover */
+        }
+    </style>
+    """
+
+    # Create the link with the new class
+    link_html = format_html(
+        '<a href="{}?mother={}&{}" class="blue-link">{}</a>',
+        change_url, condition.id, return_path, condition_display
+    )
+
+    # Return the combined HTML (style + link)
+    return mark_safe(f'{css_style}{link_html}')
 
 
 def last_condition_finished_false(obj: Mother, condition_display: str, request: HttpRequest) -> Optional[format_html]:
