@@ -19,7 +19,8 @@ from mothers.services.mother import (get_difference_time, aware_datetime_from_da
                                      first_visit_action_logic_for_queryset,
                                      check_existence_of_latest_unfinished_plan, shortcut_bold_text,
                                      comment_plann_and_comment_finished_true, last_condition_finished_false,
-                                     last_condition_finished_true, last_condition_finished_and_scheduled_date_false)
+                                     last_condition_finished_and_scheduled_date_false, last_condition_finished_true,
+                                     meets_condition_list_filter_criteria, get_filter_value_from_url)
 
 Comment: models
 Stage: models
@@ -235,22 +236,28 @@ class MotherAdmin(admin.ModelAdmin):
     @admin.display(description='Status/Time')
     def create_condition_link(self, obj: Mother) -> format_html:
         """
-        Generates a link or displays status for a Mother object in Django admin, based on the state
-         of associated Comment, Planned, and Condition instances. The output varies as follows:
+        Creates a display for a Mother object in the Django admin with condition-based links or statuses.
 
-        1. If there's a non-empty Comment or an unfinished Planned instance, and the latest Condition is finished,
-         it shows the condition status.
-        2. If the latest Condition is unfinished without a scheduled date, it provides a link to edit this Condition.
-        3. If the latest Condition is unfinished with a scheduled date, it displays the status and the date
-         in the user's timezone.
-        4. If the latest Condition is finished, it shows the status and a link to add a new Condition.
+        The display logic is as follows:
+        - If there's a comment or unfinished planned event, and the latest condition is finished,
+        display the condition status.
+        - If the latest condition is unfinished without a scheduled date, provide an edit link for this condition.
+        - If the latest condition is unfinished with a scheduled date, display the status and the date,
+        unless the admin view is filtered by condition criteria.
+        - If the latest condition is finished, show the status with a link to add a new condition.
+        - If the admin view is filtered by condition criteria, provide a link or status that reflects the filtered
+        view's context.
 
-        :param obj: The Mother object.
-        :return: An HTML string containing a link or status.
+        This method adapts the displayed link or status based on whether the admin view is showing all Mothers or
+         a filtered subset based on condition criteria.
+
+        :return: An HTML string containing the appropriate link or status.
         """
         condition_display = shortcut_bold_text(obj)
 
         comment, plan, condition = comment_plann_and_comment_finished_true(obj)
+
+        filtered_condition = get_filter_value_from_url(self.request)
 
         if (comment or plan) and condition.finished:
             return format_html('{}', condition_display)
@@ -258,10 +265,13 @@ class MotherAdmin(admin.ModelAdmin):
         if not condition.finished and not condition.scheduled_date:
             return last_condition_finished_and_scheduled_date_false(condition, self.request, condition_display)
 
-        if not condition.finished and condition.scheduled_date:
-            return last_condition_finished_false(obj, condition_display, self.request)
+        if not condition.finished and condition.scheduled_date and not filtered_condition:
+            return last_condition_finished_false(condition, condition_display, self.request)
 
         if condition.finished:
             return last_condition_finished_true(obj, condition_display, self.request)
+
+        if filtered_condition:
+            return meets_condition_list_filter_criteria(condition, condition_display, self.request)
 
     admin.site.disable_action('delete_selected')

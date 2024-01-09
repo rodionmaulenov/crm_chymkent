@@ -14,7 +14,6 @@ from django.utils.html import format_html, mark_safe
 
 from mothers.models import Stage, Planned, Mother, Comment, Condition
 
-
 Stage: models
 Planned: Stage
 Mother: models
@@ -195,9 +194,6 @@ def in_user_localtime(condition: Condition, condition_time: Optional[time], requ
     """
     Converts the scheduled date and time of a condition into the local timezone of the user.
 
-    :param condition: The Condition object with a scheduled date.
-    :param condition_time: The scheduled time for the condition, can be None.
-    :param request: The HttpRequest object to retrieve user's timezone.
     :return: A datetime object representing the local time for the user.
     """
     # Ensure condition has a scheduled date and condition_time is not None
@@ -219,8 +215,6 @@ def output_time_format(condition_time: Optional[time], local_scheduled_datetime:
     Formats the provided datetime. If the time is midnight (00:00), it formats
     the datetime as 'Day Month'. Otherwise, it formats as 'Day Month Hour:Minute'.
 
-    :param condition_time: The time part of the datetime. Can be None.
-    :param local_scheduled_datetime: The datetime to be formatted.
     :return: A string representing the formatted datetime.
     """
     # If condition_time is None or midnight, format only the date
@@ -235,7 +229,6 @@ def comment_plann_and_comment_finished_true(obj: Mother) -> Tuple[Planned, Comme
     Determines if there exists either a 'Planned' instance with specific criteria
     or a non-empty 'Comment' for a given 'Mother' object or 'Condition'.
 
-    :param obj: The 'Mother' object to check for associated 'Planned', 'Comment' and 'Condition' instances.
     :return: Tuple from planned, comment and condition instance
     """
     planned = Planned.objects.filter(
@@ -285,17 +278,14 @@ def last_condition_finished_and_scheduled_date_false(condition: Condition, reque
     return mark_safe(f'{css_style}{link_html}')
 
 
-def last_condition_finished_false(obj: Mother, condition_display: str, request: HttpRequest) -> Optional[format_html]:
+def last_condition_finished_false(condition: Condition, condition_display: str, request: HttpRequest) -> Optional[
+    format_html]:
     """
     Retrieves the latest condition for a given 'Mother' object and formats
     its scheduled date and time.
 
-    :param obj: The 'Mother' object to check for associated conditions.
-    :param condition_display: A string representing the condition display text.
-    :param request: The HttpRequest object to retrieve user's timezone.
     :return: A formatted HTML string with the condition display and its scheduled datetime.
     """
-    condition = obj.condition_set.order_by('-id').first()
 
     condition_time = condition.scheduled_time or time(0, 0)
     local_scheduled_datetime = in_user_localtime(condition, condition_time, request)
@@ -308,9 +298,6 @@ def last_condition_finished_true(obj: Mother, condition_display: str, request: H
     Generates an HTML link to add a new condition in the Django admin interface for a specific Mother object.
     This is used when the last condition is marked as finished (True).
 
-    :param request: The HttpRequest object, used to retrieve the current path for redirection.
-    :param condition_display: A string representing the condition display text.
-    :param obj: The Mother object for which the condition is to be added.
     :return: A format_html object containing the HTML link.
     """
 
@@ -320,3 +307,39 @@ def last_condition_finished_true(obj: Mother, condition_display: str, request: H
 
     return format_html('<a href="{}?mother={}&{}">{}</a>',
                        condition_add_url, obj.pk, return_path, condition_display)
+
+
+def get_filter_value_from_url(request: HttpRequest) -> bool:
+    """
+     Checks the request URL for specific 'date_or_time' filter parameters.
+
+     This function examines the query parameters of the given HttpRequest to determine if
+     the 'date_or_time' filter is set to either 'by_date' or 'by_date_and_time'. It's
+     used to identify if the request corresponds to one of these specific filtered views
+     in the Django admin.
+
+     Returns:
+     - bool: True if the 'date_or_time' parameter matches one of the specified filter values, False otherwise.
+     """
+    if 'date_or_time' in request.GET:
+        filter_value = request.GET['date_or_time']
+        return filter_value == 'by_date' or filter_value == 'by_date_and_time'
+
+
+def meets_condition_list_filter_criteria(condition: Condition, condition_display: str,
+                                         request: HttpRequest) -> format_html:
+    """
+    Generates a hyperlink to the admin change page for a Condition object.
+
+    It converts the scheduled time of the condition to the user's local timezone, formats this
+    datetime for display, and then constructs an anchor tag with a URL to the condition's change page.
+    The anchor tag contains the condition's display string and the formatted local datetime.
+
+    Returns:
+    - format_html: An HTML string containing the hyperlink with the condition's display and localized datetime.
+    """
+    condition_time = condition.scheduled_time or time(0, 0)
+    local_scheduled_datetime = in_user_localtime(condition, condition_time, request)
+    formatted_datetime = output_time_format(condition_time, local_scheduled_datetime)
+    change_condition_url = reverse('admin:mothers_condition_change', args=[condition.id])
+    return format_html('<a href="{}">{}/ <br> {}</a>', change_condition_url, condition_display, formatted_datetime)

@@ -14,9 +14,10 @@ class ConditionAdmin(admin.ModelAdmin):
     def response_add(self, request: HttpRequest, obj: Condition, post_url_continue=None) -> HttpResponseRedirect:
         """
         Overrides the response after adding a new 'Condition' instance in the admin.
-        If the 'Condition' instance is successfully created and the user hasn't chosen to continue editing or add another,
-        this method redirects to the URL specified by the '_changelist_filters' parameter in the request.
-        This allows the user to return to the 'Mother' admin page with the same filters applied as before they left to add the 'Condition'.
+        If the 'Condition' instance is successfully created and the user hasn't chosen to continue editing
+        or add another, this method redirects to the URL specified by the '_changelist_filters' parameter
+        in the request. This allows the user to return to the 'Mother' admin page with the same filters applied
+        as before they left to add the 'Condition'.
         """
         res = super().response_add(request, obj, post_url_continue)
         if obj and '_continue' not in request.POST and '_addanother' not in request.POST:
@@ -35,8 +36,10 @@ class ConditionAdmin(admin.ModelAdmin):
         """
         res = super().response_change(request, obj)
         if '_continue' not in request.POST and '_addanother' not in request.POST and '_saveasnew' not in request.POST:
-            print('papa')
             return_path = request.GET.get('_changelist_filters')
             if return_path:
                 return HttpResponseRedirect(return_path)
+
+            changelist_url = reverse('admin:mothers_mother_changelist')
+            return HttpResponseRedirect(changelist_url)
         return res
