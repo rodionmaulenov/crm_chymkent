@@ -6,6 +6,9 @@ from mothers.models import Condition
 
 @admin.register(Condition)
 class ConditionAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+    )
 
     def response_add(self, request: HttpRequest, obj: Condition, post_url_continue=None) -> HttpResponseRedirect:
         """

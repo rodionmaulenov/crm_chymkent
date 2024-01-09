@@ -1,8 +1,8 @@
 import pytz
 
 from dateutil import parser
-from django.core.handlers.wsgi import WSGIRequest
 
+from django.core.handlers.wsgi import WSGIRequest
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html
 from django.db.models import Count, Case, When, QuerySet
@@ -10,18 +10,21 @@ from django.contrib import admin, messages
 from django.db import models
 from django.utils import formats, timezone
 from django.urls import reverse
-from django.utils.http import urlencode
 
 from mothers.filters import AuthConditionListFilter, AuthReturnedFromFirstVisitListFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
 from mothers.models import Mother, Comment, Stage, Condition
-from mothers.services import (get_difference_time, aware_datetime_from_date, get_specific_fields,
-                              by_date_or_by_datatime, check_queryset_logic, first_visit_action_logic_for_queryset,
-                              check_existence_of_latest_unfinished_plan)
+from mothers.services.mother import (get_difference_time, aware_datetime_from_date, get_specific_fields,
+                                     by_date_or_by_datatime, check_queryset_logic,
+                                     first_visit_action_logic_for_queryset,
+                                     check_existence_of_latest_unfinished_plan, shortcut_bold_text,
+                                     comment_plann_and_comment_finished_true, last_condition_finished_false,
+                                     last_condition_finished_true, last_condition_finished_and_scheduled_date_false)
 
 Comment: models
 Stage: models
 Mother: models
+Planned: models
 
 
 @admin.register(Mother)
@@ -229,21 +232,31 @@ class MotherAdmin(admin.ModelAdmin):
         formatted_date = formats.date_format(local_time, "j M H:i")
         return formatted_date
 
-    admin.site.disable_action('delete_selected')
-
-    @admin.display(description='condition')
+    @admin.display(description='Status/Time')
     def create_condition_link(self, obj: Mother) -> format_html:
         """
-        Generates a link to add a new Condition instance for a specific Mother.
-        This method creates an HTML anchor element ('<a>') in the Django admin list view for the Mother model.
-        The link leads to the 'add Condition' page with the 'mother' field pre-filled with the ID
-        of the Mother instance.
-        The method also preserves the current list view's filters by including them in the link's query parameters.
-        This ensures that after adding a new Condition, the user can return to the same filtered view
-        of the Mother list.
+        Generates a condition link or status for a Mother object in the Django admin interface.
+        The display logic varies based on whether a comment or plan exists, or based on the
+        state of the latest condition associated with the Mother object.
+
+        :param obj: The Mother object for which the condition link/status is being generated.
+        :param request: The HttpRequest object, used for timezone and path information.
+        :return: A format_html object containing the appropriate link or status.
         """
-        condition_add_url = reverse('admin:mothers_condition_add')
-        current_path = self.request.get_full_path()
-        # Use urlencode to ensure the querystring is correctly encoded
-        return_path = urlencode({'_changelist_filters': current_path})
-        return format_html('<a href="{}?mother={}&{}">state</a>', condition_add_url, obj.pk, return_path)
+        condition_display = shortcut_bold_text(obj)
+
+        comment, plan, condition = comment_plann_and_comment_finished_true(obj)
+
+        if (comment or plan) and condition.finished:
+            return format_html('{}', condition_display)
+
+        if not condition.finished and not condition.scheduled_date:
+            return last_condition_finished_and_scheduled_date_false(condition, condition_display)
+
+        if not condition.finished and condition.scheduled_date:
+            return last_condition_finished_false(obj, condition_display, self.request)
+
+        if condition.finished:
+            return last_condition_finished_true(obj, condition_display, self.request)
+
+    admin.site.disable_action('delete_selected')

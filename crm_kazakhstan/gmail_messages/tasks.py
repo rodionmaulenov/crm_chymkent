@@ -54,14 +54,14 @@ def save_message():
             try:
                 mother = Mother.objects.get(pk=pk)
                 if not mother.condition_set.exists():
-                    Condition.objects.create(mother=mother, condition=Condition.ConditionChoices.CREATED)
+                    Condition.objects.create(mother=mother, condition=Condition.ConditionChoices.CREATED, finished=True)
             except Mother.DoesNotExist:
                 inbox(pk)
 
         for email in inbox.extract_message():
             mother_data = inbox.get_body_email(translation_dict, email)
             mother = Mother.objects.create(**mother_data)
-            Condition.objects.create(mother=mother, condition=Condition.ConditionChoices.CREATED)
+            Condition.objects.create(mother=mother, condition=Condition.ConditionChoices.CREATED, finished=True)
 
         inbox.not_proceed_emails.clear()
         # Close the mailbox

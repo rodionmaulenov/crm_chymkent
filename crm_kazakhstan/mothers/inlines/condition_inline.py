@@ -56,7 +56,7 @@ from django import forms
 from django.utils.html import format_html
 
 from mothers.constants import CONDITION_CHOICES
-from mothers.services import convert_utc_to_local, by_date_or_by_datatime
+from mothers.services.mother import convert_utc_to_local, by_date_or_by_datatime
 from mothers.models import Condition
 
 
