@@ -8,7 +8,7 @@ from freezegun import freeze_time
 
 from mothers.admin import MotherAdmin
 from mothers.models import Mother
-from mothers.services import aware_datetime_from_date
+from mothers.services.mother import aware_datetime_from_date
 
 User = get_user_model()
 Mother: models

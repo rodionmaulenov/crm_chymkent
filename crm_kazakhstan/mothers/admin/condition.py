@@ -35,11 +35,13 @@ class ConditionAdmin(admin.ModelAdmin):
         the user hasn't chosen to continue editing.
         """
         res = super().response_change(request, obj)
-        if '_continue' not in request.POST and '_addanother' not in request.POST and '_saveasnew' not in request.POST:
+        if '_continue' not in request.POST and '_addanother' not in request.POST:
             return_path = request.GET.get('_changelist_filters')
             if return_path:
                 return HttpResponseRedirect(return_path)
 
-            changelist_url = reverse('admin:mothers_mother_changelist')
-            return HttpResponseRedirect(changelist_url)
         return res
+
+        # if obj.finished:
+        #     mother_changelist_url = reverse('admin:mothers_mother_changelist')
+        #     return HttpResponseRedirect(mother_changelist_url)

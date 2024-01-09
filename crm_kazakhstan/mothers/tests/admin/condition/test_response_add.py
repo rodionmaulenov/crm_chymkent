@@ -14,7 +14,7 @@ Mother: models
 User = get_user_model()
 
 
-class ResponseAddTest(TestCase):
+class ResponseAddMethodTest(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.condition_admin = ConditionAdmin(Condition, AdminSite())
