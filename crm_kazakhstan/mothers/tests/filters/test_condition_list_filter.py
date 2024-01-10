@@ -366,3 +366,31 @@ class ConditionListFilterTest(TestCase):
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
         self.assertEqual(len(queryset), 0)
+
+    @freeze_time("2023-12-12 20:30:00")
+    def test_Condition_scheduled_date_not_in_datetime_list_when_previous_finished_conditions_exists_with_scheduled_time(
+            self):
+        mother = Mother.objects.create(name='Test Mother')
+        Condition.objects.create(
+            mother=mother,
+            scheduled_date=datetime(2023, 12, 12, tzinfo=timezone.utc),
+            scheduled_time=time(20, 20, 0),
+            condition='FR3',
+            finished=True
+        )
+        Condition.objects.create(
+            mother=mother,
+            scheduled_date=datetime(2023, 12, 11, tzinfo=timezone.utc),
+            condition='FR3',
+            finished=False
+        )
+
+        request = self.factory.get('/')
+        request.user = self.superuser
+
+        filter_instance = ConditionListFilter(
+            request, {'date_or_time': 'by_date'}, Mother, self.mother_admin_instance
+        )
+        queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
+
+        self.assertEqual(len(queryset), 1)

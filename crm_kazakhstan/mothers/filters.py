@@ -1,8 +1,7 @@
 from django.contrib import admin
-from django.utils import timezone
-from django.db.models import Q
 
 from mothers.models import Planned
+from mothers.services.condition import filter_condition_by_date_time
 
 
 class ConditionListFilter(admin.SimpleListFilter):
@@ -10,20 +9,9 @@ class ConditionListFilter(admin.SimpleListFilter):
     parameter_name = "date_or_time"
 
     def __init__(self, *args, **kwargs):
-        self.current_date = timezone.now().date()
-        self.current_time = timezone.now().time()
-        self.filtered_queryset_for_datetime = (
-            # by_date_and_time: when scheduled_date == current_date then compare scheduled_time <= current_time
-            Q(condition__scheduled_date=self.current_date,
-                condition__scheduled_time__lte=self.current_time) |  # OR
-            # by_date_and_time: if condition above wrong compare scheduled_date < current_date
-            Q(condition__scheduled_date__lt=self.current_date)
-            ) & Q(condition__finished=False)
-        self.filtered_queryset_for_date = (
-            # by_date: when scheduled_date <= current_date and scheduled_time is Empty
-            Q(condition__scheduled_date__lte=self.current_date,
-                condition__scheduled_time__isnull=True)
-            ) & Q(condition__finished=False)
+        for_date, for_datetime = filter_condition_by_date_time()
+        self.filtered_queryset_for_datetime = for_datetime
+        self.filtered_queryset_for_date = for_date
         super().__init__(*args, **kwargs)
 
     def lookups(self, request, model_admin):

@@ -262,15 +262,15 @@ def last_condition_finished_and_scheduled_date_false(condition: Condition, reque
         a.blue-link {
             color: green; /* Default color */
         }
-        a.blue-link:hover {
-            color: rgba(0, 0, 255, 0.5); /* Semi-transparent blue on hover */
-        }
+        a.light-green:hover {
+    color: rgba(0, 150, 0, 0.8); /* Semi-transparent dark green on hover */
+    }
     </style>
     """
 
     # Create the link with the new class
     link_html = format_html(
-        '<a href="{}?mother={}&{}" class="blue-link">{}</a>',
+        '<a href="{}?mother={}&{}" class="light-green">{}</a>',
         change_url, condition.id, return_path, condition_display
     )
 
