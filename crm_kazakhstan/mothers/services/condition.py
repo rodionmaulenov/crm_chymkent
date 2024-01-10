@@ -58,12 +58,14 @@ def queryset_with_filter_condition(for_date: Q, for_datetime: Q) -> Tuple[bool, 
 def get_url_query(ind: int) -> Optional[str]:
     """
     Generates a URL for the 'Mother' admin changelist page with specific query parameters.
-
-    Returns:
-    - Optional[str]: A string containing the URL with the selected query parameters.
-      If the index is outside the specified range, returns None.
     """
-    if 0 <= ind <= 1:
-        view_name = 'admin:mothers_mother_changelist'
+
+    for_date, for_datetime = filter_condition_by_date_time()
+    for_date, for_datetime = queryset_with_filter_condition(for_date, for_datetime)
+    mother_changelist = 'admin:mothers_mother_changelist'
+
+    if 0 == ind and for_date or ind == 1 and for_datetime:
         query_params = [{'date_or_time': 'by_date'}, {'date_or_time': 'by_date_and_time'}]
-        return reverse(view_name) + '?' + urlencode(query_params[ind])
+        return reverse(mother_changelist) + '?' + urlencode(query_params[ind])
+    else:
+        return reverse(mother_changelist)

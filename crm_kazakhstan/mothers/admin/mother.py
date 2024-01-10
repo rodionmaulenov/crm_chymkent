@@ -18,9 +18,9 @@ from mothers.services.mother import (get_difference_time, aware_datetime_from_da
                                      by_date_or_by_datatime, check_queryset_logic,
                                      first_visit_action_logic_for_queryset,
                                      check_existence_of_latest_unfinished_plan, shortcut_bold_text,
-                                     comment_plann_and_comment_finished_true, last_condition_finished_false,
-                                     last_condition_finished_and_scheduled_date_false, last_condition_finished_true,
-                                     meets_condition_list_filter_criteria, get_filter_value_from_url)
+                                     comment_plann_and_comment_finished_true, change_or_not_based_on_filtered_queryset,
+                                     change_condition_on_change_list_page, add_new_condition,
+                                     change_on_filtered_changelist, get_filter_value_from_url)
 
 Comment: models
 Stage: models
@@ -236,42 +236,34 @@ class MotherAdmin(admin.ModelAdmin):
     @admin.display(description='Status/Time')
     def create_condition_link(self, obj: Mother) -> format_html:
         """
-        Creates a display for a Mother object in the Django admin with condition-based links or statuses.
-
-        The display logic is as follows:
-        - If there's a comment or unfinished planned event, and the latest condition is finished,
-        display the condition status.
-        - If the latest condition is unfinished without a scheduled date, provide an edit link for this condition.
-        - If the latest condition is unfinished with a scheduled date, display the status and the date,
-        unless the admin view is filtered by condition criteria.
-        - If the latest condition is finished, show the status with a link to add a new condition.
-        - If the admin view is filtered by condition criteria, provide a link or status that reflects the filtered
-        view's context.
-
-        This method adapts the displayed link or status based on whether the admin view is showing all Mothers or
-         a filtered subset based on condition criteria.
-
-        :return: An HTML string containing the appropriate link or status.
+        All this actions occur on change list page
+        Only last statement happens on filtered change list page
         """
+
         condition_display = shortcut_bold_text(obj)
 
         comment, plan, condition = comment_plann_and_comment_finished_true(obj)
 
-        filtered_condition = get_filter_value_from_url(self.request)
+        filtered_queryset_url = get_filter_value_from_url(self.request)
 
+        # if "Comment" or "Planned" instance exists to Mother obj I CAN`t ADD or CHANGE "Condition" instance
         if (comment or plan) and condition.finished:
             return format_html('{}', condition_display)
 
+        # verify case when exists only state of condition instance then I CAN CHANGE 'Condition' instance
         if not condition.finished and not condition.scheduled_date:
-            return last_condition_finished_and_scheduled_date_false(condition, self.request, condition_display)
+            return change_condition_on_change_list_page(condition, self.request, condition_display)
 
-        if not condition.finished and condition.scheduled_date and not filtered_condition:
-            return last_condition_finished_false(condition, condition_display, self.request)
+        # if this scheduled "Condition" instance not appear in filtered queryset I CAN CHANGE else I CAN`T CHANGE
+        if not condition.finished and condition.scheduled_date and not filtered_queryset_url:
+            return change_or_not_based_on_filtered_queryset(condition, condition_display, self.request)
 
+        # when last related to Mother obj 'Condition' instance is finished=True then I CAN ADD another 'Condition'
         if condition.finished:
-            return last_condition_finished_true(obj, condition_display, self.request)
+            return add_new_condition(obj, condition_display, self.request)
 
-        if filtered_condition:
-            return meets_condition_list_filter_criteria(condition, condition_display, self.request)
+        # ONLY in this case I locate on filtered queryset where I CHANGE "Condition" instance
+        if filtered_queryset_url:
+            return change_on_filtered_changelist(condition, condition_display, self.request)
 
     admin.site.disable_action('delete_selected')

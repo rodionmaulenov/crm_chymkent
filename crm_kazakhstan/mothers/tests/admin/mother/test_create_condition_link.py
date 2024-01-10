@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.db import models
+from freezegun import freeze_time
 
 from mothers.models import Mother, Comment, Condition
 from mothers.admin import MotherAdmin
@@ -60,6 +61,31 @@ class CreateConditionLinkTest(TestCase):
         result = self.mother_admin.create_condition_link(obj=self.mother)
 
         self.assertIn('<strong>recently created</strong>/ <br> 9 Jan', result)
+
+    @freeze_time("2023-12-12")
+    def test_unfinished_condition_with_date_on_change_list_page(self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9))
+
+        request = self.factory.get('/')
+        request.user = self.superuser
+        self.mother_admin.request = request
+
+        result = self.mother_admin.create_condition_link(obj=self.mother)
+
+        self.assertIn(f'/admin/mothers/condition/{condition.pk}/change/', result)
+
+    @freeze_time("2024-12-12 20:00:00")
+    def test_unfinished_condition_with_datetime_on_change_list_page(self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12),
+                                             scheduled_time=time(21, 20))
+
+        request = self.factory.get('/')
+        request.user = self.superuser
+        self.mother_admin.request = request
+
+        result = self.mother_admin.create_condition_link(obj=self.mother)
+
+        self.assertIn(f'/admin/mothers/condition/{condition.pk}/change/', result)
 
     def test_unfinished_condition_with_datetime_and_unfiltered_view(self):
         Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9),
@@ -130,5 +156,3 @@ class CreateConditionLinkTest(TestCase):
         result = self.mother_admin.create_condition_link(obj=self.mother)
 
         self.assertIn('<strong>recently created</strong>/ <br> 10 Jan', result)
-
-

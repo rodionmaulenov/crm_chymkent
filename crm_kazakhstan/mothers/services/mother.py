@@ -152,9 +152,6 @@ def check_existence_of_latest_unfinished_plan():
     (the latest one based on ID) meets specific criteria:
     - The plan is set to 'TAKE_TESTS', and
     - The plan is not marked as finished (finished=False).
-
-    Returns:
-        bool: True if such a Mother exists, False otherwise.
     """
 
     # Subquery to find the latest Planned instance for each Mother
@@ -228,8 +225,6 @@ def comment_plann_and_comment_finished_true(obj: Mother) -> Tuple[Planned, Comme
     """
     Determines if there exists either a 'Planned' instance with specific criteria
     or a non-empty 'Comment' for a given 'Mother' object or 'Condition'.
-
-    :return: Tuple from planned, comment and condition instance
     """
     planned = Planned.objects.filter(
         mother=obj,
@@ -247,99 +242,101 @@ def comment_plann_and_comment_finished_true(obj: Mother) -> Tuple[Planned, Comme
     return planned, comment, condition
 
 
-def last_condition_finished_and_scheduled_date_false(condition: Condition, request: HttpRequest,
-                                                     condition_display: str) -> format_html:
+def get_css_style(link_class: str, default_color: str, hover_color: str) -> str:
     """
-    Create url to the specific 'Condition' instance where finished and scheduled_date are None
+    Generates a CSS style for a given link class with specified colors for default and hover states.
     """
-
-    change_url = reverse('admin:mothers_condition_change', args=[condition.id])
-    current_path = request.get_full_path()
-    return_path = urlencode({'_changelist_filters': current_path})
-    # Define the CSS style for the link color and hover effect
-    css_style = """
-    <style>
-        a.blue-link {
-            color: green; /* Default color */
-        }
-        a.light-green:hover {
-    color: rgba(0, 150, 0, 0.8); /* Semi-transparent dark green on hover */
-    }
-    </style>
+    return f"""
+        <style>
+            a.{link_class} {{
+                color: {default_color}; /* Default color */
+            }}
+            a.{link_class}:hover {{
+                color: {hover_color}; /* Color on hover */
+            }}
+        </style>
     """
 
-    # Create the link with the new class
-    link_html = format_html(
-        '<a href="{}?mother={}&{}" class="light-green">{}</a>',
-        change_url, condition.id, return_path, condition_display
-    )
 
-    # Return the combined HTML (style + link)
-    return mark_safe(f'{css_style}{link_html}')
-
-
-def last_condition_finished_false(condition: Condition, condition_display: str, request: HttpRequest) -> Optional[
-    format_html]:
+def create_link_html(url: str, link_class: str, display_text: str) -> format_html:
     """
-    Retrieves the latest condition for a given 'Mother' object and formats
-    its scheduled date and time.
-
-    :return: A formatted HTML string with the condition display and its scheduled datetime.
+    Creates an HTML link with specified URL, CSS class, and display text.
     """
-
-    condition_time = condition.scheduled_time or time(0, 0)
-    local_scheduled_datetime = in_user_localtime(condition, condition_time, request)
-    formatted_datetime = output_time_format(condition_time, local_scheduled_datetime)
-    return format_html('{}/ <br> {}', condition_display, formatted_datetime)
+    return format_html('<a href="{}" class="{}">{}</a>', url, link_class, display_text)
 
 
-def last_condition_finished_true(obj: Mother, condition_display: str, request: HttpRequest) -> format_html:
+def get_filter_value_from_url(request: HttpRequest) -> bool:
+    """
+    Checks the request URL for specific 'date_or_time' filter parameters.
+    """
+    if 'date_or_time' in request.GET:
+        filter_value = request.GET['date_or_time']
+        return filter_value == 'by_date' or filter_value == 'by_date_and_time'
+
+
+def add_new_condition(obj: Mother, condition_display: str, request: HttpRequest) -> format_html:
     """
     Generates an HTML link to add a new condition in the Django admin interface for a specific Mother object.
     This is used when the last condition is marked as finished (True).
-
-    :return: A format_html object containing the HTML link.
     """
 
     condition_add_url = reverse('admin:mothers_condition_add')
     current_path = request.get_full_path()
     return_path = urlencode({'_changelist_filters': current_path})
 
-    return format_html('<a href="{}?mother={}&{}">{}</a>',
-                       condition_add_url, obj.pk, return_path, condition_display)
+    return format_html('<a href="{}?mother={}&{}">{}</a>', condition_add_url, obj.pk, return_path, condition_display)
 
 
-def get_filter_value_from_url(request: HttpRequest) -> bool:
+def change_condition_on_change_list_page(condition: Condition, request: HttpRequest,
+                                         condition_display: str) -> format_html:
     """
-     Checks the request URL for specific 'date_or_time' filter parameters.
-
-     This function examines the query parameters of the given HttpRequest to determine if
-     the 'date_or_time' filter is set to either 'by_date' or 'by_date_and_time'. It's
-     used to identify if the request corresponds to one of these specific filtered views
-     in the Django admin.
-
-     Returns:
-     - bool: True if the 'date_or_time' parameter matches one of the specified filter values, False otherwise.
-     """
-    if 'date_or_time' in request.GET:
-        filter_value = request.GET['date_or_time']
-        return filter_value == 'by_date' or filter_value == 'by_date_and_time'
-
-
-def meets_condition_list_filter_criteria(condition: Condition, condition_display: str,
-                                         request: HttpRequest) -> format_html:
+    Create Change Url on Mother Change List Page to the specific 'Condition' instance
+    where finished and scheduled_date are None.
     """
-    Generates a hyperlink to the admin change page for a Condition object.
+    change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
+    current_path = request.get_full_path()
+    return_path = urlencode({'_changelist_filters': current_path})
 
-    It converts the scheduled time of the condition to the user's local timezone, formats this
-    datetime for display, and then constructs an anchor tag with a URL to the condition's change page.
-    The anchor tag contains the condition's display string and the formatted local datetime.
+    css_style = get_css_style("light-green", "green", "rgba(0, 150, 0, 0.8)")
+    link_html = create_link_html(f'{change_url}?mother={condition.pk}&{return_path}', "light-green", condition_display)
 
-    Returns:
-    - format_html: An HTML string containing the hyperlink with the condition's display and localized datetime.
+    return mark_safe(f'{css_style}{link_html}')
+
+
+def change_or_not_based_on_filtered_queryset(condition: Condition, condition_display: str, request: HttpRequest) -> \
+        Optional[format_html]:
     """
+    Create Change Url or Simple String in Bold on Mother Change List Page to the specific 'Condition' instance based on
+    if on changelist or filtered changelist page.
+    """
+    current_date = timezone.now().date()
+    current_time = timezone.now().time()
+
     condition_time = condition.scheduled_time or time(0, 0)
     local_scheduled_datetime = in_user_localtime(condition, condition_time, request)
     formatted_datetime = output_time_format(condition_time, local_scheduled_datetime)
-    change_condition_url = reverse('admin:mothers_condition_change', args=[condition.id])
-    return format_html('<a href="{}">{}/ <br> {}</a>', change_condition_url, condition_display, formatted_datetime)
+    change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
+
+    css_style = get_css_style("light-green", "green", "rgba(0, 150, 0, 0.8)")
+    display_text = f'{condition_display} <br>{formatted_datetime}'
+    link_html = create_link_html(change_url, "light-green", display_text)
+
+    if condition.scheduled_date > current_date or (condition.scheduled_date == current_date and condition.scheduled_time
+                                                   and condition.scheduled_time > current_time):
+        return mark_safe(f'{css_style}{link_html}')
+    else:
+        return format_html('{}/ <br> {}', condition_display, formatted_datetime)
+
+
+def change_on_filtered_changelist(condition: Condition, condition_display: str, request: HttpRequest) -> format_html:
+    """
+    Can Change 'Condition instance' on filtered change list page
+    """
+    local_scheduled_datetime = in_user_localtime(condition, condition.scheduled_time or time(0, 0), request)
+    formatted_datetime = output_time_format(condition.scheduled_time, local_scheduled_datetime)
+    change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
+
+    css_style = get_css_style("violet-link", "rgba(138, 43, 226, 0.8)", "violet")
+    link_html = create_link_html(change_url, "violet-link", f"{condition_display}/ <br>{formatted_datetime}")
+
+    return mark_safe(f'{css_style}{link_html}')
