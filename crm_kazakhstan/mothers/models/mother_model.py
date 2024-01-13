@@ -17,15 +17,5 @@ class Mother(models.Model):
     maried = models.CharField(max_length=100, blank=True, null=True)
     date_create = models.DateTimeField(default=timezone.now)
 
-    class Meta:
-        permissions = [
-            ('to_manager_on_primary_stage', 'Can do all without actions on primary stage'),
-            ('action_first_visit', 'transfer mothers to the first visit'),
-            ('move_to_ban', 'Can banned mother instances'),
-            ('return_from_ban', 'Can return mothers instance from ban'),
-            ('to_manager_on_first_stage', 'Can do all without actions  on first stage'),
-            ('action_on_primary_stage', 'Return mother on primary stage'),
-        ]
-
     def __str__(self):
         return self.name or "Unnamed Mother"

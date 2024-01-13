@@ -1,9 +1,11 @@
 import pytz
 
 from dateutil import parser
+from guardian.admin import GuardedModelAdmin
+from guardian.shortcuts import get_objects_for_user
 
 from django.core.handlers.wsgi import WSGIRequest
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, HttpRequest
 from django.utils.html import format_html
 from django.db.models import Count, Case, When, QuerySet
 from django.contrib import admin, messages
@@ -11,16 +13,15 @@ from django.db import models
 from django.utils import formats, timezone
 from django.urls import reverse
 
-from mothers.filters import AuthConditionListFilter, AuthReturnedFromFirstVisitListFilter
+from mothers.filters import AuthConditionListFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
 from mothers.models import Mother, Comment, Stage, Condition
 from mothers.services.mother import (get_difference_time, aware_datetime_from_date, get_specific_fields,
-                                     by_date_or_by_datatime, check_queryset_logic,
-                                     first_visit_action_logic_for_queryset,
+                                     by_date_or_by_datatime, first_visit_action_logic_for_queryset,
                                      check_existence_of_latest_unfinished_plan, shortcut_bold_text,
                                      comment_plann_and_comment_finished_true, change_or_not_based_on_filtered_queryset,
                                      change_condition_on_change_list_page, add_new_condition,
-                                     change_on_filtered_changelist, get_filter_value_from_url)
+                                     change_on_filtered_changelist, get_filter_value_from_url, on_primary_stage)
 
 Comment: models
 Stage: models
@@ -29,11 +30,11 @@ Planned: models
 
 
 @admin.register(Mother)
-class MotherAdmin(admin.ModelAdmin):
+class MotherAdmin(GuardedModelAdmin):
     empty_value_display = "-empty-"
     ordering = ('-date_create',)
     inlines = (PlannedInline, ConditionInline, CommentInline,)
-    list_filter = ("date_create", AuthConditionListFilter, AuthReturnedFromFirstVisitListFilter)
+    list_filter = ("date_create", AuthConditionListFilter)
     list_display = (
         'id', 'name', 'mother_date_created', 'number', 'residence', 'height_and_weight',
         'bad_habits', 'caesarean', 'children_age', 'age', 'citizenship', 'blood', 'maried',
@@ -119,17 +120,6 @@ class MotherAdmin(admin.ModelAdmin):
             pass
 
         return queryset, use_distinct
-
-    def get_queryset(self, request):
-        """
-        Queryset contains exclusively the Mother instance where Stage.finished=True
-        and not Comment.banned=True if exists
-        """
-        # assign request for using in custom MotherAdmin methods
-        self.request = request
-        qs = super().get_queryset(request)
-        qs = check_queryset_logic(qs)
-        return qs
 
     def get_actions(self, request):
         """
@@ -236,8 +226,11 @@ class MotherAdmin(admin.ModelAdmin):
     @admin.display(description='Status/Time')
     def create_condition_link(self, obj: Mother) -> format_html:
         """
-        All this actions occur on change list page
-        Only last statement happens on filtered change list page
+        Verify from where come to change page
+        Verify when change the status of Condition instance the same or new?
+        Find out for what page redirect on mother change list page or filtered mother change list page
+        Find out if Condition instance after change return on filtered mother change list page and this page is empty
+        maybe better redirect on change list page
         """
 
         condition_display = shortcut_bold_text(obj)
@@ -262,8 +255,68 @@ class MotherAdmin(admin.ModelAdmin):
         if condition.finished:
             return add_new_condition(obj, condition_display, self.request)
 
-        # ONLY in this case I locate on filtered queryset where I CHANGE "Condition" instance
+        # ONLY in this case mother instance locate on filtered queryset where I CAN CHANGE "Condition" instance
         if filtered_queryset_url:
             return change_on_filtered_changelist(condition, condition_display, self.request)
 
     admin.site.disable_action('delete_selected')
+
+    def has_module_permission(self, request) -> bool:
+        """
+        Permission for first layer on site, see or not Mother.
+        If superuser True else objects that has the same with user perms exist or not.
+        """
+        if request.user.is_superuser:
+            return True
+        data = on_primary_stage(self.get_model_objects(request))
+        return data.exists()
+
+    def get_queryset(self, request: HttpRequest) -> QuerySet:
+        """
+        Queryset contains exclusively the Mother instances where Stage is Primary
+        """
+        # assign request for using in custom MotherAdmin methods
+        self.request = request
+
+        queryset = super().get_queryset(request)
+        queryset = on_primary_stage(queryset)
+
+        if request.user.is_superuser:
+            return queryset
+
+        data = self.get_model_objects(request)
+        data = on_primary_stage(data)
+        return data
+
+    def get_model_objects(self, request: HttpRequest) -> QuerySet:
+        """
+        Get the objects that tied with concrete user and have the same permission, that user have
+        """
+        _meta = self.opts
+        actions = ['view', 'change']
+        perms = [f'{perm}_{_meta.model_name}' for perm in actions]
+        klass = _meta.model
+        return get_objects_for_user(user=request.user, perms=perms, klass=klass, any_perm=True)
+
+    def has_permission(self, request: HttpRequest, obj: Mother, action: str) -> bool:
+        """
+        list layer:
+        If superuser True else objects that has the same with user perms exist or not.
+        Obj layer:
+        If superuser True else user has perms on object or not.
+        """
+        _meta = self.opts
+        code_name = f'{action}_{_meta.model_name}'
+        if obj:
+            return request.user.has_perm(f'{_meta.app_label}.{code_name}', obj)
+        if request.user.is_superuser:
+            return True
+        else:
+            data = on_primary_stage(self.get_model_objects(request))
+            return data.exists()
+
+    def has_view_permission(self, request: HttpRequest, obj=None) -> bool:
+        return self.has_permission(request, obj, 'view')
+
+    def has_change_permission(self, request: HttpRequest, obj=None) -> bool:
+        return self.has_permission(request, obj, 'view')

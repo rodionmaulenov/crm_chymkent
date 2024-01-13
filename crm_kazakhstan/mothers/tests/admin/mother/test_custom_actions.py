@@ -74,9 +74,11 @@ class FirstVisitStageCustomActionMethodTest(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
 
+        user = User.objects.create_superuser('testname', 'email@gmail.com', 'password')
         self.request = self.factory.get('/')
         setattr(self.request, 'session', 'session')
         setattr(self.request, '_messages', FallbackStorage(self.request))
+        self.request.user = user
 
         admin_site = AdminSite()
         self.mother_admin = MotherAdmin(Mother, admin_site)

@@ -1,10 +1,11 @@
 from datetime import date, time
 
+from django.contrib.sessions.middleware import SessionMiddleware
 from freezegun import freeze_time
 
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.db import models
-from django.test import TestCase, RequestFactory
+from django.test import TestCase, RequestFactory, Client
 from django.urls import reverse
 from django.contrib.admin.sites import AdminSite
 
@@ -29,60 +30,14 @@ class ResponseChangeMethodTest(TestCase):
         self.admin_site = AdminSite()
         self.condition_admin = ConditionAdmin(Condition, self.admin_site)
 
-    def test_response_change_regular_save(self):
+    def test_redirect_to_mother_change_list_when_change_without_filtered_previous_url(self):
         condition = Condition.objects.create(mother=self.mother, finished=False)
 
         request = self.factory.post(reverse('admin:mothers_condition_change', args=[condition.pk]))
-        request.session = 'session'
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
         request._messages = FallbackStorage(request)
-        request.user = self.superuser
-
-        response = self.condition_admin.response_change(request, condition)
-
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(response.url.endswith(reverse('admin:mothers_condition_changelist')))
-
-    def test_response_change_with_continue(self):
-        condition = Condition.objects.create(mother=self.mother, finished=False)
-
-        change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
-        request = self.factory.post(change_url, {'_continue': 'Save and continue editing'})
-        request.session = 'session'
-        request._messages = FallbackStorage(request)
-        request.user = self.superuser
-
-        response = self.condition_admin.response_change(request, condition)
-
-        self.assertEqual(response.status_code, 302)
-        self.assertIn(change_url, response.url)
-
-    def test_response_change_without_changelist_filters(self):
-        mother = Mother.objects.create(name='Mother')
-        condition = Condition.objects.create(mother=mother)
-
-        # Create a mock request without _changelist_filters
-        request = self.factory.post('/admin/mothers/condition/change/')
-        request.user = self.superuser
-        setattr(request, 'session', 'session')
-        setattr(request, '_messages', FallbackStorage(request))
-
-        # Simulate adding a Condition instance without _changelist_filters
-        response = self.condition_admin.response_change(request, condition)
-
-        # Expected redirect URL back to the Condition list view
-        expected_url = reverse('admin:mothers_condition_changelist')
-
-        # Assert that the response is a redirect to the default URL
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, expected_url)
-
-    def test_redirect_finished_condition_with_date_and_not_another_condition_instances(self):
-        condition = Condition.objects.create(mother=self.mother, finished=True, scheduled_date='2024-01-09')
-
-        # Simulate a POST request to change the condition to finished
-        request = self.factory.get(reverse('admin:mothers_condition_change', args=[condition.pk]))
-        setattr(request, 'session', 'session')
-        setattr(request, '_messages', FallbackStorage(request))
         request.user = self.superuser
 
         response = self.condition_admin.response_change(request, condition)
@@ -90,115 +45,373 @@ class ResponseChangeMethodTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.url.endswith(reverse('admin:mothers_mother_changelist')))
 
-    def test_redirect_finished_condition_with_datetime_and_not_another_condition_instances(self):
-        condition = Condition.objects.create(mother=self.mother, finished=True, scheduled_date='2024-01-09',
-                                             scheduled_time='20:00:09')
+    def test_redirect_to_mother_change_list_when_change_with_filtered_previous_url(self):
+        condition = Condition.objects.create(mother=self.mother, finished=False)
 
-        # Simulate a POST request to change the condition to finished
-        request = self.factory.get(reverse('admin:mothers_condition_change', args=[condition.pk]))
-        setattr(request, 'session', 'session')
-        setattr(request, '_messages', FallbackStorage(request))
+        query_params = '?date_create__gte=2024-01-05+00%3A00%3A00%2B02%3A00'
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
         request.user = self.superuser
 
         response = self.condition_admin.response_change(request, condition)
 
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(response.url.endswith(reverse('admin:mothers_mother_changelist')))
+        self.assertEqual(response.url, relative_path + query_params)
 
-    @freeze_time("2024-12-12 20:30:00")
-    def test_redirect_finished_condition_with_datetime_and_another_condition(self):
-        mother = Mother.objects.create(name="for test")
-        condition = Condition.objects.create(mother=mother, finished=True, scheduled_date=date(2024, 1, 9),
-                                             scheduled_time=time(10, 0, 0))
+    @freeze_time("2024-12-12")
+    def test_redirect_to_mother_change_list_when_change_without_filtered_previous_url_and_schedule_date_not_come(
+            self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 15))
 
-        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9),
-                                 scheduled_time=time(10, 0, 0))
-
-        # Simulate a POST request to change the condition to finished
-        request = self.factory.post(reverse('admin:mothers_condition_change', args=[condition.pk]))
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request._messages = FallbackStorage(request)
         request.user = self.superuser
-        setattr(request, 'session', 'session')
-        setattr(request, '_messages', FallbackStorage(request))
 
         response = self.condition_admin.response_change(request, condition)
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, "/admin/mothers/mother/?date_or_time=by_date_and_time")
+        self.assertEqual(response.url, reverse('admin:mothers_mother_changelist'))
 
-    @freeze_time("2024-12-12 20:30:00")
-    def test_redirect_finished_condition_with_date_and_another_condition(self):
-        mother = Mother.objects.create(name="for test")
-        condition = Condition.objects.create(mother=mother, finished=True, scheduled_date=date(2024, 1, 9))
+    @freeze_time("2024-12-12")
+    def test_redirect_to_mother_change_list_when_change_with_filtered_previous_url_and_schedule_date_not_come(
+            self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 15))
 
-        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9))
-
-        # Simulate a POST request to change the condition to finished
-        request = self.factory.post(reverse('admin:mothers_condition_change', args=[condition.pk]))
+        query_params = '?date_create__gte=2024-01-05+00%3A00%3A00%2B02%3A00'
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
         request.user = self.superuser
-        setattr(request, 'session', 'session')
-        setattr(request, '_messages', FallbackStorage(request))
 
         response = self.condition_admin.response_change(request, condition)
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, "/admin/mothers/mother/?date_or_time=by_date")
+        self.assertEqual(response.url, relative_path + query_params)
 
-    @freeze_time("2024-12-12 20:30:00")
-    def test_redirect_finished_false_and_scheduled_date(self):
-        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9))
+    @freeze_time("2024-12-12")
+    def test_redirect_to_mother_change_list_when_change_without_filtered_previous_url_and_schedule_date_time_not_come(
+            self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 15),
+                                             scheduled_time=time(20, 0, 0))
 
-        # Simulate a POST request to change the condition to finished
-        request = self.factory.post(reverse('admin:mothers_condition_change', args=[condition.pk]))
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request._messages = FallbackStorage(request)
         request.user = self.superuser
-        setattr(request, 'session', 'session')
-        setattr(request, '_messages', FallbackStorage(request))
 
         response = self.condition_admin.response_change(request, condition)
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, "/admin/mothers/mother/?date_or_time=by_date")
+        self.assertEqual(response.url, reverse('admin:mothers_mother_changelist'))
 
-    @freeze_time("2024-12-12 20:30:00")
-    def test_redirect_finished_false_and_scheduled_date_and_scheduled_time(self):
-        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9),
-                                             scheduled_time=time(10, 0, 0))
+    @freeze_time("2024-12-12")
+    def test_redirect_to_mother_change_list_when_change_with_filtered_previous_url_and_schedule_date_time_not_come(
+            self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 15),
+                                             scheduled_time=time(20, 0, 0))
 
-        request = self.factory.post(reverse('admin:mothers_condition_change', args=[condition.pk]))
+        query_params = '?date_create__gte=2024-01-05+00%3A00%3A00%2B02%3A00'
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
         request.user = self.superuser
-        setattr(request, 'session', 'session')
-        setattr(request, '_messages', FallbackStorage(request))
 
         response = self.condition_admin.response_change(request, condition)
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, "/admin/mothers/mother/?date_or_time=by_date_and_time")
+        self.assertEqual(response.url, relative_path + query_params)
 
-    @freeze_time("2023-12-12 20:30:00")
-    def test_redirect_finished_false_and_scheduled_date_on_changelist(self):
-        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9))
+    @freeze_time("2024-12-12")
+    def test_redirect_to_the_same_filtered_change_list_when_not_another_scheduled_date_exists_and_finished_stay_false(
+            self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12))
 
-        # Simulate a POST request to change the condition to finished
-        request = self.factory.post(reverse('admin:mothers_condition_change', args=[condition.pk]))
+        query_params = '?date_or_time=by_date'
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
         request.user = self.superuser
-        setattr(request, 'session', 'session')
-        setattr(request, '_messages', FallbackStorage(request))
 
         response = self.condition_admin.response_change(request, condition)
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, "/admin/mothers/mother/")
+        self.assertEqual(response.url, relative_path + query_params)
 
-    @freeze_time("2023-12-12 20:30:00")
-    def test_redirect_finished_false_and_scheduled_date_and_scheduled_time_on_changelist(self):
-        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9),
-                                             scheduled_time=time(10, 0, 0))
+    @freeze_time("2024-12-12")
+    def test_redirect_to_the_same_filtered_change_list_when_another_scheduled_date_exists_and_finished_stay_false(self):
+        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12))
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12))
 
-        request = self.factory.post(reverse('admin:mothers_condition_change', args=[condition.pk]))
+        query_params = '?date_or_time=by_date'
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
         request.user = self.superuser
-        setattr(request, 'session', 'session')
-        setattr(request, '_messages', FallbackStorage(request))
 
         response = self.condition_admin.response_change(request, condition)
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, "/admin/mothers/mother/")
+        self.assertEqual(response.url, relative_path + query_params)
+
+    @freeze_time("2024-12-12")
+    def test_redirect_to_the_same_filtered_change_list_when_not_another_scheduled_date_exists_and_finished_stay_true(
+            self):
+        condition = Condition.objects.create(mother=self.mother, finished=True, scheduled_date=date(2024, 12, 12))
+
+        query_params = '?date_or_time=by_date'
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
+        request.user = self.superuser
+
+        response = self.condition_admin.response_change(request, condition)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('admin:mothers_mother_changelist'))
+
+    @freeze_time("2024-12-12")
+    def test_redirect_to_the_same_filtered_change_list_when_another_scheduled_date_exists_and_finished_stay_true(self):
+        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12))
+        condition = Condition.objects.create(mother=self.mother, finished=True, scheduled_date=date(2024, 12, 12))
+
+        query_params = '?date_or_time=by_date'
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
+        request.user = self.superuser
+
+        response = self.condition_admin.response_change(request, condition)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, relative_path + query_params)
+
+    @freeze_time("2024-12-12 20:00:00")
+    def test_redirect_on_same_filtered_change_list_when_not_another_scheduled_date_and_time_exists_and_finished_false(
+            self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12),
+                                             scheduled_time=time(20, 0, 0))
+
+        query_params = '?date_or_time=by_date_and_time'
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
+        request.user = self.superuser
+
+        response = self.condition_admin.response_change(request, condition)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, relative_path + query_params)
+
+    @freeze_time("2024-12-12 20:00:00")
+    def test_redirect_on_same_filtered_change_list_when_not_another_scheduled_date_and_time_exists_and_finished_false(
+            self):
+        """
+        Additionally to filtered query base on date_and_time in previous url has another filtered query
+        """
+
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12),
+                                             scheduled_time=time(20, 0, 0))
+
+        query_params = ('?date_create__gte=2024-01-05+00%3A00%3A00%2B02%3A00&'
+                        'date_create__lt=2024-01-13+00%3A00%3A00%2B02%3A00&date_or_time=by_date_and_time')
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
+        request.user = self.superuser
+
+        response = self.condition_admin.response_change(request, condition)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, relative_path + query_params)
+
+    @freeze_time("2024-12-12 20:20:00")
+    def test_redirect_to_the_same_filtered_change_list_when_another_scheduled_date_and_time_exists_and_finished_false(
+            self):
+        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12),
+                                 scheduled_time=time(20, 0, 0))
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12),
+                                             scheduled_time=time(20, 0, 0))
+
+        query_params = '?date_or_time=by_date_and_time'
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
+        request.user = self.superuser
+
+        response = self.condition_admin.response_change(request, condition)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, relative_path + query_params)
+
+    @freeze_time("2024-12-12 20:20:00")
+    def test_redirect_to_the_same_filtered_change_list_when_another_scheduled_date_and_time_exists_and_finished_false(
+            self):
+        """
+        Additionally to filtered query base on date_and_time in previous url has another filtered query
+        """
+        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12),
+                                 scheduled_time=time(20, 0, 0))
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12),
+                                             scheduled_time=time(20, 0, 0))
+
+        query_params = ('?date_create__gte=2024-01-05+00%3A00%3A00%2B02%3A00&'
+                        'date_create__lt=2024-01-13+00%3A00%3A00%2B02%3A00&date_or_time=by_date_and_time')
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
+        request.user = self.superuser
+
+        response = self.condition_admin.response_change(request, condition)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, relative_path + query_params)
+
+    @freeze_time("2024-12-12 20:20:00")
+    def test_redirect_to_the_same_filtered_change_list_when_not_another_scheduled_date_time_exists_and_finished_true(
+            self):
+        condition = Condition.objects.create(mother=self.mother, finished=True, scheduled_date=date(2024, 12, 12),
+                                             scheduled_time=time(20, 0, 0))
+
+        query_params = '?date_or_time=by_date_and_time'
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
+        request.user = self.superuser
+
+        response = self.condition_admin.response_change(request, condition)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('admin:mothers_mother_changelist'))
+
+    @freeze_time("2024-12-12 20:20:00")
+    def test_redirect_to_the_same_filtered_change_list_when_not_another_scheduled_date_time_exists_and_finished_true(
+            self):
+        """
+         Additionally to filtered query base on date_and_time in previous url has another filtered query
+        """
+        condition = Condition.objects.create(mother=self.mother, finished=True, scheduled_date=date(2024, 12, 12),
+                                             scheduled_time=time(20, 0, 0))
+
+        query_params = ('?date_create__gte=2024-01-05+00%3A00%3A00%2B02%3A00&'
+                        'date_create__lt=2024-01-13+00%3A00%3A00%2B02%3A00&date_or_time=by_date_and_time')
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
+        request.user = self.superuser
+
+        response = self.condition_admin.response_change(request, condition)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('admin:mothers_mother_changelist'))
+
+    @freeze_time("2024-12-12 20:20:00")
+    def test_redirect_to_the_same_filtered_change_list_when_another_scheduled_date_time_exists_and_finished_stay_true(
+            self):
+        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12),
+                                 scheduled_time=time(20, 0, 0))
+        condition = Condition.objects.create(mother=self.mother, finished=True, scheduled_date=date(2024, 12, 12),
+                                             scheduled_time=time(20, 0, 0))
+
+        query_params = '?date_or_time=by_date_and_time'
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
+        request.user = self.superuser
+
+        response = self.condition_admin.response_change(request, condition)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, relative_path + query_params)
+
+    @freeze_time("2024-12-12 20:20:00")
+    def test_redirect_to_the_same_filtered_change_list_when_another_scheduled_date_time_exists_and_finished_stay_true(
+            self):
+        """
+        Additionally to filtered query base on date_and_time in previous url has another filtered query
+        """
+        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12),
+                                 scheduled_time=time(20, 0, 0))
+        condition = Condition.objects.create(mother=self.mother, finished=True, scheduled_date=date(2024, 12, 12),
+                                             scheduled_time=time(20, 0, 0))
+
+        query_params = ('?date_create__gte=2024-01-05+00%3A00%3A00%2B02%3A00&'
+                        'date_create__lt=2024-01-13+00%3A00%3A00%2B02%3A00&date_or_time=by_date_and_time')
+        relative_path = reverse('admin:mothers_condition_change', args=[condition.pk])
+        request = self.factory.post(relative_path)
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request.session['previous_url'] = relative_path + query_params
+        request._messages = FallbackStorage(request)
+        request.user = self.superuser
+
+        response = self.condition_admin.response_change(request, condition)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, relative_path + query_params)
+
+

@@ -3,12 +3,14 @@ import os
 
 from datetime import timedelta
 from celery import shared_task
+from guardian.shortcuts import assign_perm
 
+from django.contrib.auth.models import Group
 from django.db import models
 from django.utils import timezone
 
 from gmail_messages.service_inbox import InboxMessages
-from mothers.models import Mother, Condition
+from mothers.models import Mother, Condition, Stage
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
@@ -41,6 +43,7 @@ translation_dict = {
 
 Mother: models
 Condition: models
+Stage: models
 
 
 @shared_task
@@ -52,16 +55,26 @@ def save_message():
 
         for pk in inbox.email_ids:
             try:
-                mother = Mother.objects.get(pk=pk)
-                if not mother.condition_set.exists():
-                    Condition.objects.create(mother=mother, condition=Condition.ConditionChoices.CREATED, finished=True)
+                Mother.objects.get(pk=pk)
+
             except Mother.DoesNotExist:
                 inbox(pk)
 
         for email in inbox.extract_message():
             mother_data = inbox.get_body_email(translation_dict, email)
+
             mother = Mother.objects.create(**mother_data)
+
+            # at once create related models
             Condition.objects.create(mother=mother, condition=Condition.ConditionChoices.CREATED, finished=True)
+            Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
+
+            # Get or create the group
+            group, created = Group.objects.get_or_create(name='primary_stage')
+
+            # Assign permission for each instance of Mother
+            assign_perm('view_mother', group, mother)
+            assign_perm('change_mother', group, mother)
 
         inbox.not_proceed_emails.clear()
         # Close the mailbox

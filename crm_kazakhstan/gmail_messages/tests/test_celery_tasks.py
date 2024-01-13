@@ -1,7 +1,9 @@
 import imaplib
 
+from django.contrib.auth.models import Group
 from django.test import TestCase
 from django.db import models
+from guardian.shortcuts import get_perms
 
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
@@ -61,7 +63,14 @@ class SaveMessageTestCase(TestCase):
 
         save_message()
 
-        self.assertEqual(len(Mother.objects.all()), 3)
+        mothers = Mother.objects.all()
+        self.assertEqual(len(mothers.filter(stage__isnull=False)), 3)
+
+        group = Group.objects.get(name='primary_stage')
+        for obj in Mother.objects.all():
+            self.assertEqual(len(get_perms(group, obj)), 2)
+
+        self.assertEqual(len(mothers), 3)
         self.assertEqual(Mother.objects.first().id, 12)
         self.assertEqual(len(Mother.objects.first().condition_set.all()), 1)
 
@@ -75,12 +84,21 @@ class SaveMessageTestCase(TestCase):
                                                 ('OK', self.data)]
         mock_imap.return_value = mock_mail_instance
 
-        self.assertEqual(len(Mother.objects.all()), 2)
+        mothers = Mother.objects.all()
+        self.assertEqual(len(mothers.filter(stage__isnull=False)), 0)
+        self.assertEqual(len(mothers), 2)
+
         save_message()
+
         self.assertEqual(len(Mother.objects.all()), 4)
         self.assertNotEquals(Mother.objects.first().name, Mother.objects.last().name)
-        for mother in Mother.objects.all():
-            self.assertTrue(mother.condition_set.all())
+
+        mothers = Mother.objects.all()
+        self.assertEqual(len(mothers.filter(stage__isnull=False)), 2)
+
+        group = Group.objects.get(name='primary_stage')
+        for obj in mothers.filter(stage__isnull=False):
+            self.assertEqual(len(get_perms(group, obj)), 2)
 
     @patch('gmail_messages.service_inbox.imaplib.IMAP4_SSL')
     def test_login_and_extract_messages(self, mock_imap):

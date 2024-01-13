@@ -3,7 +3,8 @@ from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse
 
 from mothers.models import Condition
-from mothers.services.condition import filter_condition_by_date_time, queryset_with_filter_condition, get_url_query
+from mothers.services.condition import filter_condition_by_date_time, queryset_with_filter_condition, \
+    is_filtered_condition_met, redirect_to_appropriate_url
 
 
 @admin.register(Condition)
@@ -29,43 +30,19 @@ class ConditionAdmin(admin.ModelAdmin):
 
     def response_change(self, request: HttpRequest, obj: Condition) -> HttpResponseRedirect:
         """
-        First verifying from what url went to change 'Conditiotn'
+        Customizes the response after editing a 'Condition' instance in the admin interface.
+        Redirects to the previous URL if available and valid after the condition is changed.
+        If no previous URL is set or if the filtered change list is empty, redirects to the Mother change list page.
         """
-        res = super().response_change(request, obj)
-
         for_date, for_datetime = filter_condition_by_date_time()
         for_date, for_datetime = queryset_with_filter_condition(for_date, for_datetime)
-        if '_continue' not in request.POST and '_addanother' not in request.POST:
 
-            # in this case mother instance locate on:
-            # [{'date_or_time': 'by_date'}, {'date_or_time': 'by_date_and_time'}]
-            if obj.finished and obj.scheduled_date and obj.scheduled_time and not for_datetime:
-                mother_changelist_url = reverse('admin:mothers_mother_changelist')
-                return HttpResponseRedirect(mother_changelist_url)
+        previous_url = request.session.get('previous_url')
+        mother_changelist_url = reverse('admin:mothers_mother_changelist')
 
-            if obj.finished and obj.scheduled_date and not obj.scheduled_time and not for_date:
-                mother_changelist_url = reverse('admin:mothers_mother_changelist')
-                return HttpResponseRedirect(mother_changelist_url)
+        # Check if the previous URL corresponds to a filtered condition
+        if is_filtered_condition_met(previous_url, for_date, for_datetime):
+            return redirect_to_appropriate_url(request, previous_url, mother_changelist_url)
 
-            # in this case mother instance locate on one of this urls:
-            # [{'date_or_time': 'by_date'}, {'date_or_time': 'by_date_and_time'}]
-            if obj.finished and obj.scheduled_date and obj.scheduled_time and for_datetime:
-                mother_filter_changelist_url = get_url_query(1)
-                return HttpResponseRedirect(mother_filter_changelist_url)
-
-            if obj.finished and obj.scheduled_date and not obj.scheduled_time and for_date:
-                mother_filter_changelist_url = get_url_query(0)
-                return HttpResponseRedirect(mother_filter_changelist_url)
-
-            # in this case mother instance locate on one of this urls:
-            # [{'date_or_time': 'by_date'}, {'date_or_time': 'by_date_and_time'}]
-            # and on mother_changelist_url = reverse('admin:mothers_mother_changelist')
-            if not obj.finished and obj.scheduled_date and not obj.scheduled_time:
-                mother_filter_changelist_url = get_url_query(0)
-                return HttpResponseRedirect(mother_filter_changelist_url)
-
-            if not obj.finished and obj.scheduled_date and obj.scheduled_time:
-                mother_filter_changelist_url = get_url_query(1)
-                return HttpResponseRedirect(mother_filter_changelist_url)
-
-        return res
+        # Redirect to the Mother change list page if no previous URL is set or valid
+        return HttpResponseRedirect(mother_changelist_url)

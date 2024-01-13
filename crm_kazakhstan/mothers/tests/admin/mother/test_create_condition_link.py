@@ -1,9 +1,11 @@
 from datetime import time, date
 
 from django.contrib.auth import get_user_model
+from django.contrib.sessions.middleware import SessionMiddleware
 from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.db import models
+from django.urls import reverse
 from freezegun import freeze_time
 
 from mothers.models import Mother, Comment, Condition
@@ -26,7 +28,7 @@ class CreateConditionLinkTest(TestCase):
         self.factory = RequestFactory()
         self.mother_admin = MotherAdmin(Mother, AdminSite())
 
-    def test_condition_with_comment_or_planned_and_finished(self):
+    def test_when_exist_another_related_to_mother_instance(self):
         Comment.objects.create(mother=self.mother, description='Non-empty comment')
         Condition.objects.create(mother=self.mother, finished=True, condition=Condition.ConditionChoices.NO_BABY)
 
@@ -38,21 +40,25 @@ class CreateConditionLinkTest(TestCase):
 
         self.assertIn('has not baby', result)
 
-    def test_unfinished_condition_without_date(self):
+    def test_can_change_already_existing_condition_on_change_list_page(self):
         condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=None)
 
         request = self.factory.get('/')
+        middleware = SessionMiddleware()
+        middleware.process_request(request)
+        request.session.save()
         request.user = self.superuser
         self.mother_admin.request = request
 
         result = self.mother_admin.create_condition_link(obj=self.mother)
 
         self.assertIn(
-            f'href="/admin/mothers/condition/{condition.id}/change/?mother={condition.id}&_changelist_filters=%2F"',
+            f'href="/admin/mothers/condition/{condition.pk}/change/?mother={condition.pk}&_changelist_filters=%2F"',
             result)
 
-    def test_unfinished_condition_with_date_and_unfiltered_view(self):
-        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9))
+    @freeze_time("2023-12-12")
+    def test_can_not_change_on_change_list_page_when_condition_on_filtered_changelist_page(self):
+        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12))
 
         request = self.factory.get('/')
         request.user = self.superuser
@@ -60,11 +66,23 @@ class CreateConditionLinkTest(TestCase):
 
         result = self.mother_admin.create_condition_link(obj=self.mother)
 
-        self.assertIn('<strong>recently created</strong>/ <br> 9 Jan', result)
+        self.assertIn('<strong>recently created</strong>/<br>12 Dec', result)
+
+    def test_mother_with_multiple_conditions(self):
+        Condition.objects.create(mother=self.mother, finished=True)
+        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 10))
+
+        request = self.factory.get('/')
+        request.user = self.superuser
+        self.mother_admin.request = request
+
+        result = self.mother_admin.create_condition_link(obj=self.mother)
+
+        self.assertIn('<strong>recently created</strong>/<br>10 Jan', result)
 
     @freeze_time("2023-12-12")
-    def test_unfinished_condition_with_date_on_change_list_page(self):
-        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9))
+    def test_can_not_change_on_change_list_page_when_condition_on_filtered_changelist_page_version2(self):
+        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 11))
 
         request = self.factory.get('/')
         request.user = self.superuser
@@ -72,24 +90,12 @@ class CreateConditionLinkTest(TestCase):
 
         result = self.mother_admin.create_condition_link(obj=self.mother)
 
-        self.assertIn(f'/admin/mothers/condition/{condition.pk}/change/', result)
+        self.assertIn('<strong>recently created</strong>/<br>11 Dec', result)
 
-    @freeze_time("2024-12-12 20:00:00")
-    def test_unfinished_condition_with_datetime_on_change_list_page(self):
-        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12),
-                                             scheduled_time=time(21, 20))
-
-        request = self.factory.get('/')
-        request.user = self.superuser
-        self.mother_admin.request = request
-
-        result = self.mother_admin.create_condition_link(obj=self.mother)
-
-        self.assertIn(f'/admin/mothers/condition/{condition.pk}/change/', result)
-
-    def test_unfinished_condition_with_datetime_and_unfiltered_view(self):
-        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9),
-                                 scheduled_time=time(20, 20))
+    @freeze_time("2023-12-12 22:00:00")
+    def test_can_not_change_on_change_list_page_when_condition_on_filtered_changelist_page_version3(self):
+        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
+                                 scheduled_time=time(21, 20))
 
         request = self.factory.get('/')
         request.user = self.superuser
@@ -97,9 +103,69 @@ class CreateConditionLinkTest(TestCase):
 
         result = self.mother_admin.create_condition_link(obj=self.mother)
 
-        self.assertIn(f'<strong>recently created</strong>/ <br> 9 Jan 20:20', result)
+        self.assertIn('<strong>recently created</strong>/ <br> 12 Dec', result)
 
-    def test_finished_condition(self):
+    @freeze_time("2023-12-12 22:00:00")
+    def test_can_not_change_on_change_list_page_when_condition_on_filtered_changelist_page_version4(self):
+        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
+                                 scheduled_time=time(22, 00))
+
+        request = self.factory.get('/')
+        request.user = self.superuser
+        self.mother_admin.request = request
+
+        result = self.mother_admin.create_condition_link(obj=self.mother)
+
+        self.assertIn('<strong>recently created</strong>/<br>12 Dec', result)
+
+    @freeze_time("2023-12-12")
+    def test_can_change_on_change_list_page_when_condition_on_filtered_changelist_page(self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 13))
+
+        request = self.factory.get('/')
+        middleware = SessionMiddleware()
+        middleware.process_request(request)
+        request.session.save()
+        request.user = self.superuser
+        self.mother_admin.request = request
+
+        result = self.mother_admin.create_condition_link(obj=self.mother)
+
+        self.assertIn(f'href="/admin/mothers/condition/{condition.pk}/change/"', result)
+
+    @freeze_time("2023-12-12 22:00:00")
+    def test_can_change_on_change_list_page_when_condition_on_filtered_changelist_page_version2(self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
+                                             scheduled_time=time(23, 20))
+
+        request = self.factory.get('/')
+        middleware = SessionMiddleware()
+        middleware.process_request(request)
+        request.session.save()
+        request.user = self.superuser
+        self.mother_admin.request = request
+
+        result = self.mother_admin.create_condition_link(obj=self.mother)
+
+        self.assertIn(f'href="/admin/mothers/condition/{condition.pk}/change/"', result)
+
+    @freeze_time("2023-12-12 22:00:00")
+    def test_can_not_change_on_change_list_page_when_condition_on_filtered_changelist_page_version3(self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 13),
+                                             scheduled_time=time(23, 00))
+
+        request = self.factory.get('/')
+        middleware = SessionMiddleware()
+        middleware.process_request(request)
+        request.session.save()
+        request.user = self.superuser
+        self.mother_admin.request = request
+
+        result = self.mother_admin.create_condition_link(obj=self.mother)
+
+        self.assertIn(f'href="/admin/mothers/condition/{condition.pk}/change/"', result)
+
+    def test_finished_condition_can_add_new_condition(self):
         Condition.objects.create(mother=self.mother, finished=True)
 
         request = self.factory.get('/')
@@ -112,29 +178,6 @@ class CreateConditionLinkTest(TestCase):
             f'/admin/mothers/condition/add/?mother={self.mother.id}&_changelist_filters',
             result)
 
-    def test_filtered_view_based_on_condition_criteria_with_date(self):
-        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9))
-
-        request = self.factory.get('/')
-        request.user = self.superuser
-        self.mother_admin.request = request
-
-        result = self.mother_admin.create_condition_link(obj=self.mother)
-
-        self.assertIn('<strong>recently created</strong>/ <br> 9 Jan', result)
-
-    def test_filtered_view_based_on_condition_criteria_with_datetime(self):
-        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 9),
-                                 scheduled_time=time(20, 20))
-
-        request = self.factory.get('/')
-        request.user = self.superuser
-        self.mother_admin.request = request
-
-        result = self.mother_admin.create_condition_link(obj=self.mother)
-
-        self.assertIn('<strong>recently created</strong>/ <br> 9 Jan 20:20', result)
-
     def test_mother_with_no_conditions(self):
         mother = self.mother
 
@@ -145,14 +188,32 @@ class CreateConditionLinkTest(TestCase):
         with self.assertRaises(AttributeError):
             self.mother_admin.create_condition_link(obj=mother)
 
-    def test_mother_with_multiple_conditions(self):
-        Condition.objects.create(mother=self.mother, finished=True)
-        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 10))
+    def test_can_change_on_filtered_mother_change_list_url_by_date(self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 10))
 
-        request = self.factory.get('/')
+        change_url = reverse('admin:mothers_mother_changelist')
+        request = self.factory.get(change_url, {'date_or_time': 'by_date'})
+        middleware = SessionMiddleware()
+        middleware.process_request(request)
+        request.session.save()
         request.user = self.superuser
         self.mother_admin.request = request
 
         result = self.mother_admin.create_condition_link(obj=self.mother)
 
-        self.assertIn('<strong>recently created</strong>/ <br> 10 Jan', result)
+        self.assertIn(f'href="/admin/mothers/condition/{condition.pk}/change/" class="violet-link">', result)
+
+    def test_can_change_on_filtered_mother_change_list_url_by_date_and_time(self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 10))
+
+        change_url = reverse('admin:mothers_mother_changelist')
+        request = self.factory.get(change_url, {'date_or_time': 'by_date_and_time'})
+        middleware = SessionMiddleware()
+        middleware.process_request(request)
+        request.session.save()
+        request.user = self.superuser
+        self.mother_admin.request = request
+
+        result = self.mother_admin.create_condition_link(obj=self.mother)
+
+        self.assertIn(f'href="/admin/mothers/condition/{condition.pk}/change/" class="violet-link">', result)

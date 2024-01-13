@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     # third party packages
     'django_celery_beat',
     'debug_toolbar',
+    'guardian',
 
     # MY APPS
     'mothers',
@@ -161,6 +162,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Django-guardian for Object Level Permission on admin
+AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.ModelBackend',
+    'guardian.backends.ObjectPermissionBackend',
+)
 
 
 #

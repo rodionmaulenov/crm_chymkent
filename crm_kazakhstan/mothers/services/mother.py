@@ -79,37 +79,22 @@ def get_specific_fields(request, inline):
     return inline
 
 
-def check_queryset_logic(queryset: QuerySet) -> QuerySet:
+def on_primary_stage(queryset: QuerySet) -> QuerySet:
     """
-    Main logic filtering for MotherAdmin.get_queryset method
-    revert only Mother instance which has last Stage instance.finished = True if exists
-    else always return True.
-    Then exclude Comment.banned=True
+    Get only mothers where Stage is Primary
     """
-    # Subquery to get the 'finished' status of the latest stage for each mother
-    latest_stage_finished = Stage.objects.filter(
+    # Subquery to get the latest stage for each mother
+    latest_stage_subquery = Stage.objects.filter(
         mother=OuterRef('pk')
-    ).order_by('-date_create').values('finished')[:1]
+    ).order_by('-date_create').values('stage')[:1]
 
-    # Annotate with the latest stage's 'finished' status, or False if no stage exists
+    # Annotate the queryset with the latest stage
     queryset = queryset.annotate(
-        latest_stage_finished=Case(
-            # finished status True or False on last existing Stage instance
-            When(stage__isnull=False, then=Subquery(latest_stage_finished)),
-            # always set True when related Stage instances not exist, because return Mother instance
-            # only if latest_stage_finished equal True
-            default=Value(True),
-            output_field=BooleanField()
-        )
+        latest_stage=Subquery(latest_stage_subquery)
     )
 
-    # Filter based on the latest stage's 'finished' status or lack of stage
-    queryset = queryset.filter(
-        latest_stage_finished=True
-    )
-
-    # Exclude based on your previous conditions
-    queryset = queryset.exclude(Q(comment__banned=True))
+    # Filter mothers whose latest stage is PRIMARY
+    queryset = queryset.filter(latest_stage=Stage.StageChoices.PRIMARY)
 
     return queryset
 
@@ -171,22 +156,6 @@ def check_existence_of_latest_unfinished_plan():
     return exists
 
 
-def shortcut_bold_text(obj: Mother) -> format_html:
-    """
-    Retrieves the last condition for a `Mother` object, and returns
-    its display string in a bold HTML format. The display string is truncated to 18 characters
-    if it's longer than 17 characters.
-    """
-    # Using 'exists' to check if there is at least one finished condition
-    if obj.condition_set.order_by('-id').exists():
-        latest_condition = obj.condition_set.order_by('-id').first()
-        for_display = latest_condition.get_condition_display()
-
-        # Truncate and format the display text
-        for_display = (for_display[:18] + '...') if len(for_display) > 17 else for_display
-        return format_html('<strong>{}</strong>', for_display)
-
-
 def in_user_localtime(condition: Condition, condition_time: Optional[time], request: HttpRequest) -> datetime:
     """
     Converts the scheduled date and time of a condition into the local timezone of the user.
@@ -242,6 +211,29 @@ def comment_plann_and_comment_finished_true(obj: Mother) -> Tuple[Planned, Comme
     return planned, comment, condition
 
 
+def set_url_when_change_condition_object(request: HttpRequest) -> None:
+    """
+    Adding to request the earlier URL from where came when execute change 'Condition' object
+    """
+    request.session['previous_url'] = request.get_full_path()
+
+
+def shortcut_bold_text(obj: Mother) -> format_html:
+    """
+    Retrieves the last condition for a `Mother` object, and returns
+    its display string in a bold HTML format. The display string is truncated to 18 characters
+    if it's longer than 17 characters.
+    """
+    # Using 'exists' to check if there is at least one finished condition
+    if obj.condition_set.order_by('-id').exists():
+        latest_condition = obj.condition_set.order_by('-id').first()
+        for_display = latest_condition.get_condition_display()
+
+        # Truncate and format the display text
+        for_display = (for_display[:18] + '...') if len(for_display) > 16 else for_display
+        return mark_safe(f'<strong>{for_display}</strong>')
+
+
 def get_css_style(link_class: str, default_color: str, hover_color: str) -> str:
     """
     Generates a CSS style for a given link class with specified colors for default and hover states.
@@ -260,9 +252,9 @@ def get_css_style(link_class: str, default_color: str, hover_color: str) -> str:
 
 def create_link_html(url: str, link_class: str, display_text: str) -> format_html:
     """
-    Creates an HTML link with specified URL, CSS class, and display text.
+    Creates string link with specified URL, CSS class, and display text.
     """
-    return format_html('<a href="{}" class="{}">{}</a>', url, link_class, display_text)
+    return f'<a href="{url}" class="{link_class}">{display_text}</a>'
 
 
 def get_filter_value_from_url(request: HttpRequest) -> bool:
@@ -274,9 +266,31 @@ def get_filter_value_from_url(request: HttpRequest) -> bool:
         return filter_value == 'by_date' or filter_value == 'by_date_and_time'
 
 
+def get_local_time_in_specific_format(condition: Condition, request: HttpRequest) -> str:
+    """
+    Return time in user local in specific format
+    """
+    condition_time = condition.scheduled_time or time(0, 0)
+    local_scheduled_datetime = in_user_localtime(condition, condition_time, request)
+    formatted_datetime = output_time_format(condition_time, local_scheduled_datetime)
+    return formatted_datetime
+
+
+def condition_not_on_filtered_queryset(condition: Condition) -> bool:
+    """
+    Verify mother instance NOT on filtered change list Page return True otherwise False
+    """
+    current_date = timezone.now().date()
+    current_time = timezone.now().time()
+    return condition.scheduled_date > current_date or (
+            condition.scheduled_date == current_date and condition.scheduled_time
+            and condition.scheduled_time > current_time
+    )
+
+
 def add_new_condition(obj: Mother, condition_display: str, request: HttpRequest) -> format_html:
     """
-    Generates an HTML link to add a new condition in the Django admin interface for a specific Mother object.
+    Generates an HTML link to add a new "Condition" in the Django admin interface for a specific Mother object.
     This is used when the last condition is marked as finished (True).
     """
 
@@ -284,13 +298,13 @@ def add_new_condition(obj: Mother, condition_display: str, request: HttpRequest)
     current_path = request.get_full_path()
     return_path = urlencode({'_changelist_filters': current_path})
 
-    return format_html('<a href="{}?mother={}&{}">{}</a>', condition_add_url, obj.pk, return_path, condition_display)
+    return format_html(f'<a href="{condition_add_url}?mother={obj.pk}&{return_path}">{condition_display}</a>')
 
 
 def change_condition_on_change_list_page(condition: Condition, request: HttpRequest,
                                          condition_display: str) -> format_html:
     """
-    Create Change Url on Mother Change List Page to the specific 'Condition' instance
+    Change Url on mother change list Page to the specific 'Condition' instance
     where finished and scheduled_date are None.
     """
     change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
@@ -300,43 +314,50 @@ def change_condition_on_change_list_page(condition: Condition, request: HttpRequ
     css_style = get_css_style("light-green", "green", "rgba(0, 150, 0, 0.8)")
     link_html = create_link_html(f'{change_url}?mother={condition.pk}&{return_path}', "light-green", condition_display)
 
+    set_url_when_change_condition_object(request)
+
     return mark_safe(f'{css_style}{link_html}')
 
 
 def change_or_not_based_on_filtered_queryset(condition: Condition, condition_display: str, request: HttpRequest) -> \
         Optional[format_html]:
     """
-    Create Change Url or Simple String in Bold on Mother Change List Page to the specific 'Condition' instance based on
-    if on changelist or filtered changelist page.
+    CHANGE URL if mother instance on change list Page or SIMPLE STRING iN BOLD if mother instance
+    on filtered change list Page.
     """
-    current_date = timezone.now().date()
-    current_time = timezone.now().time()
 
-    condition_time = condition.scheduled_time or time(0, 0)
-    local_scheduled_datetime = in_user_localtime(condition, condition_time, request)
-    formatted_datetime = output_time_format(condition_time, local_scheduled_datetime)
+    formatted_datetime = get_local_time_in_specific_format(condition, request)
     change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
 
     css_style = get_css_style("light-green", "green", "rgba(0, 150, 0, 0.8)")
-    display_text = f'{condition_display} <br>{formatted_datetime}'
+    display_text = mark_safe(f'{condition_display}')
     link_html = create_link_html(change_url, "light-green", display_text)
+    link_with_style = f'{css_style}{link_html}'
 
-    if condition.scheduled_date > current_date or (condition.scheduled_date == current_date and condition.scheduled_time
-                                                   and condition.scheduled_time > current_time):
-        return mark_safe(f'{css_style}{link_html}')
+    if condition_not_on_filtered_queryset(condition):
+
+        set_url_when_change_condition_object(request)
+
+        return mark_safe(f'{link_with_style}/<br>{formatted_datetime}')
     else:
-        return format_html('{}/ <br> {}', condition_display, formatted_datetime)
+        return mark_safe(f'{condition_display}/<br>{formatted_datetime}')
 
 
 def change_on_filtered_changelist(condition: Condition, condition_display: str, request: HttpRequest) -> format_html:
     """
-    Can Change 'Condition instance' on filtered change list page
+    Can Change 'Condition instance' on filtered change list page.
     """
-    local_scheduled_datetime = in_user_localtime(condition, condition.scheduled_time or time(0, 0), request)
-    formatted_datetime = output_time_format(condition.scheduled_time, local_scheduled_datetime)
+    formatted_datetime = get_local_time_in_specific_format(condition, request)
     change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
 
     css_style = get_css_style("violet-link", "rgba(138, 43, 226, 0.8)", "violet")
-    link_html = create_link_html(change_url, "violet-link", f"{condition_display}/ <br>{formatted_datetime}")
+    # Create link only for condition_display
+    link_html = create_link_html(change_url, "violet-link", condition_display)
 
-    return mark_safe(f'{css_style}{link_html}')
+    # Combine the link with the formatted date, keeping the date outside of the hyperlink
+    combined_html = f'{css_style}{link_html}/<br>{formatted_datetime}'
+
+    # designate full url path for this change
+    set_url_when_change_condition_object(request)
+
+    return mark_safe(combined_html)

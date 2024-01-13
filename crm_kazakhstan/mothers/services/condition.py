@@ -1,10 +1,9 @@
-from typing import Tuple, Optional
+from typing import Tuple
 
 from django.db.models import Q
-from django.urls import reverse
+from django.http import HttpRequest, HttpResponseRedirect
 from django.utils import timezone
 from django.db import models
-from django.utils.http import urlencode
 
 from mothers.models import Mother
 
@@ -55,17 +54,29 @@ def queryset_with_filter_condition(for_date: Q, for_datetime: Q) -> Tuple[bool, 
     return exists_for_date, exists_for_datetime
 
 
-def get_url_query(ind: int) -> Optional[str]:
+def is_filtered_condition_met(previous_url: str, for_date: bool, for_datetime: bool) -> bool:
     """
-    Generates a URL for the 'Mother' admin changelist page with specific query parameters.
+    Checks if the previous URL is a filtered condition and if the respective queryset is not empty.
     """
 
-    for_date, for_datetime = filter_condition_by_date_time()
-    for_date, for_datetime = queryset_with_filter_condition(for_date, for_datetime)
-    mother_changelist = 'admin:mothers_mother_changelist'
+    if previous_url:
+        not_filtered_list_page = any(previous_url.endswith(value) for value in ['by_date', 'by_date_and_time'])
+        previous_url_without_filtered_change_list = previous_url and not not_filtered_list_page
 
-    if 0 == ind and for_date or ind == 1 and for_datetime:
-        query_params = [{'date_or_time': 'by_date'}, {'date_or_time': 'by_date_and_time'}]
-        return reverse(mother_changelist) + '?' + urlencode(query_params[ind])
-    else:
-        return reverse(mother_changelist)
+        if previous_url_without_filtered_change_list:
+            return True
+        if previous_url.endswith('by_date') and for_date:
+            return True
+        if previous_url.endswith('by_date_and_time') and for_datetime:
+            return True
+        return False
+
+
+def redirect_to_appropriate_url(request: HttpRequest, previous_url: str, default_url: str) -> HttpResponseRedirect:
+    """
+    Redirects to the appropriate URL based on the previous URL or defaults to the provided URL.
+    """
+    if previous_url:
+        del request.session['previous_url']
+        return HttpResponseRedirect(previous_url)
+    return HttpResponseRedirect(default_url)
