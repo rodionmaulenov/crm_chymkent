@@ -28,6 +28,9 @@ Stage: models
 Mother: models
 Planned: models
 
+# Globally disable delete selected
+admin.site.disable_action('delete_selected')
+
 
 @admin.register(Mother)
 class MotherAdmin(GuardedModelAdmin):
@@ -259,14 +262,12 @@ class MotherAdmin(GuardedModelAdmin):
         if filtered_queryset_url:
             return change_on_filtered_changelist(condition, condition_display, self.request)
 
-    admin.site.disable_action('delete_selected')
-
-    def has_module_permission(self, request) -> bool:
+    def has_module_permission(self, request: HttpRequest) -> bool:
         """
         Permission for first layer on site, see or not Mother.
         If superuser True else objects that has the same with user perms exist or not.
         """
-        if request.user.is_superuser:
+        if super().has_module_permission(request):
             return True
         data = on_primary_stage(self.get_model_objects(request))
         return data.exists()
@@ -320,3 +321,4 @@ class MotherAdmin(GuardedModelAdmin):
 
     def has_change_permission(self, request: HttpRequest, obj=None) -> bool:
         return self.has_permission(request, obj, 'view')
+

@@ -69,4 +69,4 @@ class AuthConditionListFilter(ConditionListFilter):
             return super().queryset(request, queryset)
 
     def staff_user_with_perm(self, request):
-        return request.user.is_staff and request.user.has_perm('mothers.change_mother')
+        return request.user.is_staff and request.user.groups.filter(name='primary_stage').exists()

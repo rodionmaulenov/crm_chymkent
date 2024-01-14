@@ -27,7 +27,7 @@ class HasViePermissionMethodTest(TestCase):
     def test_super_user_has_view_perm(self):
         request = self.factory.get('/')
         request.user = self.superuser
-        view = self.admin.has_change_permission(request)
+        view = self.admin.has_view_permission(request)
 
         self.assertTrue(view)
 
@@ -35,14 +35,14 @@ class HasViePermissionMethodTest(TestCase):
         mother = Mother.objects.create(name='Mother 1')
         request = self.factory.get('/')
         request.user = self.superuser
-        view = self.admin.has_change_permission(request, mother)
+        view = self.admin.has_view_permission(request, mother)
 
         self.assertTrue(view)
 
     def test_staff_user_has_not_view_perm(self):
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_change_permission(request)
+        view = self.admin.has_view_permission(request)
 
         self.assertFalse(view)
 
@@ -61,7 +61,7 @@ class HasViePermissionMethodTest(TestCase):
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_change_permission(request)
+        view = self.admin.has_view_permission(request)
 
         self.assertFalse(view)
 
@@ -80,7 +80,7 @@ class HasViePermissionMethodTest(TestCase):
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_change_permission(request)
+        view = self.admin.has_view_permission(request)
 
         self.assertTrue(view)
 
@@ -99,7 +99,7 @@ class HasViePermissionMethodTest(TestCase):
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_change_permission(request)
+        view = self.admin.has_view_permission(request)
 
         self.assertTrue(view)
 
@@ -107,7 +107,7 @@ class HasViePermissionMethodTest(TestCase):
         mother = Mother.objects.create(name='Mother 1')
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_change_permission(request, mother)
+        view = self.admin.has_view_permission(request, mother)
 
         self.assertFalse(view)
 
@@ -117,7 +117,7 @@ class HasViePermissionMethodTest(TestCase):
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_change_permission(request, mother)
+        view = self.admin.has_view_permission(request, mother)
 
         self.assertFalse(view)
 
@@ -128,7 +128,7 @@ class HasViePermissionMethodTest(TestCase):
         assign_perm('change_mother', self.primary_stage_group, mother)
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_change_permission(request, mother)
+        view = self.admin.has_view_permission(request, mother)
 
         self.assertTrue(view)
 

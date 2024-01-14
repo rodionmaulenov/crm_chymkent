@@ -8,14 +8,14 @@ from django.contrib.admin.sites import AdminSite
 from django.db import models
 from django.utils import timezone
 
-from mothers.models import Condition, Mother
+from mothers.models import Condition, Mother, Stage
 from mothers.admin import MotherAdmin
 from mothers.filters import ConditionListFilter
 
 MotherAdmin: admin.ModelAdmin
 Condition: models
 Mother: models
-Planned: models
+Stage: models
 User = get_user_model()
 
 
@@ -32,6 +32,7 @@ class ConditionListFilterTest(TestCase):
     @freeze_time("2023-12-12")
     def test_when_Condition_scheduled_date_less_date_today_and_finished_False(self):
         mother = Mother.objects.create(name='Test Mother')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
         Condition.objects.create(
             mother=mother,
             scheduled_date=datetime(2023, 12, 11, tzinfo=timezone.utc),
@@ -52,6 +53,7 @@ class ConditionListFilterTest(TestCase):
     @freeze_time("2023-12-12")
     def test_when_Condition_scheduled_date_equal_date_today_and_finished_False(self):
         mother = Mother.objects.create(name='Test Mother')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
         Condition.objects.create(
             mother=mother,
             scheduled_date=datetime(2023, 12, 12, tzinfo=timezone.utc),
@@ -194,6 +196,7 @@ class ConditionListFilterTest(TestCase):
     @freeze_time("2023-12-12 20:30:00")
     def test_when_Condition_scheduled_date_equal_date_today_and_scheduled_time_less_datetime_and_finished_False(self):
         mother = Mother.objects.create(name='Test Mother')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
         Condition.objects.create(
             mother=mother,
             scheduled_date=datetime(2023, 12, 12, tzinfo=timezone.utc),
@@ -216,6 +219,7 @@ class ConditionListFilterTest(TestCase):
     @freeze_time("2023-12-12 20:30:00")
     def test_when_Condition_scheduled_date_equal_date_today_and_scheduled_time_equal_datetime_and_finished_False(self):
         mother = Mother.objects.create(name='Test Mother')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
         Condition.objects.create(
             mother=mother,
             scheduled_date=datetime(2023, 12, 12, tzinfo=timezone.utc),
@@ -371,6 +375,7 @@ class ConditionListFilterTest(TestCase):
     def test_Condition_scheduled_date_not_in_datetime_list_when_previous_finished_conditions_exists_with_scheduled_time(
             self):
         mother = Mother.objects.create(name='Test Mother')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
         Condition.objects.create(
             mother=mother,
             scheduled_date=datetime(2023, 12, 12, tzinfo=timezone.utc),

@@ -6,17 +6,18 @@ from django.contrib.auth import get_user_model
 from django.contrib import admin
 from django.contrib.admin.sites import AdminSite
 from django.db import models
-from django.contrib.auth.models import Permission
+from django.contrib.auth.models import Group
 from django.utils import timezone
+from guardian.shortcuts import assign_perm
 
-from mothers.models import Condition, Mother
+from mothers.models import Condition, Mother, Stage
 from mothers.admin import MotherAdmin
 from mothers.filters import AuthConditionListFilter
 
 MotherAdmin: admin.ModelAdmin
 Condition: models
 Mother: models
-Planned: models
+Stage: models
 User = get_user_model()
 
 
@@ -25,8 +26,7 @@ class AuthConditionListFilterTest(TestCase):
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.staff_user = User.objects.create_user(username='staffuser', password='staffuserpassword', is_staff=True)
 
-        self.has_change_permission = Permission.objects.get(
-            codename='change_mother')
+        self.group = Group.objects.create(name='primary_stage')
 
         self.factory = RequestFactory()
 
@@ -36,6 +36,7 @@ class AuthConditionListFilterTest(TestCase):
     @freeze_time("2023-12-12")
     def test_superuser_by_date(self):
         mother = Mother.objects.create(name='Test Mother')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
         Condition.objects.create(
             mother=mother,
             scheduled_date=datetime(2023, 12, 11, tzinfo=timezone.utc),
@@ -58,6 +59,7 @@ class AuthConditionListFilterTest(TestCase):
     @freeze_time("2023-12-12")
     def test_superuser_by_date_and_time(self):
         mother = Mother.objects.create(name='Test Mother')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
         Condition.objects.create(
             mother=mother,
             scheduled_date=datetime(2023, 12, 11, tzinfo=timezone.utc),
@@ -127,15 +129,19 @@ class AuthConditionListFilterTest(TestCase):
 
     @freeze_time("2023-12-12")
     def test_staff_has_permissions_user_by_date(self):
-        self.staff_user.user_permissions.add(self.has_change_permission)
+        self.staff_user.groups.add(self.group)
 
         mother = Mother.objects.create(name='Test Mother')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
         Condition.objects.create(
             mother=mother,
             scheduled_date=datetime(2023, 12, 11, tzinfo=timezone.utc),
             condition='FR3',
             finished=False
         )
+        assign_perm('view_mother', self.group, mother)
+        assign_perm('change_mother', self.group, mother)
+
         request = self.factory.get('/')
         request.user = self.staff_user
         request.GET = {'date_or_time': 'by_date'}
@@ -149,11 +155,12 @@ class AuthConditionListFilterTest(TestCase):
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
         self.assertEqual(len(queryset), 1)
 
-    @freeze_time("2023-12-12")
+    @freeze_time("2023-12-12 21:00:00")
     def test_staff_user_has_permissions_by_date_and_time(self):
-        self.staff_user.user_permissions.add(self.has_change_permission)
+        self.staff_user.groups.add(self.group)
 
         mother = Mother.objects.create(name='Test Mother')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
         Condition.objects.create(
             mother=mother,
             scheduled_date=datetime(2023, 12, 11, tzinfo=timezone.utc),
@@ -161,6 +168,8 @@ class AuthConditionListFilterTest(TestCase):
             condition='FR3',
             finished=False
         )
+        assign_perm('view_mother', self.group, mother)
+        assign_perm('change_mother', self.group, mother)
 
         request = self.factory.get('/')
         request.user = self.staff_user

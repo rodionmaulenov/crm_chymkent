@@ -1,3 +1,5 @@
+import re
+
 from typing import Tuple
 
 from django.db.models import Q
@@ -5,9 +7,11 @@ from django.http import HttpRequest, HttpResponseRedirect
 from django.utils import timezone
 from django.db import models
 
-from mothers.models import Mother
+from mothers.models import Mother, Condition
+from mothers.services.mother import set_url_when_change_or_add_condition_object
 
 Mother: models
+Condition: models
 
 
 def filter_condition_by_date_time() -> Tuple[Q, Q]:

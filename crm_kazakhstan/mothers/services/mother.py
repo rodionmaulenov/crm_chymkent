@@ -211,7 +211,7 @@ def comment_plann_and_comment_finished_true(obj: Mother) -> Tuple[Planned, Comme
     return planned, comment, condition
 
 
-def set_url_when_change_condition_object(request: HttpRequest) -> None:
+def set_url_when_change_or_add_condition_object(request: HttpRequest) -> None:
     """
     Adding to request the earlier URL from where came when execute change 'Condition' object
     """
@@ -314,7 +314,7 @@ def change_condition_on_change_list_page(condition: Condition, request: HttpRequ
     css_style = get_css_style("light-green", "green", "rgba(0, 150, 0, 0.8)")
     link_html = create_link_html(f'{change_url}?mother={condition.pk}&{return_path}', "light-green", condition_display)
 
-    set_url_when_change_condition_object(request)
+    set_url_when_change_or_add_condition_object(request)
 
     return mark_safe(f'{css_style}{link_html}')
 
@@ -336,7 +336,7 @@ def change_or_not_based_on_filtered_queryset(condition: Condition, condition_dis
 
     if condition_not_on_filtered_queryset(condition):
 
-        set_url_when_change_condition_object(request)
+        set_url_when_change_or_add_condition_object(request)
 
         return mark_safe(f'{link_with_style}/<br>{formatted_datetime}')
     else:
@@ -358,6 +358,6 @@ def change_on_filtered_changelist(condition: Condition, condition_display: str, 
     combined_html = f'{css_style}{link_html}/<br>{formatted_datetime}'
 
     # designate full url path for this change
-    set_url_when_change_condition_object(request)
+    set_url_when_change_or_add_condition_object(request)
 
     return mark_safe(combined_html)
