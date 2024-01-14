@@ -1,13 +1,15 @@
 from typing import Dict, Any, Optional
 
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.contrib.admin.helpers import AdminForm
+from django.forms import ModelForm
 from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse
 
 from mothers.models import Condition
 from mothers.services.condition import filter_condition_by_date_time, queryset_with_filter_condition, \
     is_filtered_condition_met, redirect_to_appropriate_url
+from mothers.services.mother import convert_local_to_utc
 
 
 @admin.register(Condition)
@@ -94,11 +96,16 @@ class ConditionAdmin(admin.ModelAdmin):
         # Redirect to the Mother change list page if no previous URL is set or valid
         return HttpResponseRedirect(mother_changelist_url)
 
-    def save_model(self, request, obj, form, change):
+    def save_model(self, request: HttpRequest, obj: Condition, form: ModelForm, change: bool) -> None:
+        """
+        Converts the scheduled date and time of the Condition instance from the user's local timezone to UTC,
+        and saves the object. This method is called when a Condition instance is saved in the Django admin interface.
+        When change or add
+        """
+        if obj.scheduled_date and obj.scheduled_time:
+            utc_aware_datetime = convert_local_to_utc(request, obj)
+            obj.scheduled_date = utc_aware_datetime.date()
+            obj.scheduled_time = utc_aware_datetime.time()
+
         super().save_model(request, obj, form, change)
-        if change:
-            # Custom message for update
-            self.message_user(request, "Your custom change message", messages.SUCCESS)
-        else:
-            # Custom message for add
-            self.message_user(request, "Your custom add message", messages.SUCCESS)
+

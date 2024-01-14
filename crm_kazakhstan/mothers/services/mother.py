@@ -9,7 +9,7 @@ from django.utils import timezone, formats
 from django.utils.http import urlencode
 from django.utils.timezone import localtime, make_aware, activate, deactivate
 from django.db import models
-from django.db.models import Q, Case, When, BooleanField, Subquery, OuterRef, Value, QuerySet, Exists
+from django.db.models import Subquery, OuterRef, QuerySet, Exists
 from django.utils.html import format_html, mark_safe
 
 from mothers.models import Stage, Planned, Mother, Comment, Condition
@@ -20,12 +20,12 @@ Mother: models
 Comment: models
 
 
-def get_difference_time(request, instance: Condition):
+def convert_local_to_utc(request: HttpRequest, instance: Condition) -> datetime:
     # Convert string to a timezone object
     user_timezone = pytz.timezone(str(request.user.timezone))
-    # Combine date and time strings into a datetime object
-    future_local_datetime = datetime.strptime(f"{instance.scheduled_date} {instance.scheduled_time}",
-                                              "%Y-%m-%d %H:%M:%S")
+
+    # Combine date and time into a datetime object
+    future_local_datetime = datetime.combine(instance.scheduled_date, instance.scheduled_time)
 
     # Make the datetime object timezone-aware in the user's local timezone
     future_local_aware = user_timezone.localize(future_local_datetime)
@@ -33,7 +33,7 @@ def get_difference_time(request, instance: Condition):
     # Convert the local timezone-aware datetime to UTC
     utc_datetime = future_local_aware.astimezone(pytz.utc)
 
-    return utc_datetime.time()
+    return utc_datetime
 
 
 def convert_utc_to_local(utc_date, utc_time, user_timezone_str):

@@ -16,7 +16,7 @@ from django.urls import reverse
 from mothers.filters import AuthConditionListFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
 from mothers.models import Mother, Comment, Stage, Condition
-from mothers.services.mother import (get_difference_time, aware_datetime_from_date, get_specific_fields,
+from mothers.services.mother import (convert_local_to_utc, aware_datetime_from_date, get_specific_fields,
                                      by_date_or_by_datatime, first_visit_action_logic_for_queryset,
                                      check_existence_of_latest_unfinished_plan, shortcut_bold_text,
                                      comment_plann_and_comment_finished_true, change_or_not_based_on_filtered_queryset,
@@ -98,8 +98,8 @@ class MotherAdmin(GuardedModelAdmin):
         instances = formset.save(commit=False)
         for instance in instances:
             if isinstance(instance, Condition) and instance.scheduled_time is not None:
-                utc_aware_time = get_difference_time(request, instance)
-                instance.scheduled_time = utc_aware_time
+                utc_aware_datetime = convert_local_to_utc(request, instance)
+                instance.scheduled_time = utc_aware_datetime.time()
                 instance.save()
         formset.save_m2m()
 

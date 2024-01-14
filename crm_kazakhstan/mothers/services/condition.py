@@ -1,14 +1,13 @@
-import re
-
 from typing import Tuple
 
+from django.core.checks import messages
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponseRedirect
 from django.utils import timezone
 from django.db import models
+from django.contrib import messages
 
-from mothers.models import Mother, Condition
-from mothers.services.mother import set_url_when_change_or_add_condition_object
+from mothers.models import Mother
 
 Mother: models
 Condition: models
@@ -58,7 +57,8 @@ def queryset_with_filter_condition(for_date: Q, for_datetime: Q) -> Tuple[bool, 
     return exists_for_date, exists_for_datetime
 
 
-def is_filtered_condition_met(previous_url: str, for_date: bool, for_datetime: bool) -> bool:
+def is_filtered_condition_met(previous_url: str, for_date: bool,
+                              for_datetime: bool) -> bool:
     """
     Checks if the previous URL is a filtered condition and if the respective queryset is not empty.
     """
