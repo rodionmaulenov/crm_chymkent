@@ -1,13 +1,12 @@
 import pytz
 
-from datetime import datetime, time
-from typing import Tuple, Optional
+from datetime import datetime, time, date
+from typing import Tuple, Optional, Union
 
 from django.http import HttpRequest
 from django.urls import reverse
 from django.utils import timezone, formats
 from django.utils.http import urlencode
-from django.utils.timezone import localtime, make_aware, activate, deactivate
 from django.db import models
 from django.db.models import Subquery, OuterRef, QuerySet, Exists
 from django.utils.html import format_html, mark_safe
@@ -21,6 +20,9 @@ Comment: models
 
 
 def convert_local_to_utc(request: HttpRequest, instance: Condition) -> datetime:
+    """
+    Converts the scheduled date and time of a Condition instance from the user's local timezone to UTC.
+    """
     # Convert string to a timezone object
     user_timezone = pytz.timezone(str(request.user.timezone))
 
@@ -36,13 +38,13 @@ def convert_local_to_utc(request: HttpRequest, instance: Condition) -> datetime:
     return utc_datetime
 
 
-def convert_utc_to_local(utc_date, utc_time, user_timezone_str):
+def convert_utc_to_local(request: HttpRequest, utc_date: date, utc_time: time) -> datetime:
+    user_timezone = getattr(request.user, 'timezone', 'UTC')
     # Convert string to a timezone object
-    user_timezone = pytz.timezone(str(user_timezone_str))
+    user_timezone = pytz.timezone(str(user_timezone))
 
     # Combine UTC date and time strings into a datetime object
-    utc_datetime_str = f"{utc_date} {utc_time}"
-    utc_datetime_naive = datetime.strptime(utc_datetime_str, "%Y-%m-%d %H:%M:%S")
+    utc_datetime_naive = datetime.combine(utc_date, utc_time)
 
     # Make the datetime object timezone-aware in UTC
     utc_datetime_aware = pytz.utc.localize(utc_datetime_naive)
@@ -77,26 +79,6 @@ def get_specific_fields(request, inline):
             inline.form = ConditionInlineFormWithFinished
 
     return inline
-
-
-def on_primary_stage(queryset: QuerySet) -> QuerySet:
-    """
-    Get only mothers where Stage is Primary
-    """
-    # Subquery to get the latest stage for each mother
-    latest_stage_subquery = Stage.objects.filter(
-        mother=OuterRef('pk')
-    ).order_by('-date_create').values('stage')[:1]
-
-    # Annotate the queryset with the latest stage
-    queryset = queryset.annotate(
-        latest_stage=Subquery(latest_stage_subquery)
-    )
-
-    # Filter mothers whose latest stage is PRIMARY
-    queryset = queryset.filter(latest_stage=Stage.StageChoices.PRIMARY)
-
-    return queryset
 
 
 def first_visit_action_logic_for_queryset(queryset: QuerySet) -> Tuple[QuerySet, QuerySet]:
@@ -156,32 +138,44 @@ def check_existence_of_latest_unfinished_plan():
     return exists
 
 
-def in_user_localtime(condition: Condition, condition_time: Optional[time], request: HttpRequest) -> datetime:
+def on_primary_stage(queryset: QuerySet) -> QuerySet:
     """
-    Converts the scheduled date and time of a condition into the local timezone of the user.
-
-    :return: A datetime object representing the local time for the user.
+    Get only mothers where Stage is Primary
     """
-    # Ensure condition has a scheduled date and condition_time is not None
-    if condition.scheduled_date and condition_time:
-        scheduled_datetime = datetime.combine(condition.scheduled_date, condition_time)
+    # Subquery to get the latest stage for each mother
+    latest_stage_subquery = Stage.objects.filter(
+        mother=OuterRef('pk')
+    ).order_by('-date_create').values('stage')[:1]
 
-        # Fetch and apply user's timezone
-        user_timezone_str = getattr(request.user, 'timezone', 'UTC')
-        user_timezone = pytz.timezone(str(user_timezone_str))
-        activate(user_timezone)
-        local_scheduled_datetime = localtime(make_aware(scheduled_datetime))
-        deactivate()
+    # Annotate the queryset with the latest stage
+    queryset = queryset.annotate(
+        latest_stage=Subquery(latest_stage_subquery)
+    )
 
-        return local_scheduled_datetime
+    # Filter mothers whose latest stage is PRIMARY
+    queryset = queryset.filter(latest_stage=Stage.StageChoices.PRIMARY)
+
+    return queryset
 
 
-def output_time_format(condition_time: Optional[time], local_scheduled_datetime: datetime) -> str:
+def date_or_datetime_only(request: HttpRequest, obj: Condition) \
+        -> Tuple[Optional[Union[date, datetime]], Optional[time]]:
+    """
+    Returns a tuple with the scheduled datetime twice of the given Condition object.
+    If the scheduled time is not set, None is returned in its place.
+    """
+    if obj.scheduled_date and not obj.scheduled_time:
+        return obj.scheduled_date, None
+    if obj.scheduled_date and obj.scheduled_time:
+        local_datetime = convert_utc_to_local(request, obj.scheduled_date, obj.scheduled_time)
+        return local_datetime, local_datetime.time()
+
+
+def output_time_format(condition_time: Optional[time] = None,
+                       local_scheduled_datetime: Optional[datetime] = None) -> str:
     """
     Formats the provided datetime. If the time is midnight (00:00), it formats
     the datetime as 'Day Month'. Otherwise, it formats as 'Day Month Hour:Minute'.
-
-    :return: A string representing the formatted datetime.
     """
     # If condition_time is None or midnight, format only the date
     if condition_time is None or condition_time == time(0, 0):
@@ -266,16 +260,6 @@ def get_filter_value_from_url(request: HttpRequest) -> bool:
         return filter_value == 'by_date' or filter_value == 'by_date_and_time'
 
 
-def get_local_time_in_specific_format(condition: Condition, request: HttpRequest) -> str:
-    """
-    Return time in user local in specific format
-    """
-    condition_time = condition.scheduled_time or time(0, 0)
-    local_scheduled_datetime = in_user_localtime(condition, condition_time, request)
-    formatted_datetime = output_time_format(condition_time, local_scheduled_datetime)
-    return formatted_datetime
-
-
 def condition_not_on_filtered_queryset(condition: Condition) -> bool:
     """
     Verify mother instance NOT on filtered change list Page return True otherwise False
@@ -325,8 +309,9 @@ def change_or_not_based_on_filtered_queryset(condition: Condition, condition_dis
     CHANGE URL if mother instance on change list Page or SIMPLE STRING iN BOLD if mother instance
     on filtered change list Page.
     """
+    local_date, local_time = date_or_datetime_only(request, condition)
+    formatted_datetime = output_time_format(local_time, local_date)
 
-    formatted_datetime = get_local_time_in_specific_format(condition, request)
     change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
 
     css_style = get_css_style("light-green", "green", "rgba(0, 150, 0, 0.8)")
@@ -347,7 +332,9 @@ def change_on_filtered_changelist(condition: Condition, condition_display: str, 
     """
     Can Change 'Condition instance' on filtered change list page.
     """
-    formatted_datetime = get_local_time_in_specific_format(condition, request)
+    local_date, local_time = date_or_datetime_only(request, condition)
+    formatted_datetime = output_time_format(local_time, local_date)
+
     change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
 
     css_style = get_css_style("violet-link", "rgba(138, 43, 226, 0.8)", "violet")

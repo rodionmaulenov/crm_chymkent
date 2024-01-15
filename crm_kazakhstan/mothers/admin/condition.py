@@ -1,4 +1,5 @@
 from typing import Dict, Any, Optional
+from guardian.admin import GuardedModelAdmin
 
 from django.contrib import admin
 from django.contrib.admin.helpers import AdminForm
@@ -6,6 +7,7 @@ from django.forms import ModelForm
 from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse
 
+from mothers.forms import ConditionAdminForm
 from mothers.models import Condition
 from mothers.services.condition import filter_condition_by_date_time, queryset_with_filter_condition, \
     is_filtered_condition_met, redirect_to_appropriate_url
@@ -13,7 +15,8 @@ from mothers.services.mother import convert_local_to_utc
 
 
 @admin.register(Condition)
-class ConditionAdmin(admin.ModelAdmin):
+class ConditionAdmin(GuardedModelAdmin):
+    form = ConditionAdminForm
 
     def has_module_permission(self, request: HttpRequest) -> bool:
         """
@@ -109,3 +112,13 @@ class ConditionAdmin(admin.ModelAdmin):
 
         super().save_model(request, obj, form, change)
 
+    def get_form(self, request, obj=None, **kwargs):
+        # Create a Form wrapper that includes the request in the kwargs
+        form = super().get_form(request, obj, **kwargs)
+
+        class RequestForm(form):
+            def __new__(cls, *args, **kwargs):
+                kwargs['request'] = request
+                return form(*args, **kwargs)
+
+        return RequestForm

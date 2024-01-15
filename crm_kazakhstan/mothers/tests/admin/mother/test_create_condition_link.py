@@ -22,6 +22,8 @@ class CreateConditionLinkTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.superuser = User.objects.create_superuser(username='superuser', password='password')
+        cls.superuser_with_timezone = User.objects.create_superuser(username='superuser1', password='password',
+                                                                    timezone='Europe/Kyiv')
         cls.mother = Mother.objects.create(name='Test')
 
     def setUp(self):
@@ -201,10 +203,11 @@ class CreateConditionLinkTest(TestCase):
 
         result = self.mother_admin.create_condition_link(obj=self.mother)
 
-        self.assertIn(f'href="/admin/mothers/condition/{condition.pk}/change/" class="violet-link">', result)
+        self.assertIn(f'href="/admin/mothers/condition/{condition.pk}/change/"', result)
 
     def test_can_change_on_filtered_mother_change_list_url_by_date_and_time(self):
-        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 10))
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 1, 10),
+                                             scheduled_time=time(23, 00))
 
         change_url = reverse('admin:mothers_mother_changelist')
         request = self.factory.get(change_url, {'date_or_time': 'by_date_and_time'})
@@ -216,4 +219,26 @@ class CreateConditionLinkTest(TestCase):
 
         result = self.mother_admin.create_condition_link(obj=self.mother)
 
-        self.assertIn(f'href="/admin/mothers/condition/{condition.pk}/change/" class="violet-link">', result)
+        self.assertIn(
+            f' <a href="/admin/mothers/condition/44/change/" class="violet-link">'
+            f'<strong>recently created</strong></a>/<br>10 Jan 23:00',
+            result
+        )
+
+    @freeze_time("2023-12-12 10:00:00")
+    def test_can_change_on_filtered_mother_change_list_url_by_date_and_time_correspond_to_user_local_date_time(self):
+        condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2024, 12, 12),
+                                             scheduled_time=time(23, 00))
+
+        change_url = reverse('admin:mothers_mother_changelist')
+        request = self.factory.get(change_url, {'date_or_time': 'by_date_and_time'})
+        middleware = SessionMiddleware()
+        middleware.process_request(request)
+        request.session.save()
+        request.user = self.superuser_with_timezone
+        self.mother_admin.request = request
+
+        result = self.mother_admin.create_condition_link(obj=self.mother)
+
+        self.assertIn(f'<a href="/admin/mothers/condition/45/change/" class="violet-link">'
+                      f'<strong>recently created</strong></a>/<br>13 Dec 01:00', result)

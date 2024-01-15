@@ -66,6 +66,66 @@ class MotherAdmin(GuardedModelAdmin):
 
     search_help_text = 'Search description'
 
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        """
+        Permission for first layer on site, see or not Mother.
+        If superuser True else objects that has the same with user perms exist or not.
+        """
+        if super().has_module_permission(request):
+            return True
+        data = on_primary_stage(self.get_model_objects(request))
+        return data.exists()
+
+    def get_queryset(self, request: HttpRequest) -> QuerySet:
+        """
+        Queryset contains exclusively the Mother instances where Stage is Primary
+        """
+        # assign request for using in custom MotherAdmin methods
+        self.request = request
+
+        queryset = super().get_queryset(request)
+        queryset = on_primary_stage(queryset)
+
+        if request.user.is_superuser:
+            return queryset
+
+        data = self.get_model_objects(request)
+        data = on_primary_stage(data)
+        return data
+
+    def get_model_objects(self, request: HttpRequest) -> QuerySet:
+        """
+        Get the objects that tied with concrete user and have the same permission, that user have
+        """
+        _meta = self.opts
+        actions = ['view', 'change']
+        perms = [f'{perm}_{_meta.model_name}' for perm in actions]
+        klass = _meta.model
+        return get_objects_for_user(user=request.user, perms=perms, klass=klass, any_perm=True)
+
+    def has_permission(self, request: HttpRequest, obj: Mother, action: str) -> bool:
+        """
+        list layer:
+        If superuser True else objects that has the same with user perms exist or not.
+        Obj layer:
+        If superuser True else user has perms on object or not.
+        """
+        _meta = self.opts
+        code_name = f'{action}_{_meta.model_name}'
+        if obj:
+            return request.user.has_perm(f'{_meta.app_label}.{code_name}', obj)
+        if request.user.is_superuser:
+            return True
+        else:
+            data = on_primary_stage(self.get_model_objects(request))
+            return data.exists()
+
+    def has_view_permission(self, request: HttpRequest, obj=None) -> bool:
+        return self.has_permission(request, obj, 'view')
+
+    def has_change_permission(self, request: HttpRequest, obj=None) -> bool:
+        return self.has_permission(request, obj, 'view')
+
     def response_post_save_change(self, request, obj):
         """
         Redirect to the changelist url if condition is equal 0 and mother instance get from filtered list.
@@ -261,64 +321,3 @@ class MotherAdmin(GuardedModelAdmin):
         # ONLY in this case mother instance locate on filtered queryset where I CAN CHANGE "Condition" instance
         if filtered_queryset_url:
             return change_on_filtered_changelist(condition, condition_display, self.request)
-
-    def has_module_permission(self, request: HttpRequest) -> bool:
-        """
-        Permission for first layer on site, see or not Mother.
-        If superuser True else objects that has the same with user perms exist or not.
-        """
-        if super().has_module_permission(request):
-            return True
-        data = on_primary_stage(self.get_model_objects(request))
-        return data.exists()
-
-    def get_queryset(self, request: HttpRequest) -> QuerySet:
-        """
-        Queryset contains exclusively the Mother instances where Stage is Primary
-        """
-        # assign request for using in custom MotherAdmin methods
-        self.request = request
-
-        queryset = super().get_queryset(request)
-        queryset = on_primary_stage(queryset)
-
-        if request.user.is_superuser:
-            return queryset
-
-        data = self.get_model_objects(request)
-        data = on_primary_stage(data)
-        return data
-
-    def get_model_objects(self, request: HttpRequest) -> QuerySet:
-        """
-        Get the objects that tied with concrete user and have the same permission, that user have
-        """
-        _meta = self.opts
-        actions = ['view', 'change']
-        perms = [f'{perm}_{_meta.model_name}' for perm in actions]
-        klass = _meta.model
-        return get_objects_for_user(user=request.user, perms=perms, klass=klass, any_perm=True)
-
-    def has_permission(self, request: HttpRequest, obj: Mother, action: str) -> bool:
-        """
-        list layer:
-        If superuser True else objects that has the same with user perms exist or not.
-        Obj layer:
-        If superuser True else user has perms on object or not.
-        """
-        _meta = self.opts
-        code_name = f'{action}_{_meta.model_name}'
-        if obj:
-            return request.user.has_perm(f'{_meta.app_label}.{code_name}', obj)
-        if request.user.is_superuser:
-            return True
-        else:
-            data = on_primary_stage(self.get_model_objects(request))
-            return data.exists()
-
-    def has_view_permission(self, request: HttpRequest, obj=None) -> bool:
-        return self.has_permission(request, obj, 'view')
-
-    def has_change_permission(self, request: HttpRequest, obj=None) -> bool:
-        return self.has_permission(request, obj, 'view')
-
