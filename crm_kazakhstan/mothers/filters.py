@@ -1,5 +1,6 @@
 from django.contrib import admin
 
+from mothers.models import Mother
 from mothers.services.condition import filter_condition_by_date_time
 
 
@@ -69,4 +70,5 @@ class AuthConditionListFilter(ConditionListFilter):
             return super().queryset(request, queryset)
 
     def staff_user_with_perm(self, request):
-        return request.user.is_staff and request.user.groups.filter(name='primary_stage').exists()
+        from mothers.admin import MotherAdmin
+        return MotherAdmin(Mother, admin.site).get_model_objects(request).exists()

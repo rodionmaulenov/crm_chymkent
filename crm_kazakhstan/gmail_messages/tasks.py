@@ -5,12 +5,14 @@ from datetime import timedelta
 from celery import shared_task
 from guardian.shortcuts import assign_perm
 
-from django.contrib.auth.models import Group
+from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils import timezone
 
 from gmail_messages.service_inbox import InboxMessages
 from mothers.models import Mother, Condition, Stage
+
+User = get_user_model()
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
@@ -70,11 +72,11 @@ def save_message():
             Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
 
             # Get or create the group
-            group, created = Group.objects.get_or_create(name='primary_stage')
+            rushane = User.objects.get(username='Rushana')
 
             # Assign permission for each instance of Mother
-            assign_perm('view_mother', group, mother)
-            assign_perm('change_mother', group, mother)
+            assign_perm('view_mother', rushane, mother)
+            assign_perm('change_mother', rushane, mother)
 
         inbox.not_proceed_emails.clear()
         # Close the mailbox

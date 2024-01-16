@@ -7,6 +7,7 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from freezegun import freeze_time
+from guardian.shortcuts import get_perms
 
 from mothers.models import Condition, Mother
 from mothers.admin import ConditionAdmin
@@ -24,6 +25,7 @@ class SaveModelMethodTest(TestCase):
         self.factory = RequestFactory()
 
         self.superuser = User.objects.create_superuser(username='admin', password='password', timezone='Europe/Kyiv')
+        self.rushana = User.objects.create_user(username='Rushana', password='password')
 
     def test_save_model_without_scheduled_date_or_time_create(self):
         mother = Mother.objects.create(name='Mother')
@@ -127,3 +129,20 @@ class SaveModelMethodTest(TestCase):
         obj.refresh_from_db()
         self.assertIsNotNone(obj.pk)
         self.assertEqual(obj.scheduled_date, datetime.date(2024, 1, 18))
+
+    def test_save_model_new_condition_with_perms_change_and_view(self):
+        mother = Mother.objects.create(name='Mother')
+        obj = Condition(mother=mother, scheduled_date=datetime.date(2024, 1, 18))
+        self.assertIsNone(obj.pk)
+        request = self.factory.get('/')
+        request.user = self.rushana
+
+        form = self.admin.get_form(request)
+        self.admin.save_model(request, obj, form, change=False)
+
+        obj.refresh_from_db()
+        self.assertIsNotNone(obj.pk)
+
+        perms = get_perms(self.rushana, obj)
+        self.assertIn('view_condition', perms)
+        self.assertIn('change_condition', perms)

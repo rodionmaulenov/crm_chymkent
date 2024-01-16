@@ -1,17 +1,22 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Type
 from guardian.admin import GuardedModelAdmin
 
 from django.contrib import admin
+from django.contrib.auth import get_user_model
 from django.contrib.admin.helpers import AdminForm
 from django.forms import ModelForm
+from django import forms
 from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse
+from guardian.shortcuts import assign_perm
 
 from mothers.forms import ConditionAdminForm
-from mothers.models import Condition
+from mothers.models import Condition, Mother
 from mothers.services.condition import filter_condition_by_date_time, queryset_with_filter_condition, \
     is_filtered_condition_met, redirect_to_appropriate_url
 from mothers.services.mother import convert_local_to_utc
+
+User = get_user_model()
 
 
 @admin.register(Condition)
@@ -43,10 +48,11 @@ class ConditionAdmin(GuardedModelAdmin):
         return self.has_permission(request, obj, 'view')
 
     def has_change_permission(self, request: HttpRequest, obj=None) -> bool:
-        return self.has_permission(request, obj, 'view')
+        return self.has_permission(request, obj, 'change')
 
     def has_add_permission(self, request: HttpRequest, obj=None) -> bool:
-        return request.user.groups.filter(name='primary_stage').exists() or request.user.is_superuser
+        from mothers.admin import MotherAdmin
+        return MotherAdmin(Mother, admin.site).get_model_objects(request).exists() or request.user.is_superuser
 
     def render_change_form(self, request: HttpRequest, context: Dict[str, Any],
                            add: bool = False, change: bool = False,
@@ -110,10 +116,23 @@ class ConditionAdmin(GuardedModelAdmin):
             obj.scheduled_date = utc_aware_datetime.date()
             obj.scheduled_time = utc_aware_datetime.time()
 
+        is_new = not obj.pk  # Check if the object is new (has no primary key yet)
+
         super().save_model(request, obj, form, change)
 
-    def get_form(self, request, obj=None, **kwargs):
-        # Create a Form wrapper that includes the request in the kwargs
+        if is_new:
+            # Retrieve or define the user to whom permissions will be assigned
+            username = request.user.username
+            rushana = User.objects.get(username=username)
+
+            # Assign permission for each new instance of Condition
+            assign_perm('view_condition', rushana, obj)
+            assign_perm('change_condition', rushana, obj)
+
+    def get_form(self, request: HttpRequest, obj=None, **kwargs) -> Type[forms.ModelForm]:
+        """
+        Create a Form wrapper that includes the request in the kwargs
+        """
         form = super().get_form(request, obj, **kwargs)
 
         class RequestForm(form):

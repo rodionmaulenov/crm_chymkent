@@ -220,7 +220,7 @@ class CreateConditionLinkTest(TestCase):
         result = self.mother_admin.create_condition_link(obj=self.mother)
 
         self.assertIn(
-            f' <a href="/admin/mothers/condition/44/change/" class="violet-link">'
+            f' <a href="/admin/mothers/condition/{condition.pk}/change/" class="violet-link">'
             f'<strong>recently created</strong></a>/<br>10 Jan 23:00',
             result
         )
@@ -240,5 +240,5 @@ class CreateConditionLinkTest(TestCase):
 
         result = self.mother_admin.create_condition_link(obj=self.mother)
 
-        self.assertIn(f'<a href="/admin/mothers/condition/45/change/" class="violet-link">'
+        self.assertIn(f'<a href="/admin/mothers/condition/{condition.pk}/change/" class="violet-link">'
                       f'<strong>recently created</strong></a>/<br>13 Dec 01:00', result)

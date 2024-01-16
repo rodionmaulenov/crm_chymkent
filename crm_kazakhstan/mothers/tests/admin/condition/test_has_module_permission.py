@@ -1,4 +1,3 @@
-from django.contrib.auth.models import Group
 from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
@@ -17,9 +16,7 @@ class HasModulePermissionMethodTest(TestCase):
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.staff_user = User.objects.create(username='staffuser', password='password', is_staff=True)
-
-        # Create a group
-        self.primary_stage_group, created = Group.objects.get_or_create(name='primary_stage')
+        self.rushana = User.objects.create_user(username='Rushana', password='password')
 
     def test_has_not_access_to_first_layer_site_mother_for_superuser(self):
         request = self.factory.get('/')
@@ -35,10 +32,9 @@ class HasModulePermissionMethodTest(TestCase):
 
         self.assertFalse(access)
 
-    def test_has_not_access_to_first_layer_site_mother_staff_user_with_group(self):
-        self.staff_user.groups.add(self.primary_stage_group)
+    def test_has_not_access_to_first_layer_site_mother_rushana(self):
         request = self.factory.get('/')
-        request.user = self.staff_user
+        request.user = self.rushana
         access = self.admin.has_module_permission(request)
 
         self.assertFalse(access)

@@ -4,8 +4,8 @@ from django import forms
 from django.utils.html import format_html
 
 from mothers.constants import CONDITION_CHOICES
-from mothers.services.mother import convert_utc_to_local, by_date_or_by_datatime
-from mothers.models import Condition
+from mothers.services.mother import convert_utc_to_local
+from mothers.models import Condition, Mother
 
 
 class EmptyOnlyFieldWrapper:
@@ -138,11 +138,9 @@ class ConditionInline(admin.TabularInline):
     def get_formset(self, request, obj=None, **kwargs):
         formset_class = super().get_formset(request, obj, **kwargs)
 
-        # increase max_num by 1 if mother instance from changelist url
-        res = obj.condition_set.filter(finished=True).count()
-        time = by_date_or_by_datatime(request)
-        if res >= 0 and not time:
-            formset_class.max_num = res + 1
-
         formset_class.request = request
         return formset_class
+
+    def has_view_permission(self, request, obj=None):
+        from mothers.admin import MotherAdmin
+        return MotherAdmin(Mother, admin.site).has_permission(request, obj, 'view')

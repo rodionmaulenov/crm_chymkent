@@ -5,19 +5,18 @@ from guardian.admin import GuardedModelAdmin
 from guardian.shortcuts import get_objects_for_user
 
 from django.core.handlers.wsgi import WSGIRequest
-from django.http import HttpResponseRedirect, HttpRequest
+from django.http import HttpRequest
 from django.utils.html import format_html
-from django.db.models import Count, Case, When, QuerySet
+from django.db.models import QuerySet
 from django.contrib import admin, messages
 from django.db import models
 from django.utils import formats, timezone
-from django.urls import reverse
 
 from mothers.filters import AuthConditionListFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
 from mothers.models import Mother, Comment, Stage, Condition
 from mothers.services.mother import (convert_local_to_utc, aware_datetime_from_date, get_specific_fields,
-                                     by_date_or_by_datatime, first_visit_action_logic_for_queryset,
+                                     first_visit_action_logic_for_queryset,
                                      check_existence_of_latest_unfinished_plan, shortcut_bold_text,
                                      comment_plann_and_comment_finished_true, change_or_not_based_on_filtered_queryset,
                                      change_condition_on_change_list_page, add_new_condition,
@@ -125,22 +124,6 @@ class MotherAdmin(GuardedModelAdmin):
 
     def has_change_permission(self, request: HttpRequest, obj=None) -> bool:
         return self.has_permission(request, obj, 'view')
-
-    def response_post_save_change(self, request, obj):
-        """
-        Redirect to the changelist url if condition is equal 0 and mother instance get from filtered list.
-        """
-        condition = obj.condition_set.aggregate(
-            unfinished_count=Count(Case(When(finished=False, then=1)))
-        )
-
-        time = by_date_or_by_datatime(request)
-
-        if condition['unfinished_count'] == 0 and time:
-            changelist_url = reverse('admin:mothers_mother_changelist')
-            return HttpResponseRedirect(changelist_url)
-        else:
-            return super().response_post_save_change(request, obj)
 
     def get_formsets_with_inlines(self, request, obj=None):
         """

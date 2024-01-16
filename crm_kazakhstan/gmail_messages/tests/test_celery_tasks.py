@@ -1,6 +1,6 @@
 import imaplib
 
-from django.contrib.auth.models import Group
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.db import models
 from guardian.shortcuts import get_perms
@@ -14,9 +14,12 @@ from mothers.models import Mother
 
 Mother: models
 
+User = get_user_model()
+
 
 class SaveMessageTestCase(TestCase):
     def setUp(self):
+        self.rushana = User.objects.create_user(username='Rushana', password='password')
         self.email_user = "example@gmail.com"
         self.email_pass = "testpassword"
         self.email_server = "imap.gmail.com"
@@ -66,9 +69,8 @@ class SaveMessageTestCase(TestCase):
         mothers = Mother.objects.all()
         self.assertEqual(len(mothers.filter(stage__isnull=False)), 3)
 
-        group = Group.objects.get(name='primary_stage')
         for obj in Mother.objects.all():
-            self.assertEqual(len(get_perms(group, obj)), 2)
+            self.assertEqual(len(get_perms(self.rushana, obj)), 2)
 
         self.assertEqual(len(mothers), 3)
         self.assertEqual(Mother.objects.first().id, 12)
@@ -96,9 +98,8 @@ class SaveMessageTestCase(TestCase):
         mothers = Mother.objects.all()
         self.assertEqual(len(mothers.filter(stage__isnull=False)), 2)
 
-        group = Group.objects.get(name='primary_stage')
         for obj in mothers.filter(stage__isnull=False):
-            self.assertEqual(len(get_perms(group, obj)), 2)
+            self.assertEqual(len(get_perms(self.rushana, obj)), 2)
 
     @patch('gmail_messages.service_inbox.imaplib.IMAP4_SSL')
     def test_login_and_extract_messages(self, mock_imap):
