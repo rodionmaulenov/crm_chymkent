@@ -1,12 +1,14 @@
-from django.contrib.auth.models import Permission
-from django.test import TestCase, RequestFactory
-from django.contrib.admin.sites import AdminSite
-from django.contrib.auth import get_user_model
-from django.db import models
 from guardian.shortcuts import assign_perm
 
+from django.contrib import admin
+from django.contrib.auth.models import Permission
+from django.test import TestCase, RequestFactory
+from django.contrib.auth import get_user_model
+from django.db import models
+
+from mothers.inlines import ConditionInline
 from mothers.models import Mother, Stage
-from mothers.admin import MotherAdmin
+
 
 User = get_user_model()
 Mother: models
@@ -15,8 +17,7 @@ Stage: models
 
 class HasViewPermissionMethodTest(TestCase):
     def setUp(self):
-        self.site = AdminSite()
-        self.admin = MotherAdmin(Mother, self.site)
+        self.inline_condition = ConditionInline(Mother, admin.site)
         self.factory = RequestFactory()
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
@@ -25,7 +26,7 @@ class HasViewPermissionMethodTest(TestCase):
     def test_super_user_has_view_perm(self):
         request = self.factory.get('/')
         request.user = self.superuser
-        view = self.admin.has_view_permission(request)
+        view = self.inline_condition.has_view_permission(request)
 
         self.assertTrue(view)
 
@@ -33,7 +34,7 @@ class HasViewPermissionMethodTest(TestCase):
         mother = Mother.objects.create(name='Mother 1')
         request = self.factory.get('/')
         request.user = self.superuser
-        view = self.admin.has_view_permission(request, mother)
+        view = self.inline_condition.has_view_permission(request, mother)
 
         self.assertTrue(view)
 
@@ -46,7 +47,7 @@ class HasViewPermissionMethodTest(TestCase):
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request)
+        view = self.inline_condition.has_view_permission(request)
 
         self.assertTrue(view)
 
@@ -56,7 +57,7 @@ class HasViewPermissionMethodTest(TestCase):
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request)
+        view = self.inline_condition.has_view_permission(request)
 
         self.assertTrue(view)
 
@@ -67,14 +68,14 @@ class HasViewPermissionMethodTest(TestCase):
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request, mother)
+        view = self.inline_condition.has_view_permission(request, mother)
 
         self.assertTrue(view)
 
     def test_staff_user_has_not_view_perm(self):
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request)
+        view = self.inline_condition.has_view_permission(request)
 
         self.assertFalse(view)
 
@@ -87,7 +88,7 @@ class HasViewPermissionMethodTest(TestCase):
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request)
+        view = self.inline_condition.has_view_permission(request)
 
         self.assertFalse(view)
 
@@ -96,6 +97,6 @@ class HasViewPermissionMethodTest(TestCase):
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request, mother)
+        view = self.inline_condition.has_view_permission(request, mother)
 
         self.assertFalse(view)

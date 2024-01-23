@@ -106,7 +106,6 @@ DATABASES = {
     }
 }
 
-
 CELERY_BROKER_URL = "redis://redis:6379/0"
 # CELERY BEAT SCHEDULER
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
@@ -169,7 +168,6 @@ AUTHENTICATION_BACKENDS = (
     'guardian.backends.ObjectPermissionBackend',
 )
 
-
 #
 # LOGGING = {
 #     'version': 1,
@@ -186,3 +184,5 @@ AUTHENTICATION_BACKENDS = (
 #         },
 #     },
 # }
+
+

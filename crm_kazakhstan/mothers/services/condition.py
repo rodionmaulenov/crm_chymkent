@@ -1,25 +1,36 @@
-from typing import Tuple
+from datetime import date, time
+from typing import Tuple, Union, Dict, Any, Optional, List, Type
 
-from django.core.checks import messages
-from django.db.models import Q
+from django.contrib.admin import ModelAdmin
+from django.urls import reverse
+from django.utils.html import format_html
+from guardian.shortcuts import assign_perm
+
+from django import forms
+from django.contrib import messages
+from django.db.models import Q, Field
 from django.http import HttpRequest, HttpResponseRedirect
 from django.utils import timezone
 from django.db import models
-from django.contrib import messages
+from django.utils import formats
+from django.templatetags.static import static
+from django.contrib.auth import get_user_model
+from django.utils.safestring import mark_safe
 
-from mothers.models import Mother
+from mothers.models import Mother, Condition
+from mothers.forms import ConditionAdminForm, AddConditionAdminForm, ChangeConditionAdminForm
 
 Mother: models
 Condition: models
 
+User = get_user_model()
 
-def filter_condition_by_date_time() -> Tuple[Q, Q]:
+
+def filter_condition_by_date_time() -> Q:
     """
     Generates query filters for 'Condition' objects based on the current date and time.
 
-    Returns two query filters:
-    - for_date: Filters for conditions scheduled on or before the current date
-                with no specific time, and not finished.
+    Returns two query filter:
     - for_datetime: Filters for conditions either scheduled for a date earlier
                     than today or for today with a time earlier than or equal
                     to the current time, and not finished.
@@ -34,42 +45,27 @@ def filter_condition_by_date_time() -> Tuple[Q, Q]:
                     Q(condition__scheduled_date__lt=current_date, condition__scheduled_time__isnull=False)
                     ) & Q(condition__finished=False)
 
-    for_date = (Q(condition__scheduled_date__lte=current_date, condition__scheduled_time__isnull=True)
-                ) & Q(condition__finished=False)
-
-    return for_date, for_datetime
+    return for_datetime
 
 
-def queryset_with_filter_condition(for_date: Q, for_datetime: Q) -> Tuple[bool, bool]:
+def queryset_with_filter_condition(for_datetime: Q) -> bool:
     """
     Evaluates whether there are any Mother objects that match the given query filters.
-    Args:
-    - for_date (Q): A Django Q object representing the filter condition for dates.
-    - for_datetime (Q): A Django Q object representing the filter condition for date and time.
-
-    Returns:
-    - Tuple[bool, bool]: A tuple containing two boolean values. The first value indicates whether
-      any Mother objects meet the 'for_date' condition, and the second value indicates whether any
-      meet the 'for_datetime' condition.
     """
-    exists_for_date = Mother.objects.filter(for_date).exists()
     exists_for_datetime = Mother.objects.filter(for_datetime).exists()
-    return exists_for_date, exists_for_datetime
+    return exists_for_datetime
 
 
-def is_filtered_condition_met(previous_url: str, for_date: bool,
-                              for_datetime: bool) -> bool:
+def is_filtered_condition_met(previous_url: str, for_datetime: bool) -> bool:
     """
     Checks if the previous URL is a filtered condition and if the respective queryset is not empty.
     """
 
     if previous_url:
-        not_filtered_list_page = any(previous_url.endswith(value) for value in ['by_date', 'by_date_and_time'])
+        not_filtered_list_page = previous_url.endswith('by_date_and_time')
         previous_url_without_filtered_change_list = previous_url and not not_filtered_list_page
 
         if previous_url_without_filtered_change_list:
-            return True
-        if previous_url.endswith('by_date') and for_date:
             return True
         if previous_url.endswith('by_date_and_time') and for_datetime:
             return True
@@ -84,3 +80,256 @@ def redirect_to_appropriate_url(request: HttpRequest, previous_url: str, default
         del request.session['previous_url']
         return HttpResponseRedirect(previous_url)
     return HttpResponseRedirect(default_url)
+
+
+def render_icon(is_success: bool) -> str:
+    """
+    Render green icon if True else red icon
+    """
+    icon_color = 'green' if is_success else 'red'
+    icon_path = static(f'mothers/icons/{icon_color}_check_mark.jpg')
+    return mark_safe(
+        f'<img src="{icon_path}" alt="{"Success" if is_success else "Failure"}" style="width: 20px; height: 20px;"/>'
+    )
+
+
+def format_date_or_time(value: Union[date, time]) -> str:
+    """
+    Return various string format based on date time type
+    """
+    if isinstance(value, date):
+        return formats.date_format(value, "j M Y")
+    elif isinstance(value, time):
+        return formats.date_format(value, "H:i")
+
+
+def get_mother_id_from_url(request: HttpRequest, key: str) -> int:
+    """
+    In url from GET queryset obtain id by key
+    """
+    mother_id = request.GET.get(key)
+    return mother_id
+
+
+def cleaned_date_time_and_condition(cleaned_data: Dict[str, Any]) -> Tuple[date, time, str]:
+    """
+    Extracts scheduled date, scheduled time, and condition from cleaned data.
+    """
+    scheduled_time = cleaned_data.get("scheduled_time")
+    scheduled_date = cleaned_data.get("scheduled_date")
+    condition = cleaned_data.get('condition')
+    return scheduled_date, scheduled_time, condition
+
+
+def validate_time_date_dependencies(form: ConditionAdminForm, cleaned_data: Dict[str, Any]) -> None:
+    """
+    Ensures that if a time is set, a date must also be set, and vice versa.
+    """
+    scheduled_date, scheduled_time, _ = cleaned_date_time_and_condition(cleaned_data)
+    if scheduled_time and not scheduled_date:
+        form.add_error('scheduled_date', "Date must be provided if time is set.")
+    if scheduled_date and not scheduled_time:
+        form.add_error('scheduled_time', "Time must be provided if date is set.")
+
+
+def validate_condition_with_date(form: ConditionAdminForm, cleaned_data: Dict[str, Any]) -> None:
+    """
+    Checks conditions that require a date and adds an error if a date is not provided.
+    """
+    condition_has_date = ['no baby', ]  # list of states which must have scheduled date
+    scheduled_date, scheduled_time, condition = cleaned_date_time_and_condition(cleaned_data)
+    if condition in condition_has_date and not (scheduled_date and scheduled_time):
+        form.add_error('condition', "Date and Time must be provided if this state is set.")
+
+
+def validate_condition_without_date(form: ConditionAdminForm, cleaned_data: Dict[str, Any]) -> None:
+    """
+    Checks conditions that should not have a date and adds an error if a date is provided.
+    """
+    condition_has_not_date = ['created', ]  # list of states which never have scheduled date
+    scheduled_date, scheduled_time, condition = cleaned_date_time_and_condition(cleaned_data)
+    if condition in condition_has_not_date and (scheduled_time or scheduled_date):
+        form.add_error('condition', "Date and Time not be set for this state.")
+
+
+def initialize_form_fields(form_instance, request: Optional[HttpRequest]) -> None:
+    """
+    Initializes form fields 'scheduled_date' and 'scheduled_time' with local datetime values if applicable.
+    """
+    from mothers.services.mother import convert_utc_to_local
+
+    if form_instance.instance.pk and request:
+        if form_instance.instance.scheduled_date and form_instance.instance.scheduled_time:
+            local_datetime = convert_utc_to_local(request, form_instance.instance.scheduled_date,
+                                                  form_instance.instance.scheduled_time)
+            if local_datetime:
+                form_instance.initial['scheduled_date'] = local_datetime.date()
+                form_instance.initial['scheduled_time'] = local_datetime.time()
+
+
+def hide_mother_field_on_add(form: ConditionAdminForm) -> None:
+    """
+    Hides the mother field if this is a new instance (i.e., not yet saved in the database).
+    """
+    if not form.instance.pk:
+        form.fields['mother'].widget = forms.HiddenInput()
+
+
+def set_initial_mother_value_on_add(form: ConditionAdminForm, request: Optional[HttpRequest]) -> None:
+    """
+    Sets the initial value for the mother field based on the mother ID from the URL, if this is a new instance.
+    """
+    if not form.instance.pk and request:
+        mother_id = get_mother_id_from_url(request, 'mother')
+        if mother_id:
+            form.initial['mother'] = mother_id
+
+
+def extract_choices(db_field: Field) -> List[Tuple[Any, Any]]:
+    """
+    Extracts the choices from the database field.
+
+    :param db_field: The database field from which to extract choices.
+    :return: A list of choice tuples.
+    """
+    return db_field.get_choices(include_blank=db_field.blank, blank_choice=[('', '---------')])
+
+
+def is_add_action(obj: Condition) -> bool:
+    """
+    Determines whether the current action is 'add'.
+
+    :return: True if it's an 'add' action, False otherwise.
+    """
+    return not (obj and obj.pk)
+
+
+def filter_choices(obj: Condition, request: HttpRequest, choices: List[Tuple[Any, Any]]) -> List[Tuple[Any, Any]]:
+    """
+    Filters choices based on the action type (add or change).
+
+    :param choices: The original list of choice tuples.
+    :param is_add_action: A boolean indicating whether the action is 'add' (True) or 'change' (False).
+    :return: A list of filtered choice tuples.
+    """
+    if is_add_action(obj):
+        # Logic for filtering choices during 'add' action
+        if mother_has_condition_created(request):
+            # If related mother instance already have condition 'created' state
+            # then remove from choices list
+            return [choice for choice in choices if choice[0] not in ('created',)]
+        else:
+            # If related mother instance haven`t condition 'created' state
+            return choices
+    else:
+        # Logic for filtering choices during 'change' action
+        return [choice for choice in choices if choice[0] not in ('created',)]
+
+
+def mother_has_condition_created(request: HttpRequest) -> bool:
+    """
+    Checks if the specific Mother, identified by the mother_id from the URL,
+    has a related Condition instance with the 'created' choice.
+    """
+    mother_id = get_mother_id_from_url(request, 'mother')
+
+    # Check if the Mother with the specified ID has a related Condition with the 'created' choice
+    return Condition.objects.filter(mother_id=mother_id, condition=Condition.ConditionChoices.CREATED).exists()
+
+
+def select_form_class(obj=None) -> Type[forms.ModelForm]:
+    """
+    Selects the appropriate form class based on whether the action is 'add' or 'change'.
+    """
+    if obj is None:
+        # Use the add form for new objects.
+        return AddConditionAdminForm
+    else:
+        # Use the change form for existing objects.
+        return ChangeConditionAdminForm
+
+
+def inject_request_into_form(form: Type[forms.ModelForm], request: HttpRequest) -> Type[forms.ModelForm]:
+    """
+    Wraps the form class to inject the request into its kwargs.
+    """
+
+    class RequestForm(form):
+        def __new__(cls, *args, **local_kwargs):
+            local_kwargs['request'] = request
+            return form(*args, **local_kwargs)
+
+    return RequestForm
+
+
+def convert_to_utc_and_save(request: HttpRequest, obj: Condition) -> None:
+    """
+    Converts the scheduled date and time from the user's local timezone to UTC.
+    """
+    from mothers.services.mother import convert_local_to_utc
+
+    if obj.scheduled_date and obj.scheduled_time:
+        utc_aware_datetime = convert_local_to_utc(request, obj)
+        obj.scheduled_date = utc_aware_datetime.date()
+        obj.scheduled_time = utc_aware_datetime.time()
+
+
+def assign_permissions_to_user(user: User, obj: Condition) -> None:
+    """
+    Assigns 'view_condition' and 'change_condition' permissions to the user for the given Condition instance.
+    """
+    # Retrieve or define the user to whom permissions will be assigned
+    username = user.username
+    user_primary_stage = User.objects.get(username=username)
+
+    # Assign permission for each new instance of Condition
+    assign_perm('view_condition', user_primary_stage, obj)
+    assign_perm('change_condition', user_primary_stage, obj)
+
+
+def has_permission(adm: ModelAdmin, request: HttpRequest, obj: Condition, action: str, base_permission) -> bool:
+    """
+    Checks if the user has the specified permission for the given object. If the user has model lvl permission,
+    or if the user has the specific permission on the object, it returns True.
+    If the object is not specified, always return False
+    """
+    _meta = adm.opts
+    code_name = f'{action}_{_meta.model_name}'
+    if obj:
+        return request.user.has_perm(f'{_meta.app_label}.{code_name}', obj) \
+            or request.user.has_perm(f'{_meta.app_label}.{code_name}')  # in this case add user only view perm
+
+    if base_permission:
+        return False
+
+
+def adjust_button_visibility(context: Dict[str, Any], add: bool, change: bool) -> None:
+    """
+    Adjusts the visibility of form buttons in the admin change form context.
+    """
+    # If we are adding a new instance (not changing), adjust the visibility of buttons.
+    if add or change:
+        context['show_save_and_add_another'] = False  # Remove "Save and add another" button
+        context['show_save_and_continue'] = False  # Remove "Save and continue editing" button
+        context['show_save'] = True  # Ensure "Save" button is visible
+
+
+def after_add_message(self: ModelAdmin, request: HttpRequest, obj: Condition) -> None:
+    url = reverse('admin:mothers_mother_change', args=[obj.mother.id])
+    message = format_html(
+        f'Condition "<strong>{obj.get_condition_display()}</strong>" '
+        f'successfully created for <a href="{url}">{obj.mother}</a>'
+    )
+    self.message_user(request, message, messages.SUCCESS)
+
+
+def after_change_message(self: ModelAdmin, request: HttpRequest, obj: Condition) -> None:
+    url = reverse('admin:mothers_mother_change', args=[obj.mother.id])
+
+    if obj.finished:
+        message = format_html(
+            f'Condition "<strong>{obj.get_condition_display()}</strong>"'
+            f' already completed for <a href="{url}">{obj.mother}</a>'
+        )
+        self.message_user(request, message, messages.SUCCESS)
+

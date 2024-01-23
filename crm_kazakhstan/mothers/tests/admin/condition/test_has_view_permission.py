@@ -1,3 +1,4 @@
+from django.contrib.auth.models import Permission
 from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
@@ -21,16 +22,14 @@ class HasViePermissionMethodTest(TestCase):
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.staff_user = User.objects.create(username='staffuser', password='password', is_staff=True)
 
-        self.rushana = User.objects.create_user(username='Rushana', password='password', is_staff=True)
-
-    def test_super_user_has_view_perm(self):
+    def test_super_user_has_view_perm_list_lvl(self):
         request = self.factory.get('/')
         request.user = self.superuser
         view = self.admin.has_view_permission(request)
 
         self.assertFalse(view)
 
-    def test_super_user_has_view_perm_obj(self):
+    def test_super_user_has_view_perm_obj_lvl(self):
         mother = Mother.objects.create(name='Mother 1')
         condition = Condition.objects.create(mother=mother)
         request = self.factory.get('/')
@@ -39,36 +38,40 @@ class HasViePermissionMethodTest(TestCase):
 
         self.assertTrue(view)
 
-    def test_staff_user_has_not_view_perm(self):
+    def test_staff_user_has_not_view_perm_list_lvl(self):
         request = self.factory.get('/')
         request.user = self.staff_user
         view = self.admin.has_view_permission(request)
 
         self.assertFalse(view)
 
-    def test_rushana_has_not_view_perm(self):
-        request = self.factory.get('/')
-        request.user = self.rushana
-        view = self.admin.has_view_permission(request)
-
-        self.assertFalse(view)
-
-    def test_rushana_has_view_perm_obj(self):
+    def test_staff_has_view_perm_obj(self):
         mother = Mother.objects.create(name='Mother 1')
         condition = Condition.objects.create(mother=mother)
-        assign_perm('view_condition', self.rushana, condition)
+        assign_perm('view_condition', self.staff_user, condition)
 
-        # Simulate a request with the user
-        request = self.factory.get('/admin/mothers/condition/')
-        request.user = self.rushana
+        request = self.factory.get('/')
+        request.user = self.staff_user
 
         self.assertTrue(self.admin.has_view_permission(request, condition))
 
-    def test_rushana_has_not_view_perm_obj(self):
+    def test_staff_has_view_obj_perm_with_model_view_lvl_perm(self):
         mother = Mother.objects.create(name='Mother 1')
         condition = Condition.objects.create(mother=mother)
+        view_permission = Permission.objects.get(codename='view_condition')
+        self.staff_user.user_permissions.add(view_permission)
+
         request = self.factory.get('/')
-        request.user = self.rushana
+        request.user = self.staff_user
+
+        self.assertTrue(self.admin.has_view_permission(request, condition))
+
+    def test_staff_has_not_view_perm_obj(self):
+        mother = Mother.objects.create(name='Mother 1')
+        condition = Condition.objects.create(mother=mother)
+
+        request = self.factory.get('/')
+        request.user = self.staff_user
         view = self.admin.has_view_permission(request, condition)
 
         self.assertFalse(view)

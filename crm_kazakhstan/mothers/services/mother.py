@@ -3,19 +3,23 @@ import pytz
 from datetime import datetime, time, date
 from typing import Tuple, Optional, Union
 
+from django.contrib.admin import ModelAdmin
+from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest
 from django.urls import reverse
 from django.utils import timezone, formats
 from django.utils.http import urlencode
 from django.db import models
-from django.db.models import Subquery, OuterRef, QuerySet, Exists
+from django.db.models import Subquery, OuterRef, QuerySet
 from django.utils.html import format_html, mark_safe
+from django.utils.safestring import SafeString
+from guardian.shortcuts import get_objects_for_user
 
-from mothers.models import Stage, Planned, Mother, Comment, Condition
+from mothers.models import Stage, Planned, Comment, Condition, Mother
+from mothers.services.condition import filter_condition_by_date_time, queryset_with_filter_condition
 
 Stage: models
 Planned: Stage
-Mother: models
 Comment: models
 
 
@@ -23,6 +27,7 @@ def convert_local_to_utc(request: HttpRequest, instance: Condition) -> datetime:
     """
     Converts the scheduled date and time of a Condition instance from the user's local timezone to UTC.
     """
+
     # Convert string to a timezone object
     user_timezone = pytz.timezone(str(request.user.timezone))
 
@@ -61,83 +66,6 @@ def aware_datetime_from_date(search_date):
     return aware_datetime
 
 
-def by_date_or_by_datatime(request):
-    list_parameters = request.GET.get('_changelist_filters', '').split('=')
-    time = any(value in list_parameters for value in ['by_date', 'by_date_and_time'])
-    return time
-
-
-def get_specific_fields(request, inline):
-    from mothers.inlines import ConditionInlineFormWithFinished, ConditionInline
-    """
-    Substitute Inline form on another to adding extra fields
-    for ConditionListFilter instances when change ConditionInline
-    """
-    if isinstance(inline, ConditionInline):
-        time = by_date_or_by_datatime(request)
-        if time:
-            inline.form = ConditionInlineFormWithFinished
-
-    return inline
-
-
-def first_visit_action_logic_for_queryset(queryset: QuerySet) -> Tuple[QuerySet, QuerySet]:
-    """
-    Processes a queryset of Mother instances, dividing it into two groups based on the criteria
-    of their latest Planned instance:
-    - One group includes Mothers whose latest Planned instance meets specified criteria.
-    - The other group excludes those Mothers.
-
-    Returns:
-        Tuple[QuerySet, QuerySet]: A tuple of two querysets - one including and one excluding
-                                   Mother instances based on the criteria.
-    """
-
-    # Subquery to find the latest Planned instance for each Mother that meets the criteria
-    latest_planned_subquery = Planned.objects.filter(
-        mother=OuterRef('pk'),
-        plan=Planned.PlannedChoices.TAKE_TESTS,
-        finished=False
-    ).order_by('-id')
-
-    # Filter Mothers based on the existence of a matching latest Planned instance
-    mothers_with_latest_planned_meeting_criteria = queryset.filter(
-        Exists(latest_planned_subquery[:1])
-    )
-
-    # Find Mothers who do not meet the criteria
-    mothers_without_latest_planned_meeting_criteria = queryset.exclude(
-        Exists(latest_planned_subquery[:1])
-    )
-
-    return mothers_with_latest_planned_meeting_criteria, mothers_without_latest_planned_meeting_criteria
-
-
-def check_existence_of_latest_unfinished_plan():
-    """
-    Checks whether there exists at least one Mother whose most recent Planned instance
-    (the latest one based on ID) meets specific criteria:
-    - The plan is set to 'TAKE_TESTS', and
-    - The plan is not marked as finished (finished=False).
-    """
-
-    # Subquery to find the latest Planned instance for each Mother
-    latest_planned_subquery = Planned.objects.filter(
-        mother=OuterRef('pk'),
-        plan=Planned.PlannedChoices.TAKE_TESTS,
-        finished=False
-    ).order_by('-id').values('id')[:1]
-
-    # Query to find Mothers with a latest Planned instance that meets the criteria
-    mothers_with_latest_planned = Mother.objects.filter(
-        Exists(latest_planned_subquery)
-    )
-
-    # Check if there exists at least one Mother meeting the criteria
-    exists = mothers_with_latest_planned.exists()
-    return exists
-
-
 def on_primary_stage(queryset: QuerySet) -> QuerySet:
     """
     Get only mothers where Stage is Primary
@@ -158,29 +86,18 @@ def on_primary_stage(queryset: QuerySet) -> QuerySet:
     return queryset
 
 
-def date_or_datetime_only(request: HttpRequest, obj: Condition) \
-        -> Tuple[Optional[Union[date, datetime]], Optional[time]]:
+def convert_to_local_time(obj: Mother, user_timezone: str) -> timezone.datetime:
     """
-    Returns a tuple with the scheduled datetime twice of the given Condition object.
-    If the scheduled time is not set, None is returned in its place.
+    Converts the 'date_create' of a Mother instance from UTC to the user's local timezone.
     """
-    if obj.scheduled_date and not obj.scheduled_time:
-        return obj.scheduled_date, None
-    if obj.scheduled_date and obj.scheduled_time:
-        local_datetime = convert_utc_to_local(request, obj.scheduled_date, obj.scheduled_time)
-        return local_datetime, local_datetime.time()
+    user_tz = pytz.timezone(str(user_timezone))
+    return timezone.localtime(obj.date_create, timezone=user_tz)
 
 
-def output_time_format(condition_time: Optional[time] = None,
-                       local_scheduled_datetime: Optional[datetime] = None) -> str:
+def output_time_format(local_scheduled_datetime: Optional[datetime]) -> str:
     """
-    Formats the provided datetime. If the time is midnight (00:00), it formats
-    the datetime as 'Day Month'. Otherwise, it formats as 'Day Month Hour:Minute'.
+    Formats the provided datetime. Formats as 'Day Month Hour:Minute'.
     """
-    # If condition_time is None or midnight, format only the date
-    if condition_time is None or condition_time == time(0, 0):
-        return formats.date_format(local_scheduled_datetime, "j M")
-    # Otherwise, format the date and time
     return formats.date_format(local_scheduled_datetime, "j M H:i")
 
 
@@ -257,7 +174,7 @@ def get_filter_value_from_url(request: HttpRequest) -> bool:
     """
     if 'date_or_time' in request.GET:
         filter_value = request.GET['date_or_time']
-        return filter_value == 'by_date' or filter_value == 'by_date_and_time'
+        return filter_value == 'by_date_and_time'
 
 
 def condition_not_on_filtered_queryset(condition: Condition) -> bool:
@@ -309,8 +226,8 @@ def change_or_not_based_on_filtered_queryset(condition: Condition, condition_dis
     CHANGE URL if mother instance on change list Page or SIMPLE STRING iN BOLD if mother instance
     on filtered change list Page.
     """
-    local_date, local_time = date_or_datetime_only(request, condition)
-    formatted_datetime = output_time_format(local_time, local_date)
+    local_datetime = convert_utc_to_local(request, condition.scheduled_date, condition.scheduled_time)
+    formatted_datetime = output_time_format(local_datetime)
 
     change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
 
@@ -332,8 +249,8 @@ def change_on_filtered_changelist(condition: Condition, condition_display: str, 
     """
     Can Change 'Condition instance' on filtered change list page.
     """
-    local_date, local_time = date_or_datetime_only(request, condition)
-    formatted_datetime = output_time_format(local_time, local_date)
+    local_datetime = convert_utc_to_local(request, condition.scheduled_date, condition.scheduled_time)
+    formatted_datetime = output_time_format(local_datetime)
 
     change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
 
@@ -348,3 +265,104 @@ def change_on_filtered_changelist(condition: Condition, condition_display: str, 
     set_url_when_change_or_add_condition_object(request)
 
     return mark_safe(combined_html)
+
+
+def get_model_objects(adm: ModelAdmin, request: HttpRequest) -> QuerySet:
+    """
+    Retrieves a QuerySet of objects from the model associated with the provided MotherAdmin instance (`adm`).
+    The objects are filtered based on the user's permissions. It checks if the user has either 'view' or 'change'
+    permissions for the objects of the model.
+
+    This function is useful in scenarios where you want to display or provide access to objects that a specific user
+    is allowed to view or change, according to their permissions.
+
+    :param adm: The ModelAdmin instance related to the model whose objects are to be retrieved.
+    :param request: The current HTTP request, containing the user for whom to check permissions.
+    :return: A QuerySet of objects that the user has permission to view or change.
+    """
+    _meta = adm.opts
+    actions = ['view', 'change']  # Define the permissions to check
+    perms = [f'{perm}_{_meta.model_name}' for perm in actions]  # Construct permission codenames
+    klass = _meta.model  # The model class associated with the ModelAdmin
+
+    # Retrieve and return the objects for which the user has the specified permissions
+    return get_objects_for_user(user=request.user, perms=perms, klass=klass, any_perm=True)
+
+
+def has_permission(adm: ModelAdmin, request: HttpRequest, obj: Mother, action: str, base_permission: bool) -> bool:
+    """
+    Checks if the user has the specified permission for the given object. If the user has model lvl permission,
+    or if the user has the specific permission on the object, it returns True. If the object is not specified,
+    it checks if there are any objects in the primary stage for the user or if the base permission is True.
+    """
+    _meta = adm.opts
+    code_name = f'{action}_{_meta.model_name}'
+    if obj:
+        return request.user.has_perm(f'{_meta.app_label}.{code_name}', obj) \
+            or request.user.has_perm(f'{_meta.app_label}.{code_name}')  # in this case add user only view perm
+
+    data = on_primary_stage(get_model_objects(adm, request))
+    return data.exists() or base_permission
+
+
+# Break down the large function into smaller functions
+def handle_comment_or_plan_exists(condition, condition_display):
+    """Handle cases where 'Comment' or 'Plan' instances exist."""
+    if condition.finished:
+        return format_html('{}', condition_display)
+
+
+def handle_not_finished_condition(condition, condition_display, filtered_queryset_url, request):
+    """Handle cases where the condition is not finished."""
+    if not condition.scheduled_date:
+        return change_condition_on_change_list_page(condition, request, condition_display)
+
+    if condition.scheduled_date and not filtered_queryset_url:
+        return change_or_not_based_on_filtered_queryset(condition, condition_display, request)
+
+
+def determine_link_action(request: HttpRequest, obj: Mother) -> Union[str, SafeString]:
+    """
+    Create a link based on the condition of the 'Mother' object.
+
+    The function handles different cases:
+    1. If a 'Comment' or 'Planned' instance exists related to Mother object, and 'Condition' is finished, no change is allowed.
+    2. If only the state of condition instance exists (not finished, no scheduled date), the condition can be changed.
+    3. Handles cases based on the presence of a scheduled date and whether the condition appears in a filtered queryset.
+    4. If the last related 'Condition' instance is finished, a new 'Condition' can be added.
+    5. Handles the case where the mother instance is located in a filtered queryset, allowing condition change.
+    """
+    condition_display = shortcut_bold_text(obj)
+    comment, plan, condition = comment_plann_and_comment_finished_true(obj)
+    filter_in_url = get_filter_value_from_url(request)
+
+    if comment or plan:
+        return handle_comment_or_plan_exists(condition, condition_display)
+
+    if condition.finished and not (comment or plan):
+        return add_new_condition(obj, condition_display, request)
+
+    if not condition.finished and not filter_in_url:
+        return handle_not_finished_condition(condition, condition_display, filter_in_url, request)
+
+    if not condition.finished and filter_in_url:
+        return change_on_filtered_changelist(condition, condition_display, request)
+
+    return format_html('Condition status not determined.')
+
+
+def get_for_datetime_queryset() -> bool:
+    """
+    Get the queryset(True or False) for the 'date_or_time' lookup.
+    """
+    for_datetime = filter_condition_by_date_time()
+    return queryset_with_filter_condition(for_datetime)
+
+
+def check_datetime_lookup_permission() -> None:
+    """
+    Check if the user has permission to access the 'date_or_time' lookup.
+    """
+    for_datetime = get_for_datetime_queryset()
+    if not for_datetime:
+        raise PermissionDenied

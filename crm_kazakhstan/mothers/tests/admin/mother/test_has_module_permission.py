@@ -1,3 +1,4 @@
+from django.contrib.auth.models import Permission
 from guardian.shortcuts import assign_perm
 
 from django.test import TestCase, RequestFactory
@@ -21,118 +22,53 @@ class HasModulePermissionMethodTest(TestCase):
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.staff_user = User.objects.create(username='staffuser', password='password', is_staff=True)
-        self.rushana = User.objects.create_user(username='Rushana', password='password')
 
-    def test_has_access_to_first_layer_site_mother_for_superuser(self):
+    def test_superuser_has_access_for_site_layer(self):
         request = self.factory.get('/')
         request.user = self.superuser
         access = self.admin.has_module_permission(request)
 
         self.assertTrue(access)
 
-    def test_has_not_access_to_first_layer_site_mother_staff_user(self):
+    def test_staff_has_access_to_site_layer(self):
+        mother = Mother.objects.create(name='Mother 1')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
+
+        assign_perm('view_mother', self.staff_user, mother)
+        assign_perm('change_mother', self.staff_user, mother)
+
         request = self.factory.get('/')
         request.user = self.staff_user
         access = self.admin.has_module_permission(request)
 
-        self.assertFalse(access)
+        self.assertTrue(access)
 
-    def test_has_not_access_to_first_layer_site_mother_rushana(self):
-        request = self.factory.get('/')
-        request.user = self.rushana
-        access = self.admin.has_module_permission(request)
+    def test_staff_has_site_layer_access_because_have_view_model_level_perm(self):
+        view_permission = Permission.objects.get(codename='view_mother')
+        self.staff_user.user_permissions.add(view_permission)
 
-        self.assertFalse(access)
-
-    def test_has_not_staff_user_access_to_first_layer_site_mother(self):
         request = self.factory.get('/')
         request.user = self.staff_user
         access = self.admin.has_module_permission(request)
 
+        self.assertTrue(access)
+
+    def test_staff_has_not_access_to_site_layer_because_first_visit_stage(self):
         mother = Mother.objects.create(name='Mother 1')
-        mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY)
-
-        self.assertFalse(access)
-
-    def test_rushana_has_not_access_to_first_layer_site_mother(self):
-        request = self.factory.get('/')
-        request.user = self.rushana
-        access = self.admin.has_module_permission(request)
-
-        mother = Mother.objects.create(name='Mother 1')
-        mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY)
-
-        self.assertFalse(access)
-
-    def test_and_not_has_access_to_first_layer_site_mother_rushana_and_mothers_on_FV_stage(self):
-        mother = Mother.objects.create(name='Mother 1')
-        mother2 = Mother.objects.create(name='Mother 2')
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT)
 
-        assign_perm('view_mother', self.rushana, mother)
-        assign_perm('change_mother', self.rushana, mother)
-
-        assign_perm('view_mother', self.rushana, mother2)
-        assign_perm('change_mother', self.rushana, mother2)
+        assign_perm('view_mother', self.staff_user, mother)
+        assign_perm('change_mother', self.staff_user, mother)
 
         request = self.factory.get('/')
-        request.user = self.rushana
+        request.user = self.staff_user
         access = self.admin.has_module_permission(request)
 
         self.assertFalse(access)
 
-    def test_and_has_access_to_first_layer_site_mother_rushana_mothers_on_FV_and_PRIMARY(self):
-        mother = Mother.objects.create(name='Mother 1')
-        mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT)
-
-        assign_perm('view_mother', self.rushana, mother)
-        assign_perm('change_mother', self.rushana, mother)
-
-        assign_perm('view_mother', self.rushana, mother2)
-        assign_perm('change_mother', self.rushana, mother2)
-
+    def test_staff_has_not_access_to_site_layer(self):
         request = self.factory.get('/')
-        request.user = self.rushana
+        request.user = self.staff_user
         access = self.admin.has_module_permission(request)
 
-        self.assertTrue(access)
-
-    def test_has_access_to_first_layer_site_mother_rushana_mothers_on_primary(self):
-        mother = Mother.objects.create(name='Mother 1')
-        mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY)
-
-        assign_perm('view_mother', self.rushana, mother)
-        assign_perm('change_mother', self.rushana, mother)
-
-        assign_perm('view_mother', self.rushana, mother2)
-        assign_perm('change_mother', self.rushana, mother2)
-
-        request = self.factory.get('/')
-        request.user = self.rushana
-        access = self.admin.has_module_permission(request)
-
-        self.assertTrue(access)
-
-    def test_has_access_to_first_layer_site_mother_rushana_mother_on_primary_stage(self):
-        mother = Mother.objects.create(name='Mother 1')
-        mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY)
-
-        assign_perm('view_mother', self.rushana, mother)
-        assign_perm('change_mother', self.rushana, mother)
-
-        request = self.factory.get('/')
-        request.user = self.rushana
-        access = self.admin.has_module_permission(request)
-
-        self.assertTrue(access)
+        self.assertFalse(access)

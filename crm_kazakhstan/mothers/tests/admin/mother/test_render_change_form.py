@@ -1,24 +1,21 @@
-from datetime import date, time
-
 from django.contrib.admin.helpers import AdminForm
 from django.db import models
 from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 
-from mothers.admin import ConditionAdmin
-from mothers.models import Condition, Mother
+from mothers.admin import MotherAdmin
+from mothers.models import Mother
 
 User = get_user_model()
 
 Mother: models
-Condition: models
 
 
 class RenderChangeFormTest(TestCase):
     def setUp(self):
         self.site = AdminSite()
-        self.admin = ConditionAdmin(Condition, self.site)
+        self.admin = MotherAdmin(Mother, self.site)
         self.factory = RequestFactory()
 
         self.superuser = User.objects.create_superuser(username='testuser', email='test@example.com',
@@ -105,22 +102,15 @@ class RenderChangeFormTest(TestCase):
 
     def test_render_change_form_change_for_superuser(self):
         mother = Mother.objects.create(name='Test Mother')
-        condition = Condition.objects.create(
-            mother=mother,
-            scheduled_date=date(2023, 12, 11),
-            scheduled_time=time(20, 40, 0),
-            condition='FR3',
-            finished=False
-        )
 
-        request = self.factory.get(f'/admin/mothers/condition/{condition.pk}/change/')
+        request = self.factory.get(f'/admin/mothers/mother/{mother.pk}/change/')
         request.user = self.superuser
 
-        form = self.admin.get_form(request, obj=condition)
+        form = self.admin.get_form(request, obj=mother)
         admin_form = AdminForm(
-            form(instance=condition),
-            list(self.admin.get_fieldsets(request, obj=condition)),
-            self.admin.get_prepopulated_fields(request, obj=condition)
+            form(instance=mother),
+            list(self.admin.get_fieldsets(request, obj=mother)),
+            self.admin.get_prepopulated_fields(request, obj=mother)
         )
 
         context = {
@@ -136,10 +126,10 @@ class RenderChangeFormTest(TestCase):
             'has_change_permission': True,
             'has_view_permission': True,
             'has_editable_inline_admin_formsets': False,
-            'original': condition,
+            'original': mother,
         }
 
-        response = self.admin.render_change_form(request, context, change=True, obj=condition)
+        response = self.admin.render_change_form(request, context, change=True, obj=mother)
 
         self.assertIn('show_save_and_add_another', response.context_data)
         self.assertFalse(response.context_data['show_save_and_add_another'])
@@ -150,22 +140,15 @@ class RenderChangeFormTest(TestCase):
 
     def test_render_change_form_change_for_staff_user(self):
         mother = Mother.objects.create(name='Test Mother')
-        condition = Condition.objects.create(
-            mother=mother,
-            scheduled_date=date(2023, 12, 11),
-            scheduled_time=time(20, 40, 0),
-            condition='FR3',
-            finished=False
-        )
 
-        request = self.factory.get(f'/admin/mothers/condition/{condition.pk}/change/')
+        request = self.factory.get(f'/admin/mothers/mother/{mother.pk}/change/')
         request.user = self.staff_user
 
-        form = self.admin.get_form(request, obj=condition)
+        form = self.admin.get_form(request, obj=mother)
         admin_form = AdminForm(
-            form(instance=condition),
-            list(self.admin.get_fieldsets(request, obj=condition)),
-            self.admin.get_prepopulated_fields(request, obj=condition)
+            form(instance=mother),
+            list(self.admin.get_fieldsets(request, obj=mother)),
+            self.admin.get_prepopulated_fields(request, obj=mother)
         )
 
         context = {
@@ -181,10 +164,10 @@ class RenderChangeFormTest(TestCase):
             'has_change_permission': True,
             'has_view_permission': True,
             'has_editable_inline_admin_formsets': False,
-            'original': condition,
+            'original': mother,
         }
 
-        response = self.admin.render_change_form(request, context, change=True, obj=condition)
+        response = self.admin.render_change_form(request, context, change=True, obj=mother)
 
         self.assertIn('show_save_and_add_another', response.context_data)
         self.assertFalse(response.context_data['show_save_and_add_another'])

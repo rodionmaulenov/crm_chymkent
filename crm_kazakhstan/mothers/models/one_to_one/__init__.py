@@ -1,2 +1,2 @@
-from .messanger_model import Messanger
-from .comment_model import Comment
+from .messanger import Messanger
+from .comment import Comment

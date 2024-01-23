@@ -1,3 +1,3 @@
-from .condition_model import Condition
-from .planned_model import Planned
-from .stage_model import Stage
+from .condition import Condition
+from .planned import Planned
+from .stage import Stage

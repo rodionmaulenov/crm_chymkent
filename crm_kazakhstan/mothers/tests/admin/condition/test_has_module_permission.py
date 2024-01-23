@@ -1,3 +1,4 @@
+from django.contrib.auth.models import Permission
 from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
@@ -32,9 +33,12 @@ class HasModulePermissionMethodTest(TestCase):
 
         self.assertFalse(access)
 
-    def test_has_not_access_to_first_layer_site_mother_rushana(self):
+    def test_has_not_access_to_first_layer_site_mother_staff_user_with_view_perm(self):
+        view_permission = Permission.objects.get(codename='view_condition')
+        self.staff_user.user_permissions.add(view_permission)
         request = self.factory.get('/')
-        request.user = self.rushana
+        request.user = self.staff_user
         access = self.admin.has_module_permission(request)
 
         self.assertFalse(access)
+
