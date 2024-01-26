@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from mothers.models import Condition, Mother, Stage
 from mothers.admin import MotherAdmin
-from mothers.filters import AuthConditionListFilter
+from mothers.filters import AuthConditionFilter
 
 MotherAdmin: admin.ModelAdmin
 Condition: models
@@ -21,7 +21,7 @@ Stage: models
 User = get_user_model()
 
 
-class AuthConditionListFilterTest(TestCase):
+class AuthConditionFilterTest(TestCase):
     def setUp(self):
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.staff_user = User.objects.create_user(username='staffuser', password='staffuserpassword', is_staff=True)
@@ -46,7 +46,7 @@ class AuthConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = AuthConditionListFilter(
+        filter_instance = AuthConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
 
@@ -73,7 +73,7 @@ class AuthConditionListFilterTest(TestCase):
         request = self.factory.get('/')
         request.user = self.staff_user
 
-        filter_instance = AuthConditionListFilter(
+        filter_instance = AuthConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
 
@@ -97,7 +97,7 @@ class AuthConditionListFilterTest(TestCase):
         request.user = self.staff_user
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = AuthConditionListFilter(
+        filter_instance = AuthConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
 
@@ -124,7 +124,7 @@ class AuthConditionListFilterTest(TestCase):
         request = self.factory.get('/')
         request.user = self.staff_user
 
-        filter_instance = AuthConditionListFilter(
+        filter_instance = AuthConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
 
@@ -149,7 +149,7 @@ class AuthConditionListFilterTest(TestCase):
         request = self.factory.get('/')
         request.user = self.staff_user
 
-        filter_instance = AuthConditionListFilter(
+        filter_instance = AuthConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
 

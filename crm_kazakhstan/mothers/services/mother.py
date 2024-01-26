@@ -60,12 +60,6 @@ def convert_utc_to_local(request: HttpRequest, utc_date: date, utc_time: time) -
     return local_datetime
 
 
-def aware_datetime_from_date(search_date):
-    datetime_obj = datetime.combine(search_date, datetime.min.time())
-    aware_datetime = timezone.make_aware(datetime_obj, timezone=pytz.UTC)
-    return aware_datetime
-
-
 def on_primary_stage(queryset: QuerySet) -> QuerySet:
     """
     Get only mothers where Stage is Primary

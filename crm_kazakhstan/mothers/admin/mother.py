@@ -1,5 +1,4 @@
 from typing import Any, Dict, Optional
-from dateutil import parser
 
 from django.contrib.admin.helpers import AdminForm
 from django.http import HttpRequest, HttpResponseRedirect
@@ -8,12 +7,12 @@ from django.utils.html import format_html
 from django.db.models import QuerySet
 from django.contrib import admin
 
-from mothers.filters import AuthConditionListFilter
+from mothers.filters import AuthConditionFilter, AuthDateFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
 from mothers.models import Mother
 from mothers.services.condition import queryset_with_filter_condition, filter_condition_by_date_time, \
     is_filtered_condition_met, redirect_to_appropriate_url, adjust_button_visibility
-from mothers.services.mother import (aware_datetime_from_date, on_primary_stage, determine_link_action,
+from mothers.services.mother import (on_primary_stage, determine_link_action,
                                      has_permission, get_model_objects, output_time_format, convert_to_local_time,
                                      check_datetime_lookup_permission)
 
@@ -26,7 +25,7 @@ class MotherAdmin(admin.ModelAdmin):
     empty_value_display = "-empty-"
     ordering = ('-date_create',)
     inlines = (PlannedInline, ConditionInline, CommentInline,)
-    list_filter = ("date_create", AuthConditionListFilter)
+    list_filter = (AuthDateFilter, AuthConditionFilter)
     list_display = (
         'id', 'name', 'date_created', 'number', 'residence', 'height_and_weight',
         'bad_habits', 'caesarean', 'children_age', 'age', 'citizenship', 'blood', 'maried',
@@ -142,24 +141,7 @@ class MotherAdmin(admin.ModelAdmin):
         base_permission = super().has_change_permission(request, obj)
         return has_permission(self, request, obj, 'change', base_permission)
 
-    def get_search_results(self, request, queryset, search_term):
-        """
-        User has possibility search instances from includes date input to date.today()
-        """
-        queryset, use_distinct = super().get_search_results(request, queryset, search_term)
-        try:
-            if search_term[:4].isdigit():
-                search_date = parser.parse(search_term).date()
-                aware_datetime = aware_datetime_from_date(search_date)
-            else:
-                search_date = parser.parse(search_term, dayfirst=True).date()
-                aware_datetime = aware_datetime_from_date(search_date)
 
-            queryset |= self.model.objects.filter(date_create__gte=aware_datetime)
-        except parser.ParserError:
-            pass
-
-        return queryset, use_distinct
 
     @admin.display(empty_value="no date", description='date created')
     def date_created(self, obj: Mother) -> str:

@@ -10,12 +10,13 @@ from django.utils import timezone
 
 from mothers.models import Condition, Mother, Stage
 from mothers.admin import MotherAdmin
-from mothers.filters import ConditionListFilter
+from mothers.filters import ConditionFilter
 
 MotherAdmin: admin.ModelAdmin
 Condition: models
 Mother: models
 Stage: models
+
 User = get_user_model()
 
 
@@ -45,7 +46,7 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionListFilter(
+        filter_instance = ConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
@@ -68,7 +69,7 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionListFilter(
+        filter_instance = ConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
@@ -90,7 +91,7 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionListFilter(
+        filter_instance = ConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
@@ -112,7 +113,7 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionListFilter(
+        filter_instance = ConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
@@ -134,7 +135,7 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionListFilter(
+        filter_instance = ConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
@@ -156,7 +157,7 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionListFilter(
+        filter_instance = ConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
@@ -178,7 +179,7 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionListFilter(
+        filter_instance = ConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
@@ -200,7 +201,7 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionListFilter(
+        filter_instance = ConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
@@ -229,7 +230,7 @@ class ConditionListFilterTest(TestCase):
         request = self.factory.get('/')
         request.user = self.superuser
 
-        filter_instance = ConditionListFilter(
+        filter_instance = ConditionFilter(
             request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
