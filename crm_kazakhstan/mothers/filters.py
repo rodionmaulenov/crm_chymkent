@@ -1,7 +1,8 @@
 from django.contrib import admin
+from django.db.models import Q, Count
 from django.utils import timezone
 
-from mothers.models import Mother
+from mothers.models import Mother, Condition
 from mothers.services.condition import filter_condition_by_date_time
 
 
@@ -111,6 +112,36 @@ class DateFilter(BaseSimpleListFilter):
 
 
 class AuthDateFilter(DateFilter, PermissionCheckingMixin):
+    def lookups(self, request, model_admin):
+        if self.has_permission(request):
+            return super().lookups(request, model_admin)
+
+    def queryset(self, request, queryset):
+        if self.has_permission(request):
+            return super().queryset(request, queryset)
+
+
+class CreatedStatusFilter(BaseSimpleListFilter):
+    """
+    Already created instance show on filtered queryset page
+    """
+    title = 'recently created'
+    parameter_name = "created"
+
+    def lookups(self, request, model_admin):
+        qs = model_admin.get_queryset(request)
+        filtered_qs = qs.annotate(created_count=Count('condition'))
+        filtered_qs = filtered_qs.filter(created_count__lte=1)
+        if filtered_qs:
+            yield 'recently_created', 'new exists'
+
+    def queryset(self, request, queryset):
+        if self.value() == 'recently_created':
+            filtered_qs = queryset.annotate(created_count=Count('condition'))
+            filtered_qs = filtered_qs.filter(created_count__lte=1)
+            return filtered_qs
+
+class AuthCreatedStatusFilter(CreatedStatusFilter, PermissionCheckingMixin):
     def lookups(self, request, model_admin):
         if self.has_permission(request):
             return super().lookups(request, model_admin)

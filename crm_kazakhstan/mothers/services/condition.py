@@ -152,6 +152,30 @@ def validate_condition_without_date(form: ConditionAdminForm, cleaned_data: Dict
         form.add_error('condition', "Date and Time not be set for this state.")
 
 
+def validate_empty_condition(form: ConditionAdminForm, cleaned_data: Dict[str, Any]) -> None:
+    """
+    Checks reason exists if condition is empty.
+    """
+    reason = cleaned_data.get('reason')
+    condition = cleaned_data.get('condition')
+
+    if condition is None and not reason:
+        form.add_error('reason', "Specify understandable reason for empty state")
+
+
+def validate_reason_has_datetime(form: ConditionAdminForm, cleaned_data: Dict[str, Any]) -> None:
+    """
+    Checks reason has date and time.
+    """
+    reason = cleaned_data.get('reason')
+    scheduled_date, scheduled_time, condition = cleaned_date_time_and_condition(cleaned_data)
+
+    if condition is None and reason and not scheduled_date:
+        form.add_error('scheduled_date', "Specify date")
+    if condition is None and reason and not scheduled_date:
+        form.add_error('scheduled_time', "Specify time")
+
+
 def initialize_form_fields(form_instance, request: Optional[HttpRequest]) -> None:
     """
     Initializes form fields 'scheduled_date' and 'scheduled_time' with local datetime values if applicable.
@@ -332,4 +356,3 @@ def after_change_message(self: ModelAdmin, request: HttpRequest, obj: Condition)
             f' already completed for <a href="{url}">{obj.mother}</a>'
         )
         self.message_user(request, message, messages.SUCCESS)
-

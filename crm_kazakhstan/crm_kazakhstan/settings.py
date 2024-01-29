@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django_celery_beat',
     'debug_toolbar',
     'guardian',
+    'rangefilter',
 
     # MY APPS
     'mothers',

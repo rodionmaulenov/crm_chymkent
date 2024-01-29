@@ -27,12 +27,14 @@ class ConditionAdminForm(forms.ModelForm):
 
     def clean(self) -> Dict[str, Any]:
         from mothers.services.condition import validate_condition_with_date, validate_time_date_dependencies, \
-            validate_condition_without_date
+            validate_condition_without_date, validate_empty_condition, validate_reason_has_datetime
         """Cleans the data of the form and applies validations."""
         cleaned_data = super().clean()
         validate_time_date_dependencies(self, cleaned_data)
         validate_condition_with_date(self, cleaned_data)
         validate_condition_without_date(self, cleaned_data)
+        validate_empty_condition(self, cleaned_data)
+        validate_reason_has_datetime(self, cleaned_data)
         return cleaned_data
 
     class Meta:

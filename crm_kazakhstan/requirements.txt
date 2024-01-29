@@ -7,3 +7,4 @@ flower==1.2.0
 freezegun==0.3.4
 django-timezone-field==6.1.0
 django-guardian==2.4.0
+django-admin-rangefilter==0.12.0
