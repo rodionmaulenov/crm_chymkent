@@ -1,9 +1,9 @@
 from django.contrib import admin
-from django.db.models import Q, Count
 from django.utils import timezone
 
-from mothers.models import Mother, Condition
+from mothers.models import Mother
 from mothers.services.condition import filter_condition_by_date_time
+from mothers.services.mother import get_already_created, get_reason_with_empty_condition
 
 
 class MotherAdminViewPermMixin:
@@ -77,6 +77,64 @@ class AuthConditionFilter(ConditionFilter, PermissionCheckingMixin):
             return super().queryset(request, queryset)
 
 
+class CreatedStatusFilter(BaseSimpleListFilter):
+    """
+    Already created instances show on filtered queryset page
+    """
+    title = 'recently created'
+    parameter_name = "created"
+
+    def lookups(self, request, model_admin):
+        qs = model_admin.get_queryset(request)
+        filtered_qs = get_already_created(qs)
+        if filtered_qs:
+            yield 'just_now', 'new exists'
+
+    def queryset(self, request, queryset):
+        if self.value() == 'just_now':
+            filtered_qs = get_already_created(queryset)
+            return filtered_qs
+
+
+class AuthCreatedStatusFilter(CreatedStatusFilter, PermissionCheckingMixin):
+    def lookups(self, request, model_admin):
+        if self.has_permission(request):
+            return super().lookups(request, model_admin)
+
+    def queryset(self, request, queryset):
+        if self.has_permission(request):
+            return super().queryset(request, queryset)
+
+
+class EmptyConditionFilter(BaseSimpleListFilter):
+    """
+    Show results that have empty condition and at the same time have description reason
+    """
+    title = 'what a reason'
+    parameter_name = "what_reason"
+
+    def lookups(self, request, model_admin):
+        qs = model_admin.get_queryset(request)
+        filtered_qs = get_reason_with_empty_condition(qs)
+        if filtered_qs:
+            yield 'empty_condition', 'described reasons'
+
+    def queryset(self, request, queryset):
+        if self.value() == 'empty_condition':
+            filtered_qs = get_reason_with_empty_condition(queryset)
+            return filtered_qs
+
+
+class AuthEmptyConditionFilter(EmptyConditionFilter, PermissionCheckingMixin):
+    def lookups(self, request, model_admin):
+        if self.has_permission(request):
+            return super().lookups(request, model_admin)
+
+    def queryset(self, request, queryset):
+        if self.has_permission(request):
+            return super().queryset(request, queryset)
+
+
 class DateFilter(BaseSimpleListFilter):
     title = 'date created'
     parameter_name = 'date_filter'
@@ -112,36 +170,6 @@ class DateFilter(BaseSimpleListFilter):
 
 
 class AuthDateFilter(DateFilter, PermissionCheckingMixin):
-    def lookups(self, request, model_admin):
-        if self.has_permission(request):
-            return super().lookups(request, model_admin)
-
-    def queryset(self, request, queryset):
-        if self.has_permission(request):
-            return super().queryset(request, queryset)
-
-
-class CreatedStatusFilter(BaseSimpleListFilter):
-    """
-    Already created instance show on filtered queryset page
-    """
-    title = 'recently created'
-    parameter_name = "created"
-
-    def lookups(self, request, model_admin):
-        qs = model_admin.get_queryset(request)
-        filtered_qs = qs.annotate(created_count=Count('condition'))
-        filtered_qs = filtered_qs.filter(created_count__lte=1)
-        if filtered_qs:
-            yield 'recently_created', 'new exists'
-
-    def queryset(self, request, queryset):
-        if self.value() == 'recently_created':
-            filtered_qs = queryset.annotate(created_count=Count('condition'))
-            filtered_qs = filtered_qs.filter(created_count__lte=1)
-            return filtered_qs
-
-class AuthCreatedStatusFilter(CreatedStatusFilter, PermissionCheckingMixin):
     def lookups(self, request, model_admin):
         if self.has_permission(request):
             return super().lookups(request, model_admin)

@@ -9,12 +9,14 @@ from django import forms
 from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse
 
+from mothers.admin import MotherAdmin
 from mothers.forms import ConditionAdminForm
-from mothers.models import Condition
+from mothers.models import Condition, Mother
 from mothers.services.condition import filter_condition_by_date_time, queryset_with_filter_condition, \
-    is_filtered_condition_met, redirect_to_appropriate_url, extract_choices, filter_choices, select_form_class, \
+    is_filtered_condition_met, redirect_to_appropriate_url, extract_choices, filter_choices, \
     inject_request_into_form, convert_to_utc_and_save, assign_permissions_to_user, has_permission, \
     adjust_button_visibility, after_add_message, after_change_message
+from mothers.services.mother import get_model_objects
 
 
 @admin.register(Condition)
@@ -22,6 +24,17 @@ class ConditionAdmin(GuardedModelAdmin):
     form = ConditionAdminForm
     fields = ('mother', 'condition', 'reason', 'scheduled_date', 'scheduled_time', 'finished')
     readonly_fields = ('mother',)
+
+    def get_fields(self, request: HttpRequest, obj: Optional[Condition] = None) -> Tuple[str, ...]:
+        """
+        Define which fields to display on the add and change forms.
+        """
+        if obj is None:
+            # Add form (creating a new instance)
+            return 'mother', 'condition', 'reason', 'scheduled_date', 'scheduled_time'
+        else:
+            # Change form (editing an existing instance)
+            return 'mother', 'condition', 'reason', 'scheduled_date', 'scheduled_time', 'finished'
 
     def get_readonly_fields(self, request: HttpRequest, obj=None) -> Tuple[str, ...]:
         """
@@ -46,8 +59,9 @@ class ConditionAdmin(GuardedModelAdmin):
         return has_permission(self, request, obj, 'change', super().has_change_permission(request, obj))
 
     def has_add_permission(self, request: HttpRequest, obj=None) -> bool:
-        """Obviously assign base permission"""
-        return super().has_add_permission(request)
+        """Obviously assign base permission or if mother objects belong to user"""
+        mother_admin = MotherAdmin(Mother, admin.site)
+        return super().has_add_permission(request) or get_model_objects(mother_admin, request).exists()
 
     def render_change_form(self, request: HttpRequest, context: Dict[str, Any],
                            add: bool = False, change: bool = False,
@@ -121,16 +135,12 @@ class ConditionAdmin(GuardedModelAdmin):
 
     def get_form(self, request: HttpRequest, obj=None, **kwargs) -> Type[forms.ModelForm]:
         """
-        Overrides the get_form method to select the appropriate form class based on the action
-        (add or change) and injects the request into the form's kwargs.
+        Current object as attribute add to 'formfield_for_choice_field' and request attribute inject into form instance.
         """
-        # Select the appropriate form class based on the action.
-        form_class = select_form_class(obj)
-
         # Store the current object for use in formfield_for_choice_field.
         self.current_obj = obj
 
-        form = super().get_form(request, obj, form=form_class, **kwargs)
+        form = super().get_form(request, obj, **kwargs)
 
         # Return the form class with the request injected into its kwargs.
         return inject_request_into_form(form, request)

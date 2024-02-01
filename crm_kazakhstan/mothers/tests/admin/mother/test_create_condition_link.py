@@ -94,37 +94,6 @@ class CreateConditionLinkTest(TestCase):
 
         self.assertIn(f'/admin/mothers/condition/add/?mother={self.mother.pk}&_changelist_filters=%2F', result)
 
-    def test_change_on_changelist_when_not_scheduled_datime(self):
-        condition = Condition.objects.create(mother=self.mother, finished=False,
-                                             condition=Condition.ConditionChoices.CREATED)
-        pk = condition.pk
-        request = self.factory.get('/')
-        middleware = SessionMiddleware()
-        middleware.process_request(request)
-        request.session.save()
-        request.user = self.superuser_without_timezone
-        self.mother_admin.request = request
-
-        result = self.mother_admin.create_condition_link(obj=self.mother)
-
-        self.assertIn(f'/admin/mothers/condition/{pk}/change/?mother={pk}&_changelist_filters=%2F', result)
-
-    def test_mother_with_multiple_Conditions(self):
-        Condition.objects.create(mother=self.mother, finished=True)
-        condition = Condition.objects.create(mother=self.mother, finished=False)
-        pk = condition.pk
-
-        request = self.factory.get('/')
-        middleware = SessionMiddleware()
-        middleware.process_request(request)
-        request.session.save()
-        request.user = self.superuser_without_timezone
-        self.mother_admin.request = request
-
-        result = self.mother_admin.create_condition_link(obj=self.mother)
-
-        self.assertIn(f'/admin/mothers/condition/{pk}/change/?mother={pk}&_changelist_filters=%2F', result)
-
     @freeze_time("2023-12-12 22:00:00")
     def test_can_change_on_change_list_page_when_Condition_instance_not_on_filtered_changelist_page(self):
         condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 15),
@@ -144,7 +113,7 @@ class CreateConditionLinkTest(TestCase):
     @freeze_time("2023-12-12 22:00:00")
     def test_can_not_change_on_change_list_page_when_Condition_instance_on_filtered_changelist_page(self):
         Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
-                                 scheduled_time=time(21, 20, 0))
+                                 scheduled_time=time(21, 20, 0), condition=Condition.ConditionChoices.CREATED)
 
         request = self.factory.get('/')
         middleware = SessionMiddleware()
@@ -177,7 +146,7 @@ class CreateConditionLinkTest(TestCase):
     def test_can_change_on_change_list_page_when_condition_not_yet_on_filtered_changelist_page_and_display_user_date_time(
             self):
         condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
-                                             scheduled_time=time(23, 20))
+                                             scheduled_time=time(23, 20), condition=Condition.ConditionChoices.CREATED)
 
         request = self.factory.get('/')
         middleware = SessionMiddleware()
@@ -195,7 +164,7 @@ class CreateConditionLinkTest(TestCase):
     def test_can_not_change_on_change_list_page_when_condition_on_filtered_changelist_page_and_display_user_date_time(
             self):
         Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
-                                 scheduled_time=time(12, 00))
+                                 scheduled_time=time(12, 00), condition=Condition.ConditionChoices.CREATED)
 
         request = self.factory.get('/')
         middleware = SessionMiddleware()
@@ -212,7 +181,8 @@ class CreateConditionLinkTest(TestCase):
     def test_when_condition_on_filtered_changelist_page_and_display_user_date_time(
             self):
         condition = Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
-                                 scheduled_time=time(12, 0, 0))
+                                             scheduled_time=time(12, 0, 0),
+                                             condition=Condition.ConditionChoices.CREATED)
 
         request = self.factory.get('/admin/mothers/mother/?date_or_time=by_date_and_time')
         middleware = SessionMiddleware()

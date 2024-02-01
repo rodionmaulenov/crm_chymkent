@@ -39,3 +39,15 @@ class GetListDisplayMethodTest(TestCase):
         for_compare = ('id', 'name', 'number', 'age', 'blood', 'reason', 'create_condition_link')
 
         self.assertEqual(list_display, for_compare)
+
+    def test_specific_list_display_for_filtered_queryset_2(self):
+        url = '/admin/mothers/mother/'
+        query_parameters = {'what_reason': 'empty_condition'}
+        url_with_query_param = f'{url}?{urlencode(query_parameters)}'
+        request = self.factory.get(url_with_query_param)
+        request.user = self.superuser
+
+        list_display = self.admin.get_list_display(request)
+        for_compare = ('id', 'name', 'number', 'age', 'blood', 'reason', 'create_condition_link')
+
+        self.assertEqual(list_display, for_compare)

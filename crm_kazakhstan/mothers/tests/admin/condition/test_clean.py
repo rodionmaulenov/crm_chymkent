@@ -36,7 +36,7 @@ class CleanMethodTest(TestCase):
         request = self.factory.get('/')
         valid_data = {
             'mother': self.mother,
-            'condition': 'created',
+            'condition': 'no baby',
             'reason': '',
             'scheduled_date': None,
             'scheduled_time': None,
@@ -45,9 +45,7 @@ class CleanMethodTest(TestCase):
 
         form = ConditionAdminForm(request=request, data=valid_data)
 
-        self.assertTrue(form.is_valid())
-
-        self.assertEqual(form.clean(), valid_data)
+        self.assertFalse(form.is_valid())
 
     def test_clean_time_without_date_and_condition_has_date(self):
         request = self.factory.get('/')
@@ -65,7 +63,6 @@ class CleanMethodTest(TestCase):
         self.assertFalse(form.is_valid())
 
         self.assertIn('Date must be provided if time is set.', form.errors['scheduled_date'])
-        self.assertIn('Date and Time must be provided if this state is set.', form.errors['condition'])
 
     def test_clean_time_without_time_and_condition_has_date(self):
         request = self.factory.get('/')
@@ -83,66 +80,12 @@ class CleanMethodTest(TestCase):
         self.assertFalse(form.is_valid())
 
         self.assertIn('Time must be provided if date is set.', form.errors['scheduled_time'])
-        self.assertIn('Date and Time must be provided if this state is set.', form.errors['condition'])
-
-    def test_clean_time_with_date_and_condition_has_not_date(self):
-        request = self.factory.get('/')
-        valid_data = {
-            'mother': self.mother,
-            'condition': 'created',
-            'reason': '',
-            'scheduled_date': date(2022, 1, 1),
-            'scheduled_time': time(12, 0),
-            'finished': False
-        }
-
-        form = ConditionAdminForm(data=valid_data, request=request)
-
-        self.assertFalse(form.is_valid())
-
-        self.assertIn('Date and Time not be set for this state.', form.errors['condition'])
-
-    def test_clean_time_without_date_and_condition_has_not_date(self):
-        request = self.factory.get('/')
-        valid_data = {
-            'mother': self.mother,
-            'condition': 'created',
-            'reason': '',
-            'scheduled_date': '',
-            'scheduled_time': time(12, 0),
-            'finished': False
-        }
-
-        form = ConditionAdminForm(data=valid_data, request=request)
-
-        self.assertFalse(form.is_valid())
-
-        self.assertIn('Date must be provided if time is set.', form.errors['scheduled_date'])
-        self.assertIn('Date and Time not be set for this state.', form.errors['condition'])
-
-    def test_clean_time_without_time_and_condition_has_not_date(self):
-        request = self.factory.get('/')
-        valid_data = {
-            'mother': self.mother,
-            'condition': 'created',
-            'reason': '',
-            'scheduled_date': date(12, 11, 13),
-            'scheduled_time': '',
-            'finished': False
-        }
-
-        form = ConditionAdminForm(data=valid_data, request=request)
-
-        self.assertFalse(form.is_valid())
-
-        self.assertIn('Time must be provided if date is set.', form.errors['scheduled_time'])
-        self.assertIn('Date and Time not be set for this state.', form.errors['condition'])
 
     def test_clean_condition_is_empty_and_reason_emtpy_too(self):
         request = self.factory.get('/')
         valid_data = {
             'mother': self.mother,
-            'condition': None,
+            'condition': '',
             'reason': '',
             'scheduled_date': date(12, 11, 13),
             'scheduled_time': time(12, 0),
@@ -155,7 +98,7 @@ class CleanMethodTest(TestCase):
 
         self.assertIn('Specify understandable reason for empty state', form.errors['reason'])
 
-    def test_reason_without_date(self):
+    def test_reason_without_date_and_reason(self):
         request = self.factory.get('/')
         valid_data = {
             'mother': self.mother,

@@ -13,7 +13,7 @@ Mother: models
 Condition: models
 
 
-class HasChangePermissionMethodTest(TestCase):
+class HasAddPermissionMethodTest(TestCase):
     def setUp(self):
         self.site = AdminSite()
         self.admin = ConditionAdmin(Condition, self.site)
@@ -22,58 +22,50 @@ class HasChangePermissionMethodTest(TestCase):
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.staff_user = User.objects.create(username='staffuser', password='password', is_staff=True)
 
-    def test_super_user_has_change_perm_list_lvl(self):
+    def test_super_user_has_add_perm_list_lvl(self):
         request = self.factory.get('/')
         request.user = self.superuser
-        view = self.admin.has_change_permission(request)
-
-        self.assertFalse(view)
-
-    def test_super_user_has_change_perm_obj_lvl(self):
-        mother = Mother.objects.create(name='Mother 1')
-        condition = Condition.objects.create(mother=mother)
-        request = self.factory.get('/')
-        request.user = self.superuser
-        view = self.admin.has_change_permission(request, condition)
+        view = self.admin.has_add_permission(request)
 
         self.assertTrue(view)
 
-    def test_staff_user_has_not_change_perm_list_lvl(self):
+    def test_staff_user_has_not_add_perm_list_lvl(self):
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_change_permission(request)
+        view = self.admin.has_add_permission(request)
 
         self.assertFalse(view)
 
-    def test_staff_has_change_perm_obj(self):
+    def test_staff_has_add_perm_obj(self):
         mother = Mother.objects.create(name='Mother 1')
-        condition = Condition.objects.create(mother=mother)
+        Condition.objects.create(mother=mother)
 
-        assign_perm('change_condition', self.staff_user, condition)
+        assign_perm('change_mother', self.staff_user, mother)
+        assign_perm('view_mother', self.staff_user, mother)
 
         request = self.factory.get('/')
         request.user = self.staff_user
 
-        self.assertTrue(self.admin.has_change_permission(request, condition))
+        self.assertTrue(self.admin.has_add_permission(request))
 
-    def test_staff_has_change_obj_perm_with_model_change_lvl_perm(self):
+    def test_staff_has_add_obj_perm_with_model_add_lvl_perm(self):
         mother = Mother.objects.create(name='Mother 1')
         condition = Condition.objects.create(mother=mother)
 
-        view_permission = Permission.objects.get(codename='change_condition')
+        view_permission = Permission.objects.get(codename='add_condition')
         self.staff_user.user_permissions.add(view_permission)
 
         request = self.factory.get('/')
         request.user = self.staff_user
 
-        self.assertTrue(self.admin.has_change_permission(request, condition))
+        self.assertTrue(self.admin.has_add_permission(request, condition))
 
-    def test_staff_has_not_change_perm_obj(self):
+    def test_staff_has_not_add_perm_obj(self):
         mother = Mother.objects.create(name='Mother 1')
-        condition = Condition.objects.create(mother=mother)
+        Condition.objects.create(mother=mother)
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_change_permission(request, condition)
+        view = self.admin.has_add_permission(request)
 
         self.assertFalse(view)

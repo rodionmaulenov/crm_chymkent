@@ -2,6 +2,7 @@ from datetime import date, time
 from typing import Union
 
 from django.contrib import admin
+from django.db.models import Min, Subquery
 
 from mothers.services.condition import render_icon, format_date_or_time
 from mothers.models import Condition, Mother
@@ -12,6 +13,25 @@ class ConditionInline(admin.TabularInline):
     extra = 0
     readonly_fields = ['display_state', 'display_reason', 'display_date', 'display_time', 'display_complete']
     fields = ['display_state', 'display_reason', 'display_date', 'display_time', 'display_complete']
+
+    def get_queryset(self, request):
+        # Get the default queryset with related 'mother'
+        queryset = super().get_queryset(request).select_related('mother')
+
+        # Annotate each Mother with the ID of its first Condition instance
+        mothers = Mother.objects.annotate(
+            first_condition_id=Min('condition__id')
+        )
+
+        # Create a queryset of the first_condition_ids
+        first_conditions = mothers.values('first_condition_id')
+
+        # Exclude the first Condition instance for each Mother from the queryset
+        queryset = queryset.exclude(
+            id__in=Subquery(first_conditions)
+        )
+
+        return queryset
 
     def has_view_permission(self, request, obj=None):
         self.request = request

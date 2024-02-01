@@ -6,7 +6,6 @@ from django.contrib.admin.sites import AdminSite
 from django.db import models
 from django.contrib.auth import get_user_model
 
-from mothers.forms import AddConditionAdminForm, ChangeConditionAdminForm
 from mothers.models import Condition, Mother
 from mothers.admin import ConditionAdmin
 
@@ -72,19 +71,6 @@ class GetFormMethodTest(TestCase):
         form = form_class(instance=condition)
 
         self.assertEqual(form.initial['scheduled_time'], time(10, 0))
-
-    def test_get_form_for_add(self):
-        request = self.factory.get('/')
-        RequestForm = self.condition_admin.get_form(request)
-        self.assertTrue(issubclass(RequestForm, AddConditionAdminForm))
-
-    def test_get_form_for_change(self):
-        mother = Mother.objects.create(name='Test Mother')
-        condition = Condition.objects.create(mother=mother, scheduled_date=date(2023, 12, 12),
-                                             scheduled_time=time(10, 0))
-        request = self.factory.get('/')
-        RequestForm = self.condition_admin.get_form(request, obj=condition)
-        self.assertTrue(issubclass(RequestForm, ChangeConditionAdminForm))
 
     def test_form_add_current_obj_attr_exists(self):
         request = self.factory.get('/admin/mothers/condition/add/')

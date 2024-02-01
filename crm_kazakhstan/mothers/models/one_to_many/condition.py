@@ -14,6 +14,7 @@ class Condition(models.Model):
     reason = models.TextField(blank=True, null=True)
     scheduled_date = models.DateField(blank=True, null=True)
     scheduled_time = models.TimeField(blank=True, null=True)
+    created = models.DateTimeField(auto_now_add=True)
     finished = models.BooleanField(default=False)
 
     def __str__(self):

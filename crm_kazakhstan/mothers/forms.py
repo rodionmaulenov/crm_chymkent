@@ -26,29 +26,17 @@ class ConditionAdminForm(forms.ModelForm):
         initialize_form_fields(self, request)
 
     def clean(self) -> Dict[str, Any]:
-        from mothers.services.condition import validate_condition_with_date, validate_time_date_dependencies, \
-            validate_condition_without_date, validate_empty_condition, validate_reason_has_datetime
-        """Cleans the data of the form and applies validations."""
+        """
+        Cleans the data of the form and applies validations.
+        """
+        from mothers.services.condition import if_field_error_exists
+
         cleaned_data = super().clean()
-        validate_time_date_dependencies(self, cleaned_data)
-        validate_condition_with_date(self, cleaned_data)
-        validate_condition_without_date(self, cleaned_data)
-        validate_empty_condition(self, cleaned_data)
-        validate_reason_has_datetime(self, cleaned_data)
+        # check each field, that not have error
+        if_field_error_exists(self, cleaned_data)
+
         return cleaned_data
 
     class Meta:
         model = Condition
         fields = '__all__'
-
-
-class AddConditionAdminForm(ConditionAdminForm):
-    class Meta:
-        model = Condition
-        fields = ['mother', 'condition', 'reason', 'scheduled_date', 'scheduled_time']
-
-
-class ChangeConditionAdminForm(ConditionAdminForm):
-    class Meta:
-        model = Condition
-        fields = ['mother', 'condition', 'reason', 'scheduled_date', 'scheduled_time', 'finished']

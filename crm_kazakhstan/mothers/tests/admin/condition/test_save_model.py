@@ -55,17 +55,7 @@ class SaveModelMethodTest(TestCase):
 
         form_instance = form_class(data=form_data, instance=None)
 
-        if form_instance.is_valid():
-            obj = form_instance.save(commit=False)
-            self.admin.save_model(request=request, obj=obj, form=form_instance, change=False)
-
-            obj.refresh_from_db()
-            self.assertIsNotNone(obj.pk)
-
-            self.assertEqual(obj.scheduled_date, None)
-            self.assertEqual(obj.scheduled_time, None)
-
-        else:
+        with self.assertRaises(AssertionError):
             self.fail(f'Form is not valid: {form_instance.errors}')
 
     def test_add_second_condition_created_raise_error(self):

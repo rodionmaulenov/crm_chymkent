@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, List
 from rangefilter.filters import DateRangeFilter
 
 from django.contrib.admin.helpers import AdminForm
@@ -8,14 +8,13 @@ from django.utils.html import format_html
 from django.db.models import QuerySet
 from django.contrib import admin
 
-from mothers.filters import AuthConditionFilter, AuthDateFilter, AuthCreatedStatusFilter
+from mothers.filters import AuthConditionFilter, AuthCreatedStatusFilter, AuthEmptyConditionFilter, AuthDateFilter
 from mothers.inlines import ConditionInline, CommentInline, PlannedInline
-from mothers.models import Mother
+from mothers.models import Mother, Condition
 from mothers.services.condition import queryset_with_filter_condition, filter_condition_by_date_time, \
     is_filtered_condition_met, redirect_to_appropriate_url, adjust_button_visibility
-from mothers.services.mother import (on_primary_stage, determine_link_action,
-                                     has_permission, get_model_objects, output_time_format, convert_to_local_time,
-                                     check_datetime_lookup_permission)
+from mothers.services.mother import on_primary_stage, determine_link_action, has_permission, get_model_objects, \
+    output_time_format, convert_to_local_time, check_datetime_lookup_permission
 
 # Globally disable delete selected
 admin.site.disable_action('delete_selected')
@@ -32,7 +31,7 @@ class MotherAdmin(admin.ModelAdmin):
     inlines = (PlannedInline, ConditionInline, CommentInline,)
     list_filter = (
         ('date_create', DateRangeFilter),
-        AuthDateFilter, AuthConditionFilter, AuthCreatedStatusFilter
+        AuthDateFilter, AuthConditionFilter, AuthCreatedStatusFilter, AuthEmptyConditionFilter
     )
     actions = ('first_visit_stage', 'delete_selected', 'banned')
 
@@ -64,6 +63,16 @@ class MotherAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'number', 'age', 'blood', 'height_and_weight', 'maried',
                     'children_age', 'caesarean', 'residence', 'when_created', "create_condition_link")
 
+    def get_ordering(self, request: HttpRequest) -> List[str]:
+        """Return list of fields ordering for specific cases"""
+
+        if request.GET.get('date_or_time'):
+            return ["-condition__created"]
+        elif request.GET.get('what_reason'):
+            return ["-condition__created"]
+        else:
+            return super().get_ordering(request)
+
     def lookup_allowed(self, lookup: str, value: Any) -> bool:
         """
         Check if a lookup is allowed based on specific conditions.
@@ -73,11 +82,31 @@ class MotherAdmin(admin.ModelAdmin):
 
         return super().lookup_allowed(lookup, value)
 
+    def get_list_filter(self, request: HttpRequest):
+        if request.GET.get('date_or_time'):
+            return (
+                ('condition__created', DateRangeFilter),
+                AuthConditionFilter
+            )
+        if request.GET.get('created'):
+            return (
+                ('date_create', DateRangeFilter),
+                AuthCreatedStatusFilter
+            )
+        if request.GET.get('what_reason'):
+            return (
+                ('condition__created', DateRangeFilter),
+                AuthEmptyConditionFilter
+            )
+        return super().get_list_filter(request)
+
     def get_list_display(self, request: HttpRequest) -> Tuple[str, ...]:
         """
         Display another tuple of fields when filtered queryset
         """
         if request.GET.get('date_or_time'):
+            return 'id', 'name', 'number', 'age', 'blood', 'reason', "create_condition_link"
+        elif request.GET.get('what_reason'):
             return 'id', 'name', 'number', 'age', 'blood', 'reason', "create_condition_link"
         return super().get_list_display(request)
 
@@ -180,5 +209,4 @@ class MotherAdmin(admin.ModelAdmin):
         """
         Determine the appropriate action for the condition link based on the condition of the 'Mother' object.
         """
-
         return determine_link_action(self.request, obj)

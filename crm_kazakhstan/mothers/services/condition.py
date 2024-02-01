@@ -18,7 +18,7 @@ from django.contrib.auth import get_user_model
 from django.utils.safestring import mark_safe
 
 from mothers.models import Mother, Condition
-from mothers.forms import ConditionAdminForm, AddConditionAdminForm, ChangeConditionAdminForm
+from mothers.forms import ConditionAdminForm
 
 Mother: models
 Condition: models
@@ -111,21 +111,23 @@ def get_mother_id_from_url(request: HttpRequest, key: str) -> int:
     return mother_id
 
 
-def cleaned_date_time_and_condition(cleaned_data: Dict[str, Any]) -> Tuple[date, time, str]:
+def cleaned_date_time_and_condition(cleaned_data: Dict[str, Any]) -> Tuple[date, time, str, str]:
     """
     Extracts scheduled date, scheduled time, and condition from cleaned data.
     """
     scheduled_time = cleaned_data.get("scheduled_time")
     scheduled_date = cleaned_data.get("scheduled_date")
     condition = cleaned_data.get('condition')
-    return scheduled_date, scheduled_time, condition
+    reason = cleaned_data.get('reason')
+    return scheduled_date, scheduled_time, condition, reason
 
 
 def validate_time_date_dependencies(form: ConditionAdminForm, cleaned_data: Dict[str, Any]) -> None:
     """
     Ensures that if a time is set, a date must also be set, and vice versa.
     """
-    scheduled_date, scheduled_time, _ = cleaned_date_time_and_condition(cleaned_data)
+    scheduled_date, scheduled_time, _, _ = cleaned_date_time_and_condition(cleaned_data)
+
     if scheduled_time and not scheduled_date:
         form.add_error('scheduled_date', "Date must be provided if time is set.")
     if scheduled_date and not scheduled_time:
@@ -136,30 +138,20 @@ def validate_condition_with_date(form: ConditionAdminForm, cleaned_data: Dict[st
     """
     Checks conditions that require a date and adds an error if a date is not provided.
     """
-    condition_has_date = ['no baby', ]  # list of states which must have scheduled date
-    scheduled_date, scheduled_time, condition = cleaned_date_time_and_condition(cleaned_data)
+    condition_has_date = ['no baby', 'WWW']  # list of states which must have scheduled date
+    scheduled_date, scheduled_time, condition, _ = cleaned_date_time_and_condition(cleaned_data)
     if condition in condition_has_date and not (scheduled_date and scheduled_time):
         form.add_error('condition', "Date and Time must be provided if this state is set.")
-
-
-def validate_condition_without_date(form: ConditionAdminForm, cleaned_data: Dict[str, Any]) -> None:
-    """
-    Checks conditions that should not have a date and adds an error if a date is provided.
-    """
-    condition_has_not_date = ['created', ]  # list of states which never have scheduled date
-    scheduled_date, scheduled_time, condition = cleaned_date_time_and_condition(cleaned_data)
-    if condition in condition_has_not_date and (scheduled_time or scheduled_date):
-        form.add_error('condition', "Date and Time not be set for this state.")
 
 
 def validate_empty_condition(form: ConditionAdminForm, cleaned_data: Dict[str, Any]) -> None:
     """
     Checks reason exists if condition is empty.
     """
-    reason = cleaned_data.get('reason')
-    condition = cleaned_data.get('condition')
+    _, _, condition, reason = cleaned_date_time_and_condition(cleaned_data)
+    empty_condition = condition is None or condition == Condition.ConditionChoices.__empty__
 
-    if condition is None and not reason:
+    if empty_condition and not reason:
         form.add_error('reason', "Specify understandable reason for empty state")
 
 
@@ -167,13 +159,28 @@ def validate_reason_has_datetime(form: ConditionAdminForm, cleaned_data: Dict[st
     """
     Checks reason has date and time.
     """
-    reason = cleaned_data.get('reason')
-    scheduled_date, scheduled_time, condition = cleaned_date_time_and_condition(cleaned_data)
+    scheduled_date, scheduled_time, condition, reason = cleaned_date_time_and_condition(cleaned_data)
 
     if condition is None and reason and not scheduled_date:
         form.add_error('scheduled_date', "Specify date")
     if condition is None and reason and not scheduled_date:
         form.add_error('scheduled_time', "Specify time")
+
+
+def if_field_error_exists(form: ConditionAdminForm, cleaned_data: Dict[str, Any]) -> None:
+    """
+    Finally, if from only single method error exists, then break validation and error display at the top of the field.
+    """
+    errors = form.errors
+    functions = [
+        validate_time_date_dependencies,
+        validate_condition_with_date,
+        validate_empty_condition,
+        validate_reason_has_datetime,
+    ]
+    for func in functions:
+        func(form, cleaned_data)
+        if errors: break
 
 
 def initialize_form_fields(form_instance, request: Optional[HttpRequest]) -> None:
@@ -182,10 +189,12 @@ def initialize_form_fields(form_instance, request: Optional[HttpRequest]) -> Non
     """
     from mothers.services.mother import convert_utc_to_local
 
+    scheduled_date = form_instance.instance.scheduled_date
+    scheduled_time = form_instance.instance.scheduled_time
+
     if form_instance.instance.pk and request:
-        if form_instance.instance.scheduled_date and form_instance.instance.scheduled_time:
-            local_datetime = convert_utc_to_local(request, form_instance.instance.scheduled_date,
-                                                  form_instance.instance.scheduled_time)
+        if scheduled_date and scheduled_time:
+            local_datetime = convert_utc_to_local(request, scheduled_date, scheduled_time)
             if local_datetime:
                 form_instance.initial['scheduled_date'] = local_datetime.date()
                 form_instance.initial['scheduled_time'] = local_datetime.time()
@@ -237,40 +246,10 @@ def filter_choices(obj: Condition, request: HttpRequest, choices: List[Tuple[Any
     :return: A list of filtered choice tuples.
     """
     if is_add_action(obj):
-        # Logic for filtering choices during 'add' action
-        if mother_has_condition_created(request):
-            # If related mother instance already have condition 'created' state
-            # then remove from choices list
-            return [choice for choice in choices if choice[0] not in ('created',)]
-        else:
-            # If related mother instance haven`t condition 'created' state
-            return choices
+        return [choice for choice in choices if choice[0] not in ('created',)]
     else:
         # Logic for filtering choices during 'change' action
         return [choice for choice in choices if choice[0] not in ('created',)]
-
-
-def mother_has_condition_created(request: HttpRequest) -> bool:
-    """
-    Checks if the specific Mother, identified by the mother_id from the URL,
-    has a related Condition instance with the 'created' choice.
-    """
-    mother_id = get_mother_id_from_url(request, 'mother')
-
-    # Check if the Mother with the specified ID has a related Condition with the 'created' choice
-    return Condition.objects.filter(mother_id=mother_id, condition=Condition.ConditionChoices.CREATED).exists()
-
-
-def select_form_class(obj=None) -> Type[forms.ModelForm]:
-    """
-    Selects the appropriate form class based on whether the action is 'add' or 'change'.
-    """
-    if obj is None:
-        # Use the add form for new objects.
-        return AddConditionAdminForm
-    else:
-        # Use the change form for existing objects.
-        return ChangeConditionAdminForm
 
 
 def inject_request_into_form(form: Type[forms.ModelForm], request: HttpRequest) -> Type[forms.ModelForm]:

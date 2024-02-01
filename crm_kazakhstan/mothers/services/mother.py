@@ -5,12 +5,13 @@ from typing import Tuple, Optional, Union
 
 from django.contrib.admin import ModelAdmin
 from django.core.exceptions import PermissionDenied
+from django.db.models import Count
 from django.http import HttpRequest
 from django.urls import reverse
 from django.utils import timezone, formats
 from django.utils.http import urlencode
 from django.db import models
-from django.db.models import Subquery, OuterRef, QuerySet
+from django.db.models import Subquery, OuterRef, QuerySet, CharField, Q
 from django.utils.html import format_html, mark_safe
 from django.utils.safestring import SafeString
 from guardian.shortcuts import get_objects_for_user
@@ -21,6 +22,7 @@ from mothers.services.condition import filter_condition_by_date_time, queryset_w
 Stage: models
 Planned: Stage
 Comment: models
+Condition: models
 
 
 def convert_local_to_utc(request: HttpRequest, instance: Condition) -> datetime:
@@ -132,7 +134,11 @@ def shortcut_bold_text(obj: Mother) -> format_html:
     # Using 'exists' to check if there is at least one finished condition
     if obj.condition_set.order_by('-id').exists():
         latest_condition = obj.condition_set.order_by('-id').first()
-        for_display = latest_condition.get_condition_display()
+
+        if latest_condition.condition is None:
+            for_display = latest_condition.reason
+        else:
+            for_display = latest_condition.get_condition_display()
 
         # Truncate and format the display text
         for_display = (for_display[:18] + '...') if len(for_display) > 16 else for_display
@@ -308,8 +314,8 @@ def handle_comment_or_plan_exists(condition, condition_display):
 
 def handle_not_finished_condition(condition, condition_display, filtered_queryset_url, request):
     """Handle cases where the condition is not finished."""
-    if not condition.scheduled_date:
-        return change_condition_on_change_list_page(condition, request, condition_display)
+    # if not condition.scheduled_date:
+    #     return change_condition_on_change_list_page(condition, request, condition_display)
 
     if condition.scheduled_date and not filtered_queryset_url:
         return change_or_not_based_on_filtered_queryset(condition, condition_display, request)
@@ -360,3 +366,31 @@ def check_datetime_lookup_permission() -> None:
     for_datetime = get_for_datetime_queryset()
     if not for_datetime:
         raise PermissionDenied
+
+
+def get_already_created(queryset: QuerySet) -> QuerySet:
+    """
+    When condition instance only one, that`s mean created status
+    """
+    queryset = queryset.annotate(
+        created_count=Count('condition')
+    )
+    queryset = queryset.filter(created_count__lte=1, condition__condition=Condition.ConditionChoices.CREATED)
+    return queryset
+
+
+def get_reason_with_empty_condition(queryset: QuerySet) -> QuerySet:
+    """
+    When condition is empty, return instance with described reason
+    """
+    latest_conditions = Condition.objects.filter(mother=OuterRef('pk')) \
+                            .order_by('-created') \
+                            .values('condition')[:1]
+
+    queryset = queryset.annotate(
+        latest_condition=Subquery(latest_conditions, output_field=CharField())
+    )
+    queryset = queryset.filter(Q(latest_condition=Condition.ConditionChoices.__empty__) | Q(latest_condition=None)
+                               ).filter(condition__finished=False)
+
+    return queryset
