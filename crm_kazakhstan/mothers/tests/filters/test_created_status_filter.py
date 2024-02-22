@@ -45,7 +45,7 @@ class CreatedStatusFilterTest(TestCase):
         request.user = self.superuser
 
         filter_instance = self.custom_filter(
-            request, {'created': 'just_now'}, Mother, self.mother_admin_instance
+            request, {'recently_created': 'status_created'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -75,7 +75,7 @@ class CreatedStatusFilterTest(TestCase):
         request.user = self.superuser
 
         filter_instance = self.custom_filter(
-            request, {'created': 'just_now'}, Mother, self.mother_admin_instance
+            request, {'recently_created': 'status_created'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -102,7 +102,7 @@ class CreatedStatusFilterTest(TestCase):
         request.user = self.superuser
 
         filter_instance = self.custom_filter(
-            request, {'created': 'just_now'}, Mother, self.mother_admin_instance
+            request, {'recently_created': 'status_created'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 

@@ -12,10 +12,9 @@ from django.urls import reverse
 from mothers.admin import MotherAdmin
 from mothers.forms import ConditionAdminForm
 from mothers.models import Condition, Mother
-from mothers.services.condition import filter_condition_by_date_time, queryset_with_filter_condition, \
-    is_filtered_condition_met, redirect_to_appropriate_url, extract_choices, filter_choices, \
-    inject_request_into_form, convert_to_utc_and_save, assign_permissions_to_user, has_permission, \
-    adjust_button_visibility, after_add_message, after_change_message
+from mothers.services.condition import is_filtered_condition_met, redirect_to_appropriate_url, extract_choices, \
+    filter_choices, inject_request_into_form, convert_to_utc_and_save, assign_permissions_to_user, has_permission, \
+    adjust_button_visibility, after_add_message, after_change_message, filters_datetime, filtered_mothers
 from mothers.services.mother import get_model_objects
 
 
@@ -104,8 +103,8 @@ class ConditionAdmin(GuardedModelAdmin):
         Redirects to the previous URL if available and valid after the condition is changed.
         If no previous URL is set or if the filtered change list is empty, redirects to the Mother change list page.
         """
-        for_datetime = filter_condition_by_date_time()
-        for_datetime = queryset_with_filter_condition(for_datetime)
+        for_datetime = filters_datetime(obj.mother)
+        for_datetime = filtered_mothers(for_datetime)
 
         previous_url = request.session.get('previous_url')
         mother_changelist_url = reverse('admin:mothers_mother_changelist')
@@ -158,7 +157,7 @@ class ConditionAdmin(GuardedModelAdmin):
             original_choices = extract_choices(db_field)
             # Logic for filtering choices during 'add' action
             # Logic for filtering choices during 'change' action
-            filtered_choices = filter_choices(self.current_obj, request, original_choices)
+            filtered_choices = filter_choices(self.current_obj, original_choices)
             kwargs["choices"] = filtered_choices
 
         return super().formfield_for_choice_field(db_field, request, **kwargs)

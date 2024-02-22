@@ -18,3 +18,15 @@ class Mother(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def last_condition(self):
+        return self.condition_set.order_by('-created').first()
+
+    @property
+    def last_planned(self):
+        return self.planned_set.filter(finished=False).order_by('-created').exists()
+
+    @property
+    def last_comment(self):
+        return self.comment_set.filter(banned=False).order_by('-created').exists()

@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from mothers.models import Condition, Mother, Stage
 from mothers.admin import MotherAdmin
-from mothers.filters import ConditionFilter
+from mothers.filters import PlannedTimeFilter
 
 MotherAdmin: admin.ModelAdmin
 Condition: models
@@ -20,7 +20,7 @@ Stage: models
 User = get_user_model()
 
 
-class ConditionListFilterTest(TestCase):
+class PlannedTimeFilterTest(TestCase):
     def setUp(self):
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.staff_user = User.objects.create_user(username='staffuser', password='staffuserpassword', is_staff=True)
@@ -46,8 +46,8 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionFilter(
-            request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
+        filter_instance = PlannedTimeFilter(
+            request, {'planned_time': 'datetime'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -69,8 +69,8 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionFilter(
-            request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
+        filter_instance = PlannedTimeFilter(
+            request, {'planned_time': 'datetime'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -91,8 +91,8 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionFilter(
-            request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
+        filter_instance = PlannedTimeFilter(
+            request, {'planned_time': 'datetime'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -113,8 +113,8 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionFilter(
-            request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
+        filter_instance = PlannedTimeFilter(
+            request, {'planned_time': 'datetime'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -135,8 +135,8 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionFilter(
-            request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
+        filter_instance = PlannedTimeFilter(
+            request, {'planned_time': 'datetime'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -157,8 +157,8 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionFilter(
-            request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
+        filter_instance = PlannedTimeFilter(
+            request, {'planned_time': 'datetime'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -179,8 +179,8 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionFilter(
-            request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
+        filter_instance = PlannedTimeFilter(
+            request, {'planned_time': 'datetime'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -201,8 +201,8 @@ class ConditionListFilterTest(TestCase):
         request.user = self.superuser
         request.GET = {'date_or_time': 'by_date_and_time'}
 
-        filter_instance = ConditionFilter(
-            request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
+        filter_instance = PlannedTimeFilter(
+            request, {'planned_time': 'datetime'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -230,8 +230,8 @@ class ConditionListFilterTest(TestCase):
         request = self.factory.get('/')
         request.user = self.superuser
 
-        filter_instance = ConditionFilter(
-            request, {'date_or_time': 'by_date_and_time'}, Mother, self.mother_admin_instance
+        filter_instance = PlannedTimeFilter(
+            request, {'planned_time': 'datetime'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 

@@ -45,7 +45,7 @@ class EmptyConditionFilterTest(TestCase):
         request.user = self.superuser
 
         filter_instance = self.custom_filter(
-            request, {'what_reason': 'empty_condition'}, Mother, self.mother_admin_instance
+            request, {'empty_state': 'empty_condition'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -67,7 +67,7 @@ class EmptyConditionFilterTest(TestCase):
         request.user = self.superuser
 
         filter_instance = self.custom_filter(
-            request, {'what_reason': 'empty_condition'}, Mother, self.mother_admin_instance
+            request, {'empty_state': 'empty_condition'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -97,7 +97,7 @@ class EmptyConditionFilterTest(TestCase):
         request.user = self.superuser
 
         filter_instance = self.custom_filter(
-            request, {'what_reason': 'empty_condition'}, Mother, self.mother_admin_instance
+            request, {'empty_state': 'empty_condition'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 
@@ -125,7 +125,7 @@ class EmptyConditionFilterTest(TestCase):
         request.user = self.superuser
 
         filter_instance = self.custom_filter(
-            request, {'what_reason': 'empty_condition'}, Mother, self.mother_admin_instance
+            request, {'empty_state': 'empty_condition'}, Mother, self.mother_admin_instance
         )
         queryset = filter_instance.queryset(request, self.mother_admin_instance.get_queryset(request))
 

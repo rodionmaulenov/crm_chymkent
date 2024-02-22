@@ -10,6 +10,7 @@ from django.db import models
 from django.utils import timezone
 
 from gmail_messages.service_inbox import InboxMessages
+
 from mothers.models import Mother, Condition, Stage
 
 User = get_user_model()

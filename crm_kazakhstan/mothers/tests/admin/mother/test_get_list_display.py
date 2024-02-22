@@ -24,30 +24,44 @@ class GetListDisplayMethodTest(TestCase):
         request.user = self.superuser
 
         list_display = self.admin.get_list_display(request)
-        for_compare = ('id', 'name', 'number', 'age', 'blood', 'height_and_weight', 'maried',
-                        'children_age', 'caesarean', 'residence', 'when_created', "create_condition_link")
+        for_compare = ('id', 'when_created', 'name', 'number', 'age', 'blood', 'create_condition_link',
+                       'create_condition_datetime')
         self.assertEqual(list_display, for_compare)
 
-    def test_specific_list_display_for_filtered_queryset(self):
+    def test_specific_list_for_planned_time(self):
         url = '/admin/mothers/mother/'
-        query_parameters = {'date_or_time': 'by_date_and_time'}
+        query_parameters = {'planned_time': 'datetime'}
         url_with_query_param = f'{url}?{urlencode(query_parameters)}'
         request = self.factory.get(url_with_query_param)
         request.user = self.superuser
 
         list_display = self.admin.get_list_display(request)
-        for_compare = ('id', 'name', 'number', 'age', 'blood', 'reason', 'create_condition_link')
+        for_compare = ('id', 'name', 'number', 'age', 'blood', 'reason',
+                       'create_condition_link', 'create_condition_datetime')
 
         self.assertEqual(list_display, for_compare)
 
-    def test_specific_list_display_for_filtered_queryset_2(self):
+    def test_specific_list_for_empty_state(self):
         url = '/admin/mothers/mother/'
-        query_parameters = {'what_reason': 'empty_condition'}
+        query_parameters = {'empty_state': 'empty_condition'}
         url_with_query_param = f'{url}?{urlencode(query_parameters)}'
         request = self.factory.get(url_with_query_param)
         request.user = self.superuser
 
         list_display = self.admin.get_list_display(request)
-        for_compare = ('id', 'name', 'number', 'age', 'blood', 'reason', 'create_condition_link')
+        for_compare = ('id', 'name', 'number', 'age', 'blood', 'reason',
+                       'create_condition_link', 'create_condition_datetime')
+
+        self.assertEqual(list_display, for_compare)
+
+    def test_specific_list_for_recently_created(self):
+        url = '/admin/mothers/mother/'
+        query_parameters = {'recently_created': 'status_created'}
+        url_with_query_param = f'{url}?{urlencode(query_parameters)}'
+        request = self.factory.get(url_with_query_param)
+        request.user = self.superuser
+
+        list_display = self.admin.get_list_display(request)
+        for_compare = ('id', 'name', 'number', 'age', 'blood', 'reason','create_condition_link')
 
         self.assertEqual(list_display, for_compare)

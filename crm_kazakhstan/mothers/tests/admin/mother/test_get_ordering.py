@@ -53,11 +53,11 @@ class GetOrderingMethodTest(TestCase):
         condition1.created = datetime(2023, 12, 12, tzinfo=timezone.utc)
         condition1.save()
 
-        request = self.factory.get('/mothers/mother?date_or_time=by_date_and_time')
+        request = self.factory.get('/mothers/mother?planned_time=datetime')
         request.user = self.superuser
 
         ordering = self.admin.get_ordering(request)
-        self.assertTrue(['-condition__created'], ordering)
+        self.assertEqual(['-condition__created'], ordering)
 
         queryset = self.admin.get_queryset(request).order_by('-condition__created')
         self.assertEqual(queryset.first(), mother1)
@@ -80,11 +80,11 @@ class GetOrderingMethodTest(TestCase):
             finished=False
         )
 
-        request = self.factory.get('/mothers/mother?what_reason=empty_condition')
+        request = self.factory.get('/mothers/mother?empty_state=empty_condition')
         request.user = self.superuser
 
         ordering = self.admin.get_ordering(request)
-        self.assertTrue(['-condition__created'], ordering)
+        self.assertEqual(['-condition__created'], ordering)
 
         queryset = self.admin.get_queryset(request).order_by('-condition__created')
         self.assertEqual(queryset.first(), mother1)

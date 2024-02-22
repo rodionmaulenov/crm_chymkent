@@ -1,27 +1,24 @@
 import pytz
 
 from datetime import datetime, time, date
-from typing import Tuple, Optional, Union
+from typing import Optional
 
 from django.contrib.admin import ModelAdmin
-from django.core.exceptions import PermissionDenied
 from django.db.models import Count
 from django.http import HttpRequest
 from django.urls import reverse
+from django.core.exceptions import PermissionDenied
 from django.utils import timezone, formats
 from django.utils.http import urlencode
 from django.db import models
-from django.db.models import Subquery, OuterRef, QuerySet, CharField, Q
+from django.db.models import QuerySet, Q
 from django.utils.html import format_html, mark_safe
-from django.utils.safestring import SafeString
 from guardian.shortcuts import get_objects_for_user
 
-from mothers.models import Stage, Planned, Comment, Condition, Mother
-from mothers.services.condition import filter_condition_by_date_time, queryset_with_filter_condition
+from mothers.models import Stage, Condition, Mother
+from mothers.services.condition import filters_datetime, filtered_mothers
 
 Stage: models
-Planned: Stage
-Comment: models
 Condition: models
 
 
@@ -62,24 +59,21 @@ def convert_utc_to_local(request: HttpRequest, utc_date: date, utc_time: time) -
     return local_datetime
 
 
+def date_time_or_exception() -> None:
+    """
+    Check if the user has permission to access the 'planned_time' lookup.
+    """
+    query_datetime = filters_datetime()
+    on_filtered_queryset = filtered_mothers(query_datetime)
+    if not on_filtered_queryset:
+        raise PermissionDenied
+
+
 def on_primary_stage(queryset: QuerySet) -> QuerySet:
     """
     Get only mothers where Stage is Primary
     """
-    # Subquery to get the latest stage for each mother
-    latest_stage_subquery = Stage.objects.filter(
-        mother=OuterRef('pk')
-    ).order_by('-date_create').values('stage')[:1]
-
-    # Annotate the queryset with the latest stage
-    queryset = queryset.annotate(
-        latest_stage=Subquery(latest_stage_subquery)
-    )
-
-    # Filter mothers whose latest stage is PRIMARY
-    queryset = queryset.filter(latest_stage=Stage.StageChoices.PRIMARY)
-
-    return queryset
+    return queryset.filter(stage__stage=Stage.StageChoices.PRIMARY, stage__finished=False)
 
 
 def convert_to_local_time(obj: Mother, user_timezone: str) -> timezone.datetime:
@@ -97,174 +91,26 @@ def output_time_format(local_scheduled_datetime: Optional[datetime]) -> str:
     return formats.date_format(local_scheduled_datetime, "j M H:i")
 
 
-def comment_plann_and_comment_finished_true(obj: Mother) -> Tuple[Planned, Comment, Condition]:
-    """
-    Determines if there exists either a 'Planned' instance with specific criteria
-    or a non-empty 'Comment' for a given 'Mother' object or 'Condition'.
-    """
-    planned = Planned.objects.filter(
-        mother=obj,
-        plan=Planned.PlannedChoices.TAKE_TESTS,
-        finished=False
-    )
-
-    comment = Comment.objects.filter(
-        mother=obj,
-        description__isnull=False
-    )
-
-    condition = obj.condition_set.order_by('-id').first()
-
-    return planned, comment, condition
-
-
-def set_url_when_change_or_add_condition_object(request: HttpRequest) -> None:
-    """
-    Adding to request the earlier URL from where came when execute change 'Condition' object
-    """
-    request.session['previous_url'] = request.get_full_path()
-
-
-def shortcut_bold_text(obj: Mother) -> format_html:
-    """
-    Retrieves the last condition for a `Mother` object, and returns
-    its display string in a bold HTML format. The display string is truncated to 18 characters
-    if it's longer than 17 characters.
-    """
-    # Using 'exists' to check if there is at least one finished condition
-    if obj.condition_set.order_by('-id').exists():
-        latest_condition = obj.condition_set.order_by('-id').first()
-
-        if latest_condition.condition is None:
-            for_display = latest_condition.reason
-        else:
-            for_display = latest_condition.get_condition_display()
-
-        # Truncate and format the display text
-        for_display = (for_display[:18] + '...') if len(for_display) > 16 else for_display
-        return mark_safe(f'<strong>{for_display}</strong>')
-
-
-def get_css_style(link_class: str, default_color: str, hover_color: str) -> str:
-    """
-    Generates a CSS style for a given link class with specified colors for default and hover states.
-    """
-    return f"""
-        <style>
-            a.{link_class} {{
-                color: {default_color}; /* Default color */
-            }}
-            a.{link_class}:hover {{
-                color: {hover_color}; /* Color on hover */
-            }}
-        </style>
-    """
-
-
-def create_link_html(url: str, link_class: str, display_text: str) -> format_html:
-    """
-    Creates string link with specified URL, CSS class, and display text.
-    """
-    return f'<a href="{url}" class="{link_class}">{display_text}</a>'
-
-
-def get_filter_value_from_url(request: HttpRequest) -> bool:
-    """
-    Checks the request URL for specific 'date_or_time' filter parameters.
-    """
-    if 'date_or_time' in request.GET:
-        filter_value = request.GET['date_or_time']
-        return filter_value == 'by_date_and_time'
-
-
-def condition_not_on_filtered_queryset(condition: Condition) -> bool:
-    """
-    Verify mother instance NOT on filtered change list Page return True otherwise False
-    """
-    current_date = timezone.now().date()
-    current_time = timezone.now().time()
-    return condition.scheduled_date > current_date or (
-            condition.scheduled_date == current_date and condition.scheduled_time
-            and condition.scheduled_time > current_time
-    )
-
-
-def add_new_condition(obj: Mother, condition_display: str, request: HttpRequest) -> format_html:
-    """
-    Generates an HTML link to add a new "Condition" in the Django admin interface for a specific Mother object.
-    This is used when the last condition is marked as finished (True).
-    """
-
-    condition_add_url = reverse('admin:mothers_condition_add')
-    current_path = request.get_full_path()
-    return_path = urlencode({'_changelist_filters': current_path})
-
-    return format_html(f'<a href="{condition_add_url}?mother={obj.pk}&{return_path}">{condition_display}</a>')
-
-
-def change_condition_on_change_list_page(condition: Condition, request: HttpRequest,
-                                         condition_display: str) -> format_html:
-    """
-    Change Url on mother change list Page to the specific 'Condition' instance
-    where finished and scheduled_date are None.
-    """
-    change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
-    current_path = request.get_full_path()
-    return_path = urlencode({'_changelist_filters': current_path})
-
-    css_style = get_css_style("light-green", "green", "rgba(0, 150, 0, 0.8)")
-    link_html = create_link_html(f'{change_url}?mother={condition.pk}&{return_path}', "light-green", condition_display)
-
-    set_url_when_change_or_add_condition_object(request)
-
-    return mark_safe(f'{css_style}{link_html}')
-
-
-def change_or_not_based_on_filtered_queryset(condition: Condition, condition_display: str, request: HttpRequest) -> \
-        Optional[format_html]:
-    """
-    CHANGE URL if mother instance on change list Page or SIMPLE STRING iN BOLD if mother instance
-    on filtered change list Page.
-    """
-    local_datetime = convert_utc_to_local(request, condition.scheduled_date, condition.scheduled_time)
-    formatted_datetime = output_time_format(local_datetime)
-
-    change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
-
-    css_style = get_css_style("light-green", "green", "rgba(0, 150, 0, 0.8)")
-    display_text = mark_safe(f'{condition_display}')
-    link_html = create_link_html(change_url, "light-green", display_text)
-    link_with_style = f'{css_style}{link_html}'
-
-    if condition_not_on_filtered_queryset(condition):
-
-        set_url_when_change_or_add_condition_object(request)
-
-        return mark_safe(f'{link_with_style}/<br>{formatted_datetime}')
-    else:
-        return mark_safe(f'{condition_display}/<br>{formatted_datetime}')
-
-
-def change_on_filtered_changelist(condition: Condition, condition_display: str, request: HttpRequest) -> format_html:
-    """
-    Can Change 'Condition instance' on filtered change list page.
-    """
-    local_datetime = convert_utc_to_local(request, condition.scheduled_date, condition.scheduled_time)
-    formatted_datetime = output_time_format(local_datetime)
-
-    change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
-
-    css_style = get_css_style("violet-link", "rgba(138, 43, 226, 0.8)", "violet")
-    # Create link only for condition_display
-    link_html = create_link_html(change_url, "violet-link", condition_display)
-
-    # Combine the link with the formatted date, keeping the date outside of the hyperlink
-    combined_html = f'{css_style}{link_html}/<br>{formatted_datetime}'
-
-    # designate full url path for this change
-    set_url_when_change_or_add_condition_object(request)
-
-    return mark_safe(combined_html)
+# def change_on_filtered_changelist(condition: Condition, condition_display: str, request: HttpRequest) -> format_html:
+#     """
+#     Can Change 'Condition instance' on filtered change list page.
+#     """
+#     local_datetime = convert_utc_to_local(request, condition.scheduled_date, condition.scheduled_time)
+#     formatted_datetime = output_time_format(local_datetime)
+#
+#     change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
+#
+#     css_style = get_css_style("violet-link", "rgba(138, 43, 226, 0.8)", "violet")
+#     # Create link only for condition_display
+#     link_html = create_link_html(change_url, "violet-link", condition_display)
+#
+#     # Combine the link with the formatted date, keeping the date outside of the hyperlink
+#     combined_html = f'{css_style}{link_html}/<br>{formatted_datetime}'
+#
+#     # designate full url path for this change
+#     set_url_when_change_or_add_condition_object(request)
+#
+#     return mark_safe(combined_html)
 
 
 def get_model_objects(adm: ModelAdmin, request: HttpRequest) -> QuerySet:
@@ -272,13 +118,6 @@ def get_model_objects(adm: ModelAdmin, request: HttpRequest) -> QuerySet:
     Retrieves a QuerySet of objects from the model associated with the provided MotherAdmin instance (`adm`).
     The objects are filtered based on the user's permissions. It checks if the user has either 'view' or 'change'
     permissions for the objects of the model.
-
-    This function is useful in scenarios where you want to display or provide access to objects that a specific user
-    is allowed to view or change, according to their permissions.
-
-    :param adm: The ModelAdmin instance related to the model whose objects are to be retrieved.
-    :param request: The current HTTP request, containing the user for whom to check permissions.
-    :return: A QuerySet of objects that the user has permission to view or change.
     """
     _meta = adm.opts
     actions = ['view', 'change']  # Define the permissions to check
@@ -289,108 +128,201 @@ def get_model_objects(adm: ModelAdmin, request: HttpRequest) -> QuerySet:
     return get_objects_for_user(user=request.user, perms=perms, klass=klass, any_perm=True)
 
 
-def has_permission(adm: ModelAdmin, request: HttpRequest, obj: Mother, action: str, base_permission: bool) -> bool:
+def has_permission(adm: ModelAdmin, request: HttpRequest, obj: Mother, action: str) -> bool:
     """
-    Checks if the user has the specified permission for the given object. If the user has model lvl permission,
-    or if the user has the specific permission on the object, it returns True. If the object is not specified,
-    it checks if there are any objects in the primary stage for the user or if the base permission is True.
+    Two type users. First see only assigned him objects. Second see all objects if he had corresponding permission.
     """
-    _meta = adm.opts
-    code_name = f'{action}_{_meta.model_name}'
+    app_label = adm.opts.app_label
+    model_name = adm.opts.model_name
+    permission = f'{app_label}.{action}_{model_name}'
+    obj_perm = request.user.has_perm(permission, obj)
+    perm = request.user.has_perm(permission)
+
     if obj:
-        return request.user.has_perm(f'{_meta.app_label}.{code_name}', obj) \
-            or request.user.has_perm(f'{_meta.app_label}.{code_name}')  # in this case add user only view perm
+        return obj_perm or perm
 
-    data = on_primary_stage(get_model_objects(adm, request))
-    return data.exists() or base_permission
-
-
-# Break down the large function into smaller functions
-def handle_comment_or_plan_exists(condition, condition_display):
-    """Handle cases where 'Comment' or 'Plan' instances exist."""
-    if condition.finished:
-        return format_html('{}', condition_display)
-
-
-def handle_not_finished_condition(condition, condition_display, filtered_queryset_url, request):
-    """Handle cases where the condition is not finished."""
-    # if not condition.scheduled_date:
-    #     return change_condition_on_change_list_page(condition, request, condition_display)
-
-    if condition.scheduled_date and not filtered_queryset_url:
-        return change_or_not_based_on_filtered_queryset(condition, condition_display, request)
-
-
-def determine_link_action(request: HttpRequest, obj: Mother) -> Union[str, SafeString]:
-    """
-    Create a link based on the condition of the 'Mother' object.
-
-    The function handles different cases:
-    1. If a 'Comment' or 'Planned' instance exists related to Mother object, and 'Condition' is finished, no change is allowed.
-    2. If only the state of condition instance exists (not finished, no scheduled date), the condition can be changed.
-    3. Handles cases based on the presence of a scheduled date and whether the condition appears in a filtered queryset.
-    4. If the last related 'Condition' instance is finished, a new 'Condition' can be added.
-    5. Handles the case where the mother instance is located in a filtered queryset, allowing condition change.
-    """
-    condition_display = shortcut_bold_text(obj)
-    comment, plan, condition = comment_plann_and_comment_finished_true(obj)
-    filter_in_url = get_filter_value_from_url(request)
-
-    if comment or plan:
-        return handle_comment_or_plan_exists(condition, condition_display)
-
-    if condition.finished and not (comment or plan):
-        return add_new_condition(obj, condition_display, request)
-
-    if not condition.finished and not filter_in_url:
-        return handle_not_finished_condition(condition, condition_display, filter_in_url, request)
-
-    if not condition.finished and filter_in_url:
-        return change_on_filtered_changelist(condition, condition_display, request)
-
-    return format_html('Condition status not determined.')
-
-
-def get_for_datetime_queryset() -> bool:
-    """
-    Get the queryset(True or False) for the 'date_or_time' lookup.
-    """
-    for_datetime = filter_condition_by_date_time()
-    return queryset_with_filter_condition(for_datetime)
-
-
-def check_datetime_lookup_permission() -> None:
-    """
-    Check if the user has permission to access the 'date_or_time' lookup.
-    """
-    for_datetime = get_for_datetime_queryset()
-    if not for_datetime:
-        raise PermissionDenied
+    user_obj = get_model_objects(adm, request)
+    data_exists = on_primary_stage(user_obj).exists()
+    return data_exists or perm
 
 
 def get_already_created(queryset: QuerySet) -> QuerySet:
     """
     When condition instance only one, that`s mean created status
     """
-    queryset = queryset.annotate(
-        created_count=Count('condition')
-    )
-    queryset = queryset.filter(created_count__lte=1, condition__condition=Condition.ConditionChoices.CREATED)
-    return queryset
+    queryset = queryset.annotate(created_count=Count('condition'))
+
+    return queryset.filter(created_count=1, condition__condition=Condition.ConditionChoices.CREATED)
 
 
-def get_reason_with_empty_condition(queryset: QuerySet) -> QuerySet:
+def get_empty_state(queryset: QuerySet) -> QuerySet:
     """
-    When condition is empty, return instance with described reason
+    Objs with empty condition
     """
-    latest_conditions = Condition.objects.filter(mother=OuterRef('pk')) \
-                            .order_by('-created') \
-                            .values('condition')[:1]
+    return queryset.filter((Q(condition__condition=Condition.ConditionChoices.__empty__) | Q(condition__condition=None))
+                           & Q(condition__finished=False))
 
-    queryset = queryset.annotate(
-        latest_condition=Subquery(latest_conditions, output_field=CharField())
-    )
-    queryset = queryset.filter(Q(latest_condition=Condition.ConditionChoices.__empty__) | Q(latest_condition=None)
-                               ).filter(condition__finished=False)
 
-    return queryset
+class HTMLElement:
+    """Create complex html element from simple elements"""
+    indent_size = 2
+
+    def __init__(self, name: str = '', link_class: str = '', default_color: str = '', hover_color: str = '') -> None:
+        self.name = name
+        self.link_class = link_class
+        self.default_color = default_color
+        self.hover_color = hover_color
+        self.elements = []
+
+    def __str(self, indent: int) -> str:
+        """Iterates all nested attributes recursively"""
+        lines = []
+
+        if self.name:
+            i = ' ' * (indent * self.indent_size)
+            lines.append(f'{i}<{self.name}>')
+
+        if self.default_color:
+            i1 = ' ' * ((indent + 1) * self.indent_size)
+            lines.append(f'{i1}a.{self.link_class} {{ color: {self.default_color}; }}')
+
+        if self.hover_color:
+            i1 = ' ' * ((indent + 1) * self.indent_size)
+            lines.append(f'{i1}a.{self.link_class}:hover {{ color: {self.hover_color}; }}')
+
+        for elem in self.elements:
+            lines.append(elem.__str(indent + 1))
+
+        if self.name:
+            lines.append(f'{i}</{self.name}>')
+
+        return '\n'.join(lines)
+
+    def __str__(self):
+        """Pass into __str zero indent"""
+        return self.__str(0)
+
+
+class HTMLBuilder:
+    """Accept the html elements and construct the complex html object"""
+
+    def __init__(self, root_name: str) -> None:
+        self.root_name = root_name
+        self.__root = HTMLElement(name=root_name)
+
+    def add_child(self, link_class: str, default_color: str, hover_color: str) -> None:
+        self.__root.elements.append(HTMLElement(
+            link_class=link_class, default_color=default_color, hover_color=hover_color
+        ))
+
+    def __str__(self):
+        return str(self.__root)
+
+
+def bold_text(last_condition: Condition) -> format_html:
+    """
+    Retrieves the last condition for a `Mother` object, and returns its display string in a bold HTML format.
+    The display string is truncated to 50 characters if it's.
+    """
+    obj = last_condition
+    reason = obj.reason
+    state = obj.condition == '__empty__'
+
+    if not state:
+        for_display = obj.get_condition_display()
+    else:
+        for_display = reason
+
+    for_display = (for_display[:50] + '...') if len(for_display) > 50 else for_display
+    return mark_safe(f'<strong>{for_display}</strong>')
+
+
+def link_html(url: str, style: HTMLBuilder, link_class: str, text: str) -> format_html:
+    """Creates reference with custom style and text."""
+    return str(style) + '\n' + f'<a href="{url}" class="{link_class}">{text}</a>'
+
+
+def extract_from_url(request: HttpRequest, key: str, value: str) -> bool:
+    """
+    Checks the request URL for specific parameter.
+    """
+    if key in request.GET:
+        from_url = request.GET[key]
+        return from_url == value
+
+
+def simple_text(text: str) -> format_html:
+    """When one of the related with MotherAdmin instances exist. Returns simple bold text"""
+    return format_html('{}', text)
+
+
+def add_new(obj: Mother, text: str, request: HttpRequest) -> format_html:
+    """When noone of the related with MotherAdmin instances don`t exist and finished condition exists.
+    Generates an HTML link to add a new "Condition" in the Django admin interface for a specific Mother object.
+    """
+    add_url = reverse('admin:mothers_condition_add')
+    current_path = request.get_full_path()
+    return_path = urlencode({'_changelist_filters': current_path})
+
+    return format_html(f'<a href="{add_url}?mother={obj.pk}&{return_path}">{text}</a>')
+
+
+def can_change_on_changelist(condition: Condition, text: str) -> format_html:
+    """When action happens on changelist page and planned date is not occurs.
+     Returns the green change reference for a specific condition instance."""
+
+    change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
+
+    style = HTMLBuilder('style')
+    style.add_child("light-green", "green", "rgba(0, 150, 0, 0.8)")
+
+    link = link_html(change_url, style, "light-green", text)
+
+    return mark_safe(link)
+
+
+def can_not_change_on_changelist(text) -> format_html:
+    """When action happens on changelist page and planned date is already occurs. Returns simple bold text."""
+    return mark_safe(text)
+
+
+def change_on_filtered_changelist(condition: Condition, text) -> format_html:
+    """When action happens on filtered changelist page and planned date is already occurs."""
+
+    change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
+
+    style = HTMLBuilder('style')
+    style.add_child("violet-link", "rgba(138, 43, 226, 0.8)", "violet")
+
+    link = link_html(change_url, style, "violet-link", text)
+
+    return mark_safe(link)
+
+
+class Specification:
+    """Base class for inheritance future child spec"""
+
+    def __init__(self, spec):
+        self.spec = spec
+
+    def is_verified(self, item):
+        pass
+
+
+class Filter:
+    """Base class for inheritance future child filter"""
+
+    def filter(self, item, spec):
+        pass
+
+
+class FromUrlSpec(Specification):
+    def is_verified(self, item):
+        """Get the specific query from request session"""
+        spec = item.get(self.spec, False)
+        return spec
+
+
+class BaseFilter(Filter):
+    def filter(self, item, spec) -> bool:
+        return spec.is_verified(item)

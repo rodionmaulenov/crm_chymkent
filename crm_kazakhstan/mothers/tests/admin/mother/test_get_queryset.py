@@ -1,5 +1,6 @@
 from guardian.shortcuts import assign_perm
 
+from django.contrib.auth.models import Permission
 from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
@@ -30,8 +31,8 @@ class GetQuerySetMethodTest(TestCase):
 
         mother = Mother.objects.create(name='Mother 1')
         mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
 
         self.assertEqual(len(queryset), 2)
 
@@ -42,8 +43,8 @@ class GetQuerySetMethodTest(TestCase):
 
         mother = Mother.objects.create(name='Mother 1')
         mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
+        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
 
         self.assertEqual(len(queryset), 0)
 
@@ -54,8 +55,8 @@ class GetQuerySetMethodTest(TestCase):
 
         mother = Mother.objects.create(name='Mother 1')
         mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
 
         self.assertEqual(len(queryset), 1)
 
@@ -73,8 +74,8 @@ class GetQuerySetMethodTest(TestCase):
 
         mother = Mother.objects.create(name='Mother 1')
         mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
 
         self.assertEqual(len(queryset), 0)
 
@@ -85,8 +86,8 @@ class GetQuerySetMethodTest(TestCase):
 
         mother = Mother.objects.create(name='Mother 1')
         mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
 
         self.assertEqual(len(queryset), 0)
 
@@ -97,8 +98,8 @@ class GetQuerySetMethodTest(TestCase):
 
         mother = Mother.objects.create(name='Mother 1')
         mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
+        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
 
         self.assertEqual(len(queryset), 0)
 
@@ -109,8 +110,8 @@ class GetQuerySetMethodTest(TestCase):
 
         mother = Mother.objects.create(name='Mother 1')
         mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
 
         assign_perm('view_mother', self.rushana, mother)
         assign_perm('change_mother', self.rushana, mother)
@@ -127,8 +128,8 @@ class GetQuerySetMethodTest(TestCase):
 
         mother = Mother.objects.create(name='Mother 1')
         mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
 
         assign_perm('view_mother', self.rushana, mother)
         assign_perm('change_mother', self.rushana, mother)
@@ -142,8 +143,8 @@ class GetQuerySetMethodTest(TestCase):
 
         mother = Mother.objects.create(name='Mother 1')
         mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
+        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
 
         assign_perm('view_mother', self.rushana, mother)
         assign_perm('change_mother', self.rushana, mother)
@@ -160,8 +161,8 @@ class GetQuerySetMethodTest(TestCase):
 
         mother = Mother.objects.create(name='Mother 1')
         mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
+        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
 
         assign_perm('view_mother', self.rushana, mother)
         assign_perm('change_mother', self.rushana, mother)
@@ -170,3 +171,32 @@ class GetQuerySetMethodTest(TestCase):
         assign_perm('change_mother', self.rushana, mother2)
 
         self.assertEqual(len(queryset), 1)
+
+    def tes_user_with_base_mother_model_view_perm(self):
+        view_permission = Permission.objects.get(codename='view_mother')
+        self.staff_user.user_permissions.add(view_permission)
+
+        request = self.factory.get('/')
+        request.user = self.staff_user
+        queryset = self.admin.get_queryset(request)
+
+        mother = Mother.objects.create(name='Mother 1')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+
+        self.assertEqual(len(queryset), 1)
+
+    def test_user_with_base_mother_model_view_perm_on_primary_stage(self):
+        request = self.factory.get('/')
+        request.user = self.superuser
+        queryset = self.admin.get_queryset(request)
+
+        mother = Mother.objects.create(name='Mother 1')
+        mother_2 = Mother.objects.create(name='Mother 2')
+
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT, finished=True)
+
+        Stage.objects.create(mother=mother_2, stage=Stage.StageChoices.PRIMARY, finished=False)
+        Stage.objects.create(mother=mother_2, stage=Stage.StageChoices.FIRST_VISIT, finished=True)
+
+        self.assertEqual(len(queryset), 2)

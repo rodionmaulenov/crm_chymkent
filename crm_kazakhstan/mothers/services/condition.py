@@ -1,11 +1,10 @@
 from datetime import date, time
 from typing import Tuple, Union, Dict, Any, Optional, List, Type
-
-from django.contrib.admin import ModelAdmin
-from django.urls import reverse
-from django.utils.html import format_html
 from guardian.shortcuts import assign_perm
 
+from django.urls import reverse
+from django.utils.html import format_html
+from django.contrib.admin import ModelAdmin
 from django import forms
 from django.contrib import messages
 from django.db.models import Q, Field
@@ -26,34 +25,35 @@ Condition: models
 User = get_user_model()
 
 
-def filter_condition_by_date_time() -> Q:
-    """
-    Generates query filters for 'Condition' objects based on the current date and time.
-
-    Returns two query filter:
-    - for_datetime: Filters for conditions either scheduled for a date earlier
-                    than today or for today with a time earlier than or equal
-                    to the current time, and not finished.
-
-    :return: A tuple containing two query filters (for_date, for_datetime).
-    """
+def filters_datetime(obj: Mother = None) -> Q:
+    """Generates query filters for 'Condition' objects based on the current date and time."""
 
     current_date = timezone.now().date()
     current_time = timezone.now().time()
 
-    for_datetime = (Q(condition__scheduled_date=current_date, condition__scheduled_time__lte=current_time) |
-                    Q(condition__scheduled_date__lt=current_date, condition__scheduled_time__isnull=False)
-                    ) & Q(condition__finished=False)
+    datetime_filters = (
+                               Q(condition__scheduled_date=current_date, condition__scheduled_time__lte=current_time) |
+                               Q(condition__scheduled_date__lt=current_date)
+                       ) & Q(condition__finished=False)
 
-    return for_datetime
+    if obj:
+        datetime_filters = datetime_filters & Q(id=obj.pk)
+
+    return datetime_filters
 
 
-def queryset_with_filter_condition(for_datetime: Q) -> bool:
-    """
-    Evaluates whether there are any Mother objects that match the given query filters.
-    """
-    exists_for_datetime = Mother.objects.filter(for_datetime).exists()
-    return exists_for_datetime
+def filters_created(obj: Mother) -> Q:
+    """Generates query filters for 'Condition' objects based on state created or not"""
+    created = (
+            Q(condition__condition=Condition.ConditionChoices.CREATED) &
+            Q(condition__finished=True, id=obj.pk)
+    )
+    return created
+
+
+def filtered_mothers(for_datetime: Q) -> bool:
+    """Evaluates whether there are any Mother objects that match the given query filters."""
+    return Mother.objects.filter(for_datetime).exists()
 
 
 def is_filtered_condition_met(previous_url: str, for_datetime: bool) -> bool:
@@ -221,9 +221,6 @@ def set_initial_mother_value_on_add(form: ConditionAdminForm, request: Optional[
 def extract_choices(db_field: Field) -> List[Tuple[Any, Any]]:
     """
     Extracts the choices from the database field.
-
-    :param db_field: The database field from which to extract choices.
-    :return: A list of choice tuples.
     """
     return db_field.get_choices(include_blank=db_field.blank, blank_choice=[('', '---------')])
 
@@ -237,13 +234,9 @@ def is_add_action(obj: Condition) -> bool:
     return not (obj and obj.pk)
 
 
-def filter_choices(obj: Condition, request: HttpRequest, choices: List[Tuple[Any, Any]]) -> List[Tuple[Any, Any]]:
+def filter_choices(obj: Condition, choices: List[Tuple[Any, Any]]) -> List[Tuple[Any, Any]]:
     """
     Filters choices based on the action type (add or change).
-
-    :param choices: The original list of choice tuples.
-    :param is_add_action: A boolean indicating whether the action is 'add' (True) or 'change' (False).
-    :return: A list of filtered choice tuples.
     """
     if is_add_action(obj):
         return [choice for choice in choices if choice[0] not in ('created',)]

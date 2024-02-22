@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, time, datetime
 from freezegun import freeze_time
 
 from django.contrib.auth import get_user_model
@@ -7,17 +7,18 @@ from django.utils import timezone
 from django.db import models
 from django.contrib import admin
 
-from mothers.filters import DateFilter
-from mothers.models import Mother, Stage
+from mothers.filters import ConditionDateFilter
+from mothers.models import Mother, Stage, Condition
 from mothers.admin import MotherAdmin
 
 Mother: models
+Condition: models
 Stage: models
 
 User = get_user_model()
 
 
-class DateFilterTestCase(TestCase):
+class ConditionDateFilterTest(TestCase):
     def setUp(self):
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.factory = RequestFactory()
@@ -28,29 +29,17 @@ class DateFilterTestCase(TestCase):
         request.user = self.superuser
 
         mother = Mother.objects.create(name="Today")
-        mother.date_create = timezone.now()
-        mother.save()
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
+        condition = Condition.objects.create(mother=mother, finished=False, scheduled_date=date(2023, 12, 10),
+                                             scheduled_time=time(18, 20, 0), reason='some reason')
+        condition.created = timezone.now()
+        condition.save()
 
-        f = DateFilter(request=request, params={'date_filter': 'today'}, model=Mother, model_admin=self.mother_admin)
+        f = ConditionDateFilter(request=request, params={'date_filter': 'today'}, model=Mother,
+                                model_admin=self.mother_admin)
         queryset = f.queryset(request=request, queryset=self.mother_admin.get_queryset(request))
 
         self.assertEqual(queryset.first().name, 'Today')
-
-    def test_yesterday_filter(self):
-        request = self.factory.get('/')
-        request.user = self.superuser
-
-        mother = Mother.objects.create(name="Yesterday")
-        mother.date_create = timezone.now() - timezone.timedelta(days=1)
-        mother.save()
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
-
-        f = DateFilter(request=request, params={'date_filter': 'yesterday'}, model=Mother,
-                       model_admin=self.mother_admin)
-        queryset = f.queryset(request=request, queryset=self.mother_admin.get_queryset(request))
-
-        self.assertEqual(queryset.first().name, 'Yesterday')
 
     @freeze_time("2023-12-12 20:30:00")
     def test_past_7_days_filter(self):
@@ -59,11 +48,13 @@ class DateFilterTestCase(TestCase):
 
         with freeze_time("2023-12-05 16:30:00"):
             mother = Mother.objects.create(name="Past 7 days")
+            Condition.objects.create(mother=mother, finished=False, scheduled_date=date(2023, 12, 5),
+                                     scheduled_time=time(16, 30, 0), reason='some reason')
 
             Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
 
-        f = DateFilter(request=request, params={'date_filter': 'past_7_days'}, model=Mother,
-                       model_admin=self.mother_admin)
+        f = ConditionDateFilter(request=request, params={'date_filter': 'past_7_days'}, model=Mother,
+                                model_admin=self.mother_admin)
         queryset = f.queryset(request=request, queryset=self.mother_admin.get_queryset(request))
 
         self.assertEqual(queryset.first().name, 'Past 7 days')
@@ -75,11 +66,13 @@ class DateFilterTestCase(TestCase):
 
         with freeze_time("2023-12-05 16:30:00"):
             mother = Mother.objects.create(name="Past 7 days")
+            Condition.objects.create(mother=mother, finished=False, scheduled_date=date(2023, 12, 5),
+                                     scheduled_time=time(16, 30, 0), reason='some reason')
 
             Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
 
-        f = DateFilter(request=request, params={'date_filter': 'past_7_days'}, model=Mother,
-                       model_admin=self.mother_admin)
+        f = ConditionDateFilter(request=request, params={'date_filter': 'past_7_days'}, model=Mother,
+                                model_admin=self.mother_admin)
         queryset = f.queryset(request=request, queryset=self.mother_admin.get_queryset(request))
 
         self.assertEqual(queryset.first().name, 'Past 7 days')
@@ -91,11 +84,13 @@ class DateFilterTestCase(TestCase):
 
         with freeze_time("2023-12-10 16:30:00"):
             mother = Mother.objects.create(name="Past 14 days")
+            Condition.objects.create(mother=mother, finished=False, scheduled_date=date(2023, 12, 10),
+                                     scheduled_time=time(16, 30, 0), reason='some reason')
 
             Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
 
-        f = DateFilter(request=request, params={'date_filter': 'past_14_days'}, model=Mother,
-                       model_admin=self.mother_admin)
+        f = ConditionDateFilter(request=request, params={'date_filter': 'past_14_days'}, model=Mother,
+                                model_admin=self.mother_admin)
         queryset = f.queryset(request=request, queryset=self.mother_admin.get_queryset(request))
 
         self.assertEqual(queryset.first().name, 'Past 14 days')
@@ -107,11 +102,13 @@ class DateFilterTestCase(TestCase):
 
         with freeze_time("2023-12-15 16:30:00"):
             mother = Mother.objects.create(name="Past 14 days second")
+            Condition.objects.create(mother=mother, finished=False, scheduled_date=date(2023, 12, 10),
+                                     scheduled_time=time(16, 30, 0), reason='some reason')
 
             Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
 
-        f = DateFilter(request=request, params={'date_filter': 'past_14_days'}, model=Mother,
-                       model_admin=self.mother_admin)
+        f = ConditionDateFilter(request=request, params={'date_filter': 'past_14_days'}, model=Mother,
+                                model_admin=self.mother_admin)
         queryset = f.queryset(request=request, queryset=self.mother_admin.get_queryset(request))
 
         self.assertEqual(queryset.first().name, 'Past 14 days second')
@@ -122,12 +119,15 @@ class DateFilterTestCase(TestCase):
         request.user = self.superuser
 
         mother = Mother.objects.create(name="Start of the Month")
-        mother.date_create = datetime(2023, 12, 11, 20, 20, 0, tzinfo=timezone.utc)
-        mother.save()
+        condition = Condition.objects.create(mother=mother, finished=False, scheduled_date=date(2023, 12, 10),
+                                             scheduled_time=time(16, 30, 0), reason='some reason')
+        condition.created = datetime(2023, 12, 11, 20, 20, 0, tzinfo=timezone.utc)
+        condition.save()
+
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
 
-        f = DateFilter(request=request, params={'date_filter': 'current_month'}, model=Mother,
-                       model_admin=self.mother_admin)
+        f = ConditionDateFilter(request=request, params={'date_filter': 'current_month'}, model=Mother,
+                                model_admin=self.mother_admin)
         queryset = f.queryset(request=request, queryset=self.mother_admin.get_queryset(request))
 
         self.assertEqual(queryset.first().name, 'Start of the Month')
@@ -138,12 +138,14 @@ class DateFilterTestCase(TestCase):
         request.user = self.superuser
 
         mother = Mother.objects.create(name="Start of the Month second")
-        mother.date_create = datetime(2023, 11, 11, 20, 20, 0, tzinfo=timezone.utc)
-        mother.save()
+        condition = Condition.objects.create(mother=mother, finished=False, scheduled_date=date(2023, 12, 10),
+                                             scheduled_time=time(16, 30, 0), reason='some reason')
+        condition.created = datetime(2023, 11, 11, 20, 20, 0, tzinfo=timezone.utc)
+        condition.save()
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
 
-        f = DateFilter(request=request, params={'date_filter': 'current_month'}, model=Mother,
-                       model_admin=self.mother_admin)
+        f = ConditionDateFilter(request=request, params={'date_filter': 'current_month'}, model=Mother,
+                                model_admin=self.mother_admin)
         queryset = f.queryset(request=request, queryset=self.mother_admin.get_queryset(request))
 
         with self.assertRaises(AttributeError):

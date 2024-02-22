@@ -25,13 +25,13 @@ class LookupAllowedMethodTest(TestCase):
         self.staff_user = User.objects.create_user(username='staffuser', password='staffuserpassword', is_staff=True)
 
     def test_lookup_not_allowed_without_date_or_time_superuser(self):
-        request = self.factory.get('/mother/?lookup=date_or_time')
+        request = self.factory.get('/')
         request.user = self.superuser
 
         self.model_admin.request = request
 
         with self.assertRaises(PermissionDenied):
-            self.model_admin.lookup_allowed('date_or_time', 'any_value')
+            self.model_admin.lookup_allowed('planned_time', 'any_value')
 
     @freeze_time("2023-12-12 21:00:00")
     def test_lookup_allowed_with_date_or_time_super_user(self):
@@ -48,7 +48,7 @@ class LookupAllowedMethodTest(TestCase):
 
         self.model_admin.request = request
 
-        result = self.model_admin.lookup_allowed('date_or_time', 'any_value')
+        result = self.model_admin.lookup_allowed('planned_time', 'any_value')
         self.assertTrue(result)
 
     @freeze_time("2023-12-12 21:00:00")
@@ -67,7 +67,7 @@ class LookupAllowedMethodTest(TestCase):
         self.model_admin.request = request
 
         with self.assertRaises(PermissionDenied):
-            self.model_admin.lookup_allowed('date_or_time', 'any_value')
+            self.model_admin.lookup_allowed('planned_time', 'any_value')
 
     def test_lookup_not_allowed_without_date_or_time_staff(self):
         request = self.factory.get('/mother/?lookup=date_or_time')
@@ -76,7 +76,7 @@ class LookupAllowedMethodTest(TestCase):
         self.model_admin.request = request
 
         with self.assertRaises(PermissionDenied):
-            self.model_admin.lookup_allowed('date_or_time', 'any_value')
+            self.model_admin.lookup_allowed('planned_time', 'any_value')
 
     @freeze_time("2023-12-12 21:00:00")
     def test_lookup_allowed_with_date_or_time_staff(self):
@@ -93,5 +93,5 @@ class LookupAllowedMethodTest(TestCase):
 
         self.model_admin.request = request
 
-        result = self.model_admin.lookup_allowed('date_or_time', 'any_value')
+        result = self.model_admin.lookup_allowed('planned_time', 'any_value')
         self.assertTrue(result)
