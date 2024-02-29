@@ -20,13 +20,23 @@ class Mother(models.Model):
         return self.name
 
     @property
-    def last_condition(self):
-        return self.condition_set.order_by('-created').first()
+    def last_state(self):
+        return self.state_set.filter(finished=False).exists()
 
     @property
-    def last_planned(self):
-        return self.planned_set.filter(finished=False).order_by('-created').exists()
+    def plan(self):
+        plan = self.planned_set.order_by('-created').exists()
+        finished = self.planned_set.filter(finished=False).order_by('-created').exists()
+
+        if plan:
+            return finished
+        return False
 
     @property
-    def last_comment(self):
-        return self.comment_set.filter(banned=False).order_by('-created').exists()
+    def ban(self):
+        ban = self.ban_set.order_by('-created').exists()
+        finished = self.ban_set.filter(banned=False).order_by('-created').exists()
+
+        if ban:
+            return finished
+        return False

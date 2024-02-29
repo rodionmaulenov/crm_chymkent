@@ -4,11 +4,11 @@ from django.test import TestCase, RequestFactory
 from django.contrib import admin
 from django.db import models
 
-from mothers.models import Mother, Condition
+from mothers.models import Mother, State
 from mothers.admin import MotherAdmin
 
 Mother: models
-Condition: models
+State: models
 
 
 class ReasonTest(TestCase):
@@ -19,7 +19,7 @@ class ReasonTest(TestCase):
         self.mother = Mother.objects.create(name='Test')
 
     def test_reason_exists(self):
-        Condition.objects.create(
+        State.objects.create(
             mother=self.mother,
             scheduled_date=date(2023, 12, 11),
             scheduled_time=time(20, 40, 0),
@@ -30,7 +30,7 @@ class ReasonTest(TestCase):
         self.assertEqual(reason, 'some reason')
 
     def test_empty_reason_exists(self):
-        Condition.objects.create(
+        State.objects.create(
             mother=self.mother,
             scheduled_date=date(2023, 12, 11),
             scheduled_time=time(20, 40, 0),
@@ -39,3 +39,21 @@ class ReasonTest(TestCase):
         )
         reason = self.mother_admin.reason(self.mother)
         self.assertEqual(reason, '')
+
+    def test_last_reason_exists(self):
+        State.objects.create(
+            mother=self.mother,
+            scheduled_date=date(2023, 12, 11),
+            scheduled_time=time(20, 40, 0),
+            reason='',
+            finished=True
+        )
+        State.objects.create(
+            mother=self.mother,
+            scheduled_date=date(2023, 12, 11),
+            scheduled_time=time(20, 40, 0),
+            reason='last reason',
+            finished=False
+        )
+        reason = self.mother_admin.reason(self.mother)
+        self.assertEqual(reason, 'last reason')

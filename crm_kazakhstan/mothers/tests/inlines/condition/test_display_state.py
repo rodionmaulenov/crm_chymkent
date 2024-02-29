@@ -2,22 +2,29 @@ from django.test import TestCase
 from django.db import models
 from django.contrib import admin
 
-from mothers.inlines import ConditionInline
-from mothers.models import Mother, Condition
+from mothers.inlines import StateInline
+from mothers.models import Mother, State
 
 Mother: models
-Condition: models
+State: models
 
 
 class DisplayStateMethodTest(TestCase):
 
     def setUp(self):
-        mother = Mother.objects.create(name="Test")
-        self.condition = Condition.objects.create(mother=mother, condition=Condition.ConditionChoices.NO_BABY)
-        self.inline_condition = ConditionInline(Condition, admin.site)
+        self.mother = Mother.objects.create(name="Test")
+        self.inline_condition = StateInline(State, admin.site)
 
     def test_display_state(self):
-        state_display = self.inline_condition.display_state(self.condition)
+        condition = State.objects.create(mother=self.mother, condition=State.ConditionChoices.NO_BABY)
+        state_display = self.inline_condition.display_state(condition)
 
-        expected_value = self.condition.get_condition_display()
+        expected_value = condition.get_condition_display()
+        self.assertEqual(state_display, expected_value)
+
+    def test_condition_display_state(self):
+        condition = State.objects.create(mother=self.mother, condition=State.ConditionChoices.EMPTY)
+        state_display = self.inline_condition.display_state(condition)
+
+        expected_value = condition.get_condition_display()
         self.assertEqual(state_display, expected_value)

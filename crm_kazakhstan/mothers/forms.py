@@ -3,15 +3,15 @@ from typing import Dict, Any
 from django import forms
 from django.db import models
 
-from mothers.models import Condition
+from mothers.models import State, Ban
 
 Mother: models
 
 
-class ConditionAdminForm(forms.ModelForm):
+class StateAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
-        from mothers.services.condition import initialize_form_fields, set_initial_mother_value_on_add, \
+        from mothers.services.state import initialize_form_fields, set_initial_mother_value_on_add, \
             hide_mother_field_on_add
         request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
@@ -29,7 +29,7 @@ class ConditionAdminForm(forms.ModelForm):
         """
         Cleans the data of the form and applies validations.
         """
-        from mothers.services.condition import if_field_error_exists
+        from mothers.services.state import if_field_error_exists
 
         cleaned_data = super().clean()
         # check each field, that not have error
@@ -38,5 +38,22 @@ class ConditionAdminForm(forms.ModelForm):
         return cleaned_data
 
     class Meta:
-        model = Condition
+        model = State
+        fields = '__all__'
+
+
+class BanAdminForm(forms.ModelForm):
+
+    def __init__(self, *args, **kwargs):
+        from mothers.services.state import set_initial_mother_value_on_add, hide_mother_field_on_add
+        request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+
+        # Hide the mother field
+        hide_mother_field_on_add(self)
+        # Set the mother's ID as the initial value
+        set_initial_mother_value_on_add(self, request)
+
+    class Meta:
+        model = Ban
         fields = '__all__'

@@ -11,9 +11,13 @@ from django.utils import timezone
 
 from gmail_messages.service_inbox import InboxMessages
 
-from mothers.models import Mother, Condition, Stage
+from mothers.models import Mother, State, Stage
 
 User = get_user_model()
+
+Mother: models
+State: models
+Stage: models
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 
@@ -44,11 +48,6 @@ translation_dict = {
     'Семейное положение': 'maried',
 }
 
-Mother: models
-Condition: models
-Stage: models
-
-
 @shared_task
 def save_message():
     inbox = InboxMessages()
@@ -69,7 +68,7 @@ def save_message():
             mother = Mother.objects.create(**mother_data)
 
             # at once create related models
-            Condition.objects.create(mother=mother, condition=Condition.ConditionChoices.CREATED, finished=True)
+            State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED, finished=True)
             Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
 
             # Get or create the group

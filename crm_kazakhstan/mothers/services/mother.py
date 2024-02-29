@@ -7,22 +7,19 @@ from django.contrib.admin import ModelAdmin
 from django.db.models import Count
 from django.http import HttpRequest
 from django.urls import reverse
-from django.core.exceptions import PermissionDenied
 from django.utils import timezone, formats
-from django.utils.http import urlencode
 from django.db import models
 from django.db.models import QuerySet, Q
 from django.utils.html import format_html, mark_safe
 from guardian.shortcuts import get_objects_for_user
 
-from mothers.models import Stage, Condition, Mother
-from mothers.services.condition import filters_datetime, filtered_mothers
+from mothers.models import Stage, State, Mother
 
 Stage: models
-Condition: models
+State: models
 
 
-def convert_local_to_utc(request: HttpRequest, instance: Condition) -> datetime:
+def convert_local_to_utc(request: HttpRequest, instance: State) -> datetime:
     """
     Converts the scheduled date and time of a Condition instance from the user's local timezone to UTC.
     """
@@ -59,21 +56,18 @@ def convert_utc_to_local(request: HttpRequest, utc_date: date, utc_time: time) -
     return local_datetime
 
 
-def date_time_or_exception() -> None:
-    """
-    Check if the user has permission to access the 'planned_time' lookup.
-    """
-    query_datetime = filters_datetime()
-    on_filtered_queryset = filtered_mothers(query_datetime)
-    if not on_filtered_queryset:
-        raise PermissionDenied
-
-
 def on_primary_stage(queryset: QuerySet) -> QuerySet:
     """
     Get only mothers where Stage is Primary
     """
     return queryset.filter(stage__stage=Stage.StageChoices.PRIMARY, stage__finished=False)
+
+
+def we_are_working(queryset: QuerySet) -> QuerySet:
+    """
+    Get only mothers where state is working
+    """
+    return queryset.filter(state__condition=State.ConditionChoices.WORKING, state__finished=False)
 
 
 def convert_to_local_time(obj: Mother, user_timezone: str) -> timezone.datetime:
@@ -88,29 +82,7 @@ def output_time_format(local_scheduled_datetime: Optional[datetime]) -> str:
     """
     Formats the provided datetime. Formats as 'Day Month Hour:Minute'.
     """
-    return formats.date_format(local_scheduled_datetime, "j M H:i")
-
-
-# def change_on_filtered_changelist(condition: Condition, condition_display: str, request: HttpRequest) -> format_html:
-#     """
-#     Can Change 'Condition instance' on filtered change list page.
-#     """
-#     local_datetime = convert_utc_to_local(request, condition.scheduled_date, condition.scheduled_time)
-#     formatted_datetime = output_time_format(local_datetime)
-#
-#     change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
-#
-#     css_style = get_css_style("violet-link", "rgba(138, 43, 226, 0.8)", "violet")
-#     # Create link only for condition_display
-#     link_html = create_link_html(change_url, "violet-link", condition_display)
-#
-#     # Combine the link with the formatted date, keeping the date outside of the hyperlink
-#     combined_html = f'{css_style}{link_html}/<br>{formatted_datetime}'
-#
-#     # designate full url path for this change
-#     set_url_when_change_or_add_condition_object(request)
-#
-#     return mark_safe(combined_html)
+    return formats.date_format(local_scheduled_datetime, "N j, Y, H:i")
 
 
 def get_model_objects(adm: ModelAdmin, request: HttpRequest) -> QuerySet:
@@ -150,96 +122,57 @@ def get_already_created(queryset: QuerySet) -> QuerySet:
     """
     When condition instance only one, that`s mean created status
     """
-    queryset = queryset.annotate(created_count=Count('condition'))
+    queryset = queryset.annotate(created_count=Count('state'))
 
-    return queryset.filter(created_count=1, condition__condition=Condition.ConditionChoices.CREATED)
+    return queryset.filter(created_count=1, state__condition=State.ConditionChoices.CREATED)
+
+
+def ban_query(queryset: QuerySet) -> QuerySet:
+    """
+    All instance which not move to ban.
+    """
+    return queryset.filter(ban__banned=False)
+
+
+def without_plan(queryset: QuerySet) -> QuerySet:
+    """
+    When plan on already created mother instance not appears.
+    """
+    queryset = queryset.annotate(amount=Count('state'))
+
+    return queryset.filter(amount__gte=2).exclude(state__finished=False)
 
 
 def get_empty_state(queryset: QuerySet) -> QuerySet:
     """
     Objs with empty condition
     """
-    return queryset.filter((Q(condition__condition=Condition.ConditionChoices.__empty__) | Q(condition__condition=None))
-                           & Q(condition__finished=False))
+    return queryset.filter((Q(state__condition=State.ConditionChoices.EMPTY) | Q(state__condition=None))
+                           & Q(state__finished=False))
 
 
-class HTMLElement:
-    """Create complex html element from simple elements"""
-    indent_size = 2
-
-    def __init__(self, name: str = '', link_class: str = '', default_color: str = '', hover_color: str = '') -> None:
-        self.name = name
-        self.link_class = link_class
-        self.default_color = default_color
-        self.hover_color = hover_color
-        self.elements = []
-
-    def __str(self, indent: int) -> str:
-        """Iterates all nested attributes recursively"""
-        lines = []
-
-        if self.name:
-            i = ' ' * (indent * self.indent_size)
-            lines.append(f'{i}<{self.name}>')
-
-        if self.default_color:
-            i1 = ' ' * ((indent + 1) * self.indent_size)
-            lines.append(f'{i1}a.{self.link_class} {{ color: {self.default_color}; }}')
-
-        if self.hover_color:
-            i1 = ' ' * ((indent + 1) * self.indent_size)
-            lines.append(f'{i1}a.{self.link_class}:hover {{ color: {self.hover_color}; }}')
-
-        for elem in self.elements:
-            lines.append(elem.__str(indent + 1))
-
-        if self.name:
-            lines.append(f'{i}</{self.name}>')
-
-        return '\n'.join(lines)
-
-    def __str__(self):
-        """Pass into __str zero indent"""
-        return self.__str(0)
-
-
-class HTMLBuilder:
-    """Accept the html elements and construct the complex html object"""
-
-    def __init__(self, root_name: str) -> None:
-        self.root_name = root_name
-        self.__root = HTMLElement(name=root_name)
-
-    def add_child(self, link_class: str, default_color: str, hover_color: str) -> None:
-        self.__root.elements.append(HTMLElement(
-            link_class=link_class, default_color=default_color, hover_color=hover_color
-        ))
-
-    def __str__(self):
-        return str(self.__root)
-
-
-def bold_text(last_condition: Condition) -> format_html:
+def reduce_text(last_condition: State) -> format_html:
     """
     Retrieves the last condition for a `Mother` object, and returns its display string in a bold HTML format.
     The display string is truncated to 50 characters if it's.
     """
+
     obj = last_condition
     reason = obj.reason
-    state = obj.condition == '__empty__'
 
-    if not state:
-        for_display = obj.get_condition_display()
-    else:
+    for_display = ''
+    if reason:
         for_display = reason
+    elif obj.condition:
+        for_display = obj.get_condition_display()
 
     for_display = (for_display[:50] + '...') if len(for_display) > 50 else for_display
     return mark_safe(f'<strong>{for_display}</strong>')
 
 
-def link_html(url: str, style: HTMLBuilder, link_class: str, text: str) -> format_html:
-    """Creates reference with custom style and text."""
-    return str(style) + '\n' + f'<a href="{url}" class="{link_class}">{text}</a>'
+def link_html(url: str, text: str) -> format_html:
+    """Custom link."""
+    return f'<a href="{url}">{text}</a>'
 
 
 def extract_from_url(request: HttpRequest, key: str, value: str) -> bool:
@@ -249,58 +182,46 @@ def extract_from_url(request: HttpRequest, key: str, value: str) -> bool:
     if key in request.GET:
         from_url = request.GET[key]
         return from_url == value
+    return False
 
 
 def simple_text(text: str) -> format_html:
-    """When one of the related with MotherAdmin instances exist. Returns simple bold text"""
-    return format_html('{}', text)
-
-
-def add_new(obj: Mother, text: str, request: HttpRequest) -> format_html:
-    """When noone of the related with MotherAdmin instances don`t exist and finished condition exists.
-    Generates an HTML link to add a new "Condition" in the Django admin interface for a specific Mother object.
     """
-    add_url = reverse('admin:mothers_condition_add')
-    current_path = request.get_full_path()
-    return_path = urlencode({'_changelist_filters': current_path})
-
-    return format_html(f'<a href="{add_url}?mother={obj.pk}&{return_path}">{text}</a>')
+    When one of the related with MotherAdmin instances exist. Returns simple bold text
+    """
+    return mark_safe(text)
 
 
-def can_change_on_changelist(condition: Condition, text: str) -> format_html:
-    """When action happens on changelist page and planned date is not occurs.
-     Returns the green change reference for a specific condition instance."""
+def add_new(obj: Mother, text: str, path: str) -> format_html:
+    """
+    Add new obj with related with mother instance.
+    """
+    return format_html(f'<a href="{path}?mother={obj.pk}">{text}</a>')
 
-    change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
 
-    style = HTMLBuilder('style')
-    style.add_child("light-green", "green", "rgba(0, 150, 0, 0.8)")
+def change(condition: State, text: str) -> format_html:
+    """
+    Custom change link.
+    """
 
-    link = link_html(change_url, style, "light-green", text)
+    change_url = reverse('admin:mothers_state_change', args=[condition.pk])
+
+    link = link_html(change_url, text)
 
     return mark_safe(link)
 
 
 def can_not_change_on_changelist(text) -> format_html:
-    """When action happens on changelist page and planned date is already occurs. Returns simple bold text."""
-    return mark_safe(text)
-
-
-def change_on_filtered_changelist(condition: Condition, text) -> format_html:
-    """When action happens on filtered changelist page and planned date is already occurs."""
-
-    change_url = reverse('admin:mothers_condition_change', args=[condition.pk])
-
-    style = HTMLBuilder('style')
-    style.add_child("violet-link", "rgba(138, 43, 226, 0.8)", "violet")
-
-    link = link_html(change_url, style, "violet-link", text)
-
-    return mark_safe(link)
+    """
+    When action happens on changelist page and planned date is already occurs. Returns simple bold text.
+    """
+    return simple_text(text)
 
 
 class Specification:
-    """Base class for inheritance future child spec"""
+    """
+    Base class for inheritance future child spec
+    """
 
     def __init__(self, spec):
         self.spec = spec
@@ -310,7 +231,9 @@ class Specification:
 
 
 class Filter:
-    """Base class for inheritance future child filter"""
+    """
+    Base class for inheritance future child filter
+    """
 
     def filter(self, item, spec):
         pass
@@ -318,7 +241,9 @@ class Filter:
 
 class FromUrlSpec(Specification):
     def is_verified(self, item):
-        """Get the specific query from request session"""
+        """
+        Get the specific query from request session
+        """
         spec = item.get(self.spec, False)
         return spec
 

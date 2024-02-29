@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple
 from rangefilter.filters import DateRangeFilter
 
 from django.contrib.admin.helpers import AdminForm
@@ -8,15 +8,13 @@ from django.utils.html import format_html
 from django.db.models import QuerySet
 from django.contrib import admin
 
-from mothers.filters import PlannedTimeFilter, CreatedStatusFilter, EmptyConditionFilter, DateFilter, \
-    ConditionDateFilter
-from mothers.inlines import ConditionInline, CommentInline, PlannedInline
+from mothers.filters import BoardFilter, BanFilter
+from mothers.inlines import StateInline, PlannedInline, BanInline
 from mothers.models import Mother
-from mothers.services.condition import filtered_mothers, filters_datetime, adjust_button_visibility
+from mothers.services.state import filtered_mothers, filters_datetime, adjust_button_visibility, render_icon
 from mothers.services.mother import on_primary_stage, has_permission, get_model_objects, output_time_format, \
-    convert_to_local_time, add_new, simple_text, bold_text, extract_from_url, can_change_on_changelist, \
-    can_not_change_on_changelist, change_on_filtered_changelist, FromUrlSpec, BaseFilter, date_time_or_exception, \
-    convert_utc_to_local
+    convert_to_local_time, add_new, simple_text, reduce_text, extract_from_url, change, can_not_change_on_changelist, \
+    FromUrlSpec, BaseFilter, convert_utc_to_local
 
 # Globally disable delete selected
 admin.site.disable_action('delete_selected')
@@ -27,16 +25,16 @@ class MotherAdmin(admin.ModelAdmin):
     view_on_site = True
     list_max_show_all = 30
     list_per_page = 20
-    empty_value_display = "-empty-"
     search_help_text = 'Search description'
     ordering = ('-date_create',)
-    inlines = (PlannedInline, ConditionInline, CommentInline,)
+    inlines = (PlannedInline, StateInline, BanInline)
     list_filter = (
         ('date_create', DateRangeFilter),
-        DateFilter, PlannedTimeFilter, CreatedStatusFilter, EmptyConditionFilter
+        BoardFilter, BanFilter
     )
     list_display_links = ('name',)
-    search_fields = ('name__icontains', 'number__icontains', 'program__icontains', 'residence__icontains',)
+    search_fields = ('name__icontains', 'number__icontains', 'program__icontains', 'residence__icontains',
+                     'state__reason__icontains')
     fieldsets = [
         (
             None,
@@ -60,65 +58,16 @@ class MotherAdmin(admin.ModelAdmin):
         ),
 
     ]
-    list_display = ('id', 'when_created', 'name', 'number', 'age', 'blood', 'create_condition_link',
+    list_display = ('id', 'when_created', 'name', 'number', 'age', 'blood', 'create_ban', 'create_condition_link', 'reason',
                     'create_condition_datetime')
-
-    def get_search_fields(self, request):
-        pass
-
-    def get_search_results(self, request, queryset, search_term):
-        pass
-
-    def get_ordering(self, request: HttpRequest) -> List[str]:
-        """
-        Return list of fields ordered in specific way
-        """
-
-        created_condition = ["-condition__created"]
-
-        if request.GET.get('planned_time'):
-            return created_condition
-        elif request.GET.get('empty_state'):
-            return created_condition
-        else:
-            return super().get_ordering(request)
-
-    def lookup_allowed(self, lookup: str, value: Any) -> bool:
-        """
-        Check if a lookup is allowed based on specific conditions.
-        """
-
-        if lookup == 'planned_time':
-            date_time_or_exception()
-
-        return super().lookup_allowed(lookup, value)
-
-    def get_list_filter(self, request: HttpRequest):
-        """
-        Based on request return certain filters
-        """
-        if request.GET.get('recently_created'):
-            return DateFilter, CreatedStatusFilter
-        elif request.GET.get('planned_time'):
-            return ConditionDateFilter, PlannedTimeFilter
-        elif request.GET.get('empty_state'):
-            return ConditionDateFilter, EmptyConditionFilter
-
-        return super().get_list_filter(request)
 
     def get_list_display(self, request: HttpRequest) -> Tuple[str, ...]:
         """
         Display another tuple of fields depends on filtered queryset
         """
-        if request.GET.get('planned_time'):
-            return ('id', 'name', 'number', 'age', 'blood', 'reason',
-                    'create_condition_link', 'create_condition_datetime')
-        elif request.GET.get('empty_state'):
-            return ('id', 'name', 'number', 'age', 'blood', 'reason',
-                    'create_condition_link', 'create_condition_datetime')
-        elif request.GET.get('recently_created'):
-            return ('id', 'name', 'number', 'age', 'blood', 'reason',
-                    'create_condition_link')
+        if request.GET.get('filter_set') == 'scheduled_event':
+            return ('id', 'name', 'number', 'age', 'blood',
+                    'create_condition_link', 'reason', 'create_condition_datetime')
 
         return super().get_list_display(request)
 
@@ -174,7 +123,7 @@ class MotherAdmin(admin.ModelAdmin):
 
         queryset = super().get_queryset(request)
         prefetch_query = queryset.prefetch_related(
-            'condition_set', 'planned_set', 'comment_set', 'stage_set'
+            'state_set', 'planned_set', 'ban_set', 'stage_set'
         )
         queryset = on_primary_stage(prefetch_query)
 
@@ -201,53 +150,85 @@ class MotherAdmin(admin.ModelAdmin):
         local_time = convert_to_local_time(obj, user_timezone)
         return output_time_format(local_time)
 
-    @admin.display(description='reason', empty_value="no reason")
+    @admin.display(description='reason')
     def reason(self, obj: Mother) -> str:
-        return obj.last_condition.reason
+        return obj.state_set.last().reason
 
-    @admin.display(description='status', empty_value='no status')
+    @admin.display(description='state')
     def create_condition_link(self, obj: Mother) -> format_html:
         """
         Generate links or simple text for different states
         """
         request = self.request
-        condition = obj.last_condition
-        planned = obj.last_planned
-        comment = obj.last_comment
-        from_filtered = extract_from_url(request, 'planned_time', 'datetime')
-        text = bold_text(condition)
+        state = obj.last_state
+        plan = obj.plan
+        ban = obj.ban
+        params = extract_from_url(request, 'filter_set', 'scheduled_event')
+        state_obj = obj.state_set.last()
+        text = reduce_text(state_obj)
 
         filters = filters_datetime(obj)
-        on_filtered_page = filtered_mothers(filters)
+        filtered_page = filtered_mothers(filters)
 
-        if condition.finished and (planned or comment):
+        if not state and (plan or ban):
             return simple_text(text)
-        if condition.finished and not (planned or comment):
-            return add_new(obj, text, request)
-        if not from_filtered and not condition.finished and not on_filtered_page:
-            return can_change_on_changelist(condition, text)
-        if not from_filtered and not condition.finished and on_filtered_page:
+        if not state and not plan and not ban:
+            path = reverse('admin:mothers_state_add')
+            return add_new(obj, text, path)
+        if state and not params and not filtered_page:
+            return change(state_obj, text)
+        if state and not params and filtered_page:
             return can_not_change_on_changelist(text)
-        if from_filtered and not condition.finished and on_filtered_page:
-            return change_on_filtered_changelist(condition, text)
+        if state and params and filtered_page:
+            return change(state_obj, text)
 
-    @admin.display(description='planned time', empty_value="")
+    @admin.display(description='planned event')
     def create_condition_datetime(self, obj: Mother) -> str:
+        """
+        Show planned time.
+        """
         request = self.request
-        condition = obj.last_condition
+        state = obj.state_set.last()
         from_filtered = extract_from_url(request, 'planned_time', 'datetime')
 
         filters = filters_datetime(obj)
         on_filtered_page = filtered_mothers(filters)
 
         formatted_datetime = None
-        if not condition.finished:
-            local_time = convert_utc_to_local(request, condition.scheduled_date, condition.scheduled_time)
+        if not state.finished:
+            local_time = convert_utc_to_local(request, state.scheduled_date, state.scheduled_time)
             formatted_datetime = output_time_format(local_time)
 
-        if not from_filtered and not condition.finished and not on_filtered_page:
+        if not from_filtered and not state.finished and not on_filtered_page:
             return formatted_datetime
-        if not from_filtered and not condition.finished and on_filtered_page:
+        if not from_filtered and not state.finished and on_filtered_page:
             return formatted_datetime
-        if from_filtered and not condition.finished and on_filtered_page:
+        if from_filtered and not state.finished and on_filtered_page:
             return formatted_datetime
+
+    actions = ["move_to_ban"]
+
+    @admin.action(description="Ban selected mothers")
+    def move_to_ban(self, request, queryset):
+        pass
+
+    @admin.display(description='ban')
+    def create_ban(self, obj: Mother) -> str:
+        """
+        Prepare instance to pass into ban.
+        """
+        state = obj.last_state
+        plan = obj.plan
+        ban = obj.ban
+
+        if (state or plan) and not ban:
+            # one instance from two exists
+            return '-'
+        elif not ban and not state and not plan:
+            # none exists
+            path = reverse('admin:mothers_ban_add')
+            text = '<strong>to ban</strong>'
+            return add_new(obj, text, path)
+        elif ban and not state and not plan:
+            # only ban exists
+            return render_icon(is_success=False)

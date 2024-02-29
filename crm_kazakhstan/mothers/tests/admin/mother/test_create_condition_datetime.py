@@ -7,14 +7,12 @@ from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.db import models
 
-from mothers.models import Mother, Condition
+from mothers.models import Mother, State
 from mothers.admin import MotherAdmin
-from mothers.services.condition import filters_datetime, filtered_mothers
+from mothers.services.state import filters_datetime, filtered_mothers
 
 Mother: models
-Comment: models
-Condition: models
-Planned: models
+State: models
 
 User = get_user_model()
 
@@ -29,8 +27,8 @@ class CreateConditionLinkTest(TestCase):
 
     @freeze_time("2023-12-12 22:00:00")
     def test_on_change_list_page_and_planned_time_has_not_come(self):
-        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 13),
-                                 scheduled_time=time(21, 20, 0), reason='some reason')
+        State.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 13),
+                             scheduled_time=time(21, 20, 0), reason='some reason')
 
         filters = filters_datetime(self.mother)
         on_filtered_page = filtered_mothers(filters)
@@ -46,12 +44,12 @@ class CreateConditionLinkTest(TestCase):
 
         result = self.admin.create_condition_datetime(obj=self.mother)
 
-        self.assertEqual(result, '13 Dec 21:20')
+        self.assertEqual(result, 'Dec. 13, 2023, 21:20')
 
     @freeze_time("2023-12-12 22:00:00")
-    def  test_on_changelist_page_and_planned_time_has_come(self):
-        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
-                                 scheduled_time=time(18, 20, 0), reason='some reason')
+    def test_on_changelist_page_and_planned_time_has_come(self):
+        State.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
+                             scheduled_time=time(18, 20, 0), reason='some reason')
 
         filters = filters_datetime(self.mother)
         on_filtered_page = filtered_mothers(filters)
@@ -67,12 +65,12 @@ class CreateConditionLinkTest(TestCase):
 
         result = self.admin.create_condition_datetime(obj=self.mother)
 
-        self.assertEqual(result, '12 Dec 18:20')
+        self.assertEqual(result, 'Dec. 12, 2023, 18:20')
 
     @freeze_time("2023-12-12 22:00:00")
     def test_on_filtered_changelist_page(self):
-        Condition.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
-                                 scheduled_time=time(18, 20, 0), reason='some reason')
+        State.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
+                             scheduled_time=time(18, 20, 0), reason='some reason')
 
         filters = filters_datetime(self.mother)
         on_filtered_page = filtered_mothers(filters)
@@ -90,4 +88,4 @@ class CreateConditionLinkTest(TestCase):
 
         result = self.admin.create_condition_datetime(obj=self.mother)
 
-        self.assertEqual(result, '12 Dec 18:20')
+        self.assertEqual(result, 'Dec. 12, 2023, 18:20')

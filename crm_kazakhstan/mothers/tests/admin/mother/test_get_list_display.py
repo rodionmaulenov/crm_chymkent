@@ -24,44 +24,19 @@ class GetListDisplayMethodTest(TestCase):
         request.user = self.superuser
 
         list_display = self.admin.get_list_display(request)
-        for_compare = ('id', 'when_created', 'name', 'number', 'age', 'blood', 'create_condition_link',
+        for_compare = ('id', 'when_created', 'name', 'number', 'age', 'blood', 'create_ban', 'create_condition_link', 'reason',
                        'create_condition_datetime')
         self.assertEqual(list_display, for_compare)
 
-    def test_specific_list_for_planned_time(self):
+    def test_specific_list_for_scheduled_event(self):
         url = '/admin/mothers/mother/'
-        query_parameters = {'planned_time': 'datetime'}
+        query_parameters = {'filter_set': 'scheduled_event'}
         url_with_query_param = f'{url}?{urlencode(query_parameters)}'
         request = self.factory.get(url_with_query_param)
         request.user = self.superuser
 
         list_display = self.admin.get_list_display(request)
-        for_compare = ('id', 'name', 'number', 'age', 'blood', 'reason',
-                       'create_condition_link', 'create_condition_datetime')
-
-        self.assertEqual(list_display, for_compare)
-
-    def test_specific_list_for_empty_state(self):
-        url = '/admin/mothers/mother/'
-        query_parameters = {'empty_state': 'empty_condition'}
-        url_with_query_param = f'{url}?{urlencode(query_parameters)}'
-        request = self.factory.get(url_with_query_param)
-        request.user = self.superuser
-
-        list_display = self.admin.get_list_display(request)
-        for_compare = ('id', 'name', 'number', 'age', 'blood', 'reason',
-                       'create_condition_link', 'create_condition_datetime')
-
-        self.assertEqual(list_display, for_compare)
-
-    def test_specific_list_for_recently_created(self):
-        url = '/admin/mothers/mother/'
-        query_parameters = {'recently_created': 'status_created'}
-        url_with_query_param = f'{url}?{urlencode(query_parameters)}'
-        request = self.factory.get(url_with_query_param)
-        request.user = self.superuser
-
-        list_display = self.admin.get_list_display(request)
-        for_compare = ('id', 'name', 'number', 'age', 'blood', 'reason','create_condition_link')
+        for_compare = ('id', 'name', 'number', 'age', 'blood',
+                       'create_condition_link', 'reason', 'create_condition_datetime')
 
         self.assertEqual(list_display, for_compare)

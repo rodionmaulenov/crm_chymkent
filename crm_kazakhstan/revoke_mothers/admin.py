@@ -3,7 +3,7 @@ from django.db import transaction, models
 from django.utils.translation import ngettext
 from django.contrib import messages
 
-from mothers.models import Comment
+
 from revoke_mothers.models import RevokeMother
 
 Comment: models

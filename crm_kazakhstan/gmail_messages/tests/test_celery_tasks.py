@@ -74,7 +74,7 @@ class SaveMessageTestCase(TestCase):
 
         self.assertEqual(len(mothers), 3)
         self.assertEqual(Mother.objects.first().id, 12)
-        self.assertEqual(len(Mother.objects.first().condition_set.all()), 1)
+        self.assertEqual(len(Mother.objects.first().state_set.all()), 1)
 
     @patch('gmail_messages.service_inbox.imaplib.IMAP4_SSL')
     def test_save_message_when_from_all_some_messages_repeat(self, mock_imap):

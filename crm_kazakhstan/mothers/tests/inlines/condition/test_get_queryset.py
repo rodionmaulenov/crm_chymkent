@@ -3,11 +3,11 @@ from django.db import models
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 
-from mothers.inlines import ConditionInline
-from mothers.models import Mother, Condition
+from mothers.inlines import StateInline
+from mothers.models import Mother, State
 
 Mother: models
-Condition: models
+State: models
 
 User = get_user_model()
 
@@ -15,7 +15,7 @@ User = get_user_model()
 class GetQuerysetTest(TestCase):
 
     def setUp(self):
-        self.inline_condition = ConditionInline(Condition, admin.site)
+        self.inline_condition = StateInline(State, admin.site)
 
         self.factory = RequestFactory()
 
@@ -23,10 +23,10 @@ class GetQuerysetTest(TestCase):
 
     def test_first_condition_not_in_queryset(self):
         mother = Mother.objects.create(name="Test")
-        Condition.objects.create(id=1, mother=mother, condition=Condition.ConditionChoices.CREATED,
-                                 reason='for example')
-        Condition.objects.create(id=2, mother=mother, condition=Condition.ConditionChoices.NO_BABY,
-                                 reason='for1 example')
+        State.objects.create(id=1, mother=mother, condition=State.ConditionChoices.CREATED,
+                             reason='for example')
+        State.objects.create(id=2, mother=mother, condition=State.ConditionChoices.NO_BABY,
+                             reason='for1 example')
 
         request = self.factory.get('/')
         request.user = self.super_user

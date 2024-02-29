@@ -1,3 +1,3 @@
-from .condition_inline import ConditionInline
-from .planned_inline import PlannedInline
-from .comment_inline import CommentInline
+from .state import StateInline
+from .planned import PlannedInline
+from .ban import BanInline
