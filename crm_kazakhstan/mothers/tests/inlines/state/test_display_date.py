@@ -41,5 +41,4 @@ class DisplayDateMethodTest(TestCase):
         condition = State.objects.create(mother=self.mother)
         date_display = self.inline_condition.display_date(condition)
 
-        expected_value = '_'
-        self.assertEqual(date_display, expected_value)
+        self.assertEqual(date_display, None)

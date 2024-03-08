@@ -5,16 +5,18 @@ from django.contrib.admin.helpers import AdminForm
 from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse
 from django.utils.html import format_html
-from django.db.models import QuerySet
-from django.contrib import admin
+from django.db.models import QuerySet, F
+from django.utils.translation import ngettext
+from django.db import transaction
+from django.contrib import admin, messages
 
 from mothers.filters import BoardFilter, BanFilter
 from mothers.inlines import StateInline, PlannedInline, BanInline
-from mothers.models import Mother
+from mothers.models import Mother, Stage
 from mothers.services.state import filtered_mothers, filters_datetime, adjust_button_visibility, render_icon
 from mothers.services.mother import on_primary_stage, has_permission, get_model_objects, output_time_format, \
     convert_to_local_time, add_new, simple_text, reduce_text, extract_from_url, change, can_not_change_on_changelist, \
-    FromUrlSpec, BaseFilter, convert_utc_to_local
+    FromUrlSpec, BaseFilter, convert_utc_to_local, after_change_message, tuple_inlines
 
 # Globally disable delete selected
 admin.site.disable_action('delete_selected')
@@ -26,10 +28,10 @@ class MotherAdmin(admin.ModelAdmin):
     list_max_show_all = 30
     list_per_page = 20
     search_help_text = 'Search description'
-    ordering = ('-date_create',)
+    ordering = ('-created',)
     inlines = (PlannedInline, StateInline, BanInline)
     list_filter = (
-        ('date_create', DateRangeFilter),
+        ('created', DateRangeFilter),
         BoardFilter, BanFilter
     )
     list_display_links = ('name',)
@@ -58,8 +60,15 @@ class MotherAdmin(admin.ModelAdmin):
         ),
 
     ]
-    list_display = ('id', 'when_created', 'name', 'number', 'age', 'blood', 'create_ban', 'create_condition_link', 'reason',
-                    'create_condition_datetime')
+    list_display = (
+        'id', 'when_created', 'name', 'number', 'age', 'blood', 'create_ban', 'create_condition_link', 'reason',
+        'create_condition_datetime')
+
+    actions = ["move_to_ban"]
+
+    def get_inlines(self, request, obj):
+        inlines = super().get_inlines(request, obj)
+        return tuple_inlines(obj, inlines)
 
     def get_list_display(self, request: HttpRequest) -> Tuple[str, ...]:
         """
@@ -93,7 +102,7 @@ class MotherAdmin(admin.ModelAdmin):
         """
         After change redirect on previous url if exists or on changelist
         """
-
+        self.message_user(request, after_change_message(obj), level=messages.SUCCESS)
         mother_changelist = reverse('admin:mothers_mother_changelist')
 
         changelist_spec = FromUrlSpec('_changelist_filters')
@@ -106,17 +115,18 @@ class MotherAdmin(admin.ModelAdmin):
 
     def has_module_permission(self, request: HttpRequest) -> bool:
         """
-        Permission for first layer on site, see or not Mother. If superuser True else objects that has the same
-        with user perms exist or not.
+        Basic behavior or when user has is assigned him custom ``Permission``- ``app_label.codename``.
         """
         if super().has_module_permission(request):
             return True
-        data = on_primary_stage(get_model_objects(self, request))
-        return data.exists()
+
+        data = get_model_objects(self, request, ['primary_stage'])
+        users_mothers = on_primary_stage(data).exists()
+        return users_mothers
 
     def get_queryset(self, request: HttpRequest) -> QuerySet:
         """
-        Queryset contains exclusively the Mother instances where Stage is Primary
+        Queryset contains exclusively the Mother instances where Stage is Primary.
         """
         # assign request for using in custom MotherAdmin methods
         self.request = request
@@ -130,15 +140,18 @@ class MotherAdmin(admin.ModelAdmin):
         if request.user.has_perm('mothers.view_mother'):
             return queryset
 
-        data = get_model_objects(self, request)
-        data = on_primary_stage(data)
-        return data
+        data = get_model_objects(self, request, ['primary_stage'])
+        users_mothers = on_primary_stage(data)
+        return users_mothers
 
     def has_view_permission(self, request: HttpRequest, obj: Mother = None) -> bool:
         return has_permission(self, request, obj, 'view')
 
     def has_change_permission(self, request: HttpRequest, obj: Mother = None) -> bool:
-        return has_permission(self, request, obj, 'change')
+        mother_changelist = reverse('admin:mothers_mother_changelist')
+        if mother_changelist in request.get_full_path():
+            return has_permission(self, request, obj, 'change')
+        return request.user.is_superuser
 
     @admin.display(description='created', empty_value="no date", )
     def when_created(self, obj: Mother) -> str:
@@ -206,12 +219,6 @@ class MotherAdmin(admin.ModelAdmin):
         if from_filtered and not state.finished and on_filtered_page:
             return formatted_datetime
 
-    actions = ["move_to_ban"]
-
-    @admin.action(description="Ban selected mothers")
-    def move_to_ban(self, request, queryset):
-        pass
-
     @admin.display(description='ban')
     def create_ban(self, obj: Mother) -> str:
         """
@@ -232,3 +239,32 @@ class MotherAdmin(admin.ModelAdmin):
         elif ban and not state and not plan:
             # only ban exists
             return render_icon(is_success=False)
+
+    @admin.action(description='move to ban')
+    def move_to_ban(self, request, queryset):
+        mothers = queryset.filter(ban__banned=False)
+
+        with transaction.atomic():
+            # Bulk create new stages for each mother
+            new_stages = [Stage(mother=mother, stage=Stage.StageChoices.BAN) for mother in mothers]
+            Stage.objects.bulk_create(new_stages)
+
+            # Update the previous stages for each mother to be finished
+            Stage.objects.filter(
+                mother__in=mothers,
+                id__lt=F('mother__stage__id'),
+                # Ensure we only update stages with IDs less than the newly created stages
+                finished=False
+            ).update(finished=True)
+
+            mothers = len(mothers)
+            self.message_user(
+                request,
+                ngettext(
+                    "%d mother was successfully transferred to the ban.",
+                    "%d mothers were successfully transferred to the ban.",
+                    mothers,
+                )
+                % mothers,
+                messages.SUCCESS,
+            )

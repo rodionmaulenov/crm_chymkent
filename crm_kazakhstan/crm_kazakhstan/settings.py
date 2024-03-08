@@ -53,7 +53,6 @@ INSTALLED_APPS = [
     # MY APPS
     'mothers',
     'first_visit',
-    'revoke_mothers',
     'gmail_messages',
     # many-to-one relationships with mother
     'documents',
@@ -67,6 +66,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.locale.LocaleMiddleware',  # switch languages
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'crm_kazakhstan.middleware.TimezoneMiddleware',

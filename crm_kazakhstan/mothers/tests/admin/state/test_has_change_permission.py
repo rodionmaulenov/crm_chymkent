@@ -13,23 +13,16 @@ Mother: models
 State: models
 
 
-class HasChangePermissionMethodTest(TestCase):
+class HasChangePermissionTest(TestCase):
     def setUp(self):
         self.site = AdminSite()
         self.admin = StateAdmin(State, self.site)
         self.factory = RequestFactory()
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
-        self.staff_user = User.objects.create(username='staffuser', password='password', is_staff=True)
+        self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True)
 
-    def test_super_user_has_change_perm_list_lvl(self):
-        request = self.factory.get('/')
-        request.user = self.superuser
-        view = self.admin.has_change_permission(request)
-
-        self.assertFalse(view)
-
-    def test_super_user_has_change_perm_obj_lvl(self):
+    def test_super_user_has_perm_obj_lvl(self):
         mother = Mother.objects.create(name='Mother 1')
         condition = State.objects.create(mother=mother)
         request = self.factory.get('/')
@@ -38,28 +31,26 @@ class HasChangePermissionMethodTest(TestCase):
 
         self.assertTrue(view)
 
-    def test_staff_user_has_not_change_perm_list_lvl(self):
+    def test_super_user_has_perm_list_layer(self):
         request = self.factory.get('/')
-        request.user = self.staff_user
+        request.user = self.superuser
         view = self.admin.has_change_permission(request)
 
         self.assertFalse(view)
 
-    def test_staff_has_change_perm_obj(self):
+    def test_staff_has_perm_if_obj(self):
         mother = Mother.objects.create(name='Mother 1')
         condition = State.objects.create(mother=mother)
-
-        assign_perm('change_state', self.staff_user, condition)
+        assign_perm('primary_state', self.staff_user, condition)
 
         request = self.factory.get('/')
         request.user = self.staff_user
 
         self.assertTrue(self.admin.has_change_permission(request, condition))
 
-    def test_staff_has_change_obj_perm_with_model_change_lvl_perm(self):
+    def test_staff_has_perm_with_model_lvl_perm(self):
         mother = Mother.objects.create(name='Mother 1')
         condition = State.objects.create(mother=mother)
-
         view_permission = Permission.objects.get(codename='change_state')
         self.staff_user.user_permissions.add(view_permission)
 
@@ -68,12 +59,19 @@ class HasChangePermissionMethodTest(TestCase):
 
         self.assertTrue(self.admin.has_change_permission(request, condition))
 
-    def test_staff_has_not_change_perm_obj(self):
+    def test_staff_has_not_perm_obj(self):
         mother = Mother.objects.create(name='Mother 1')
         condition = State.objects.create(mother=mother)
 
         request = self.factory.get('/')
         request.user = self.staff_user
         view = self.admin.has_change_permission(request, condition)
+
+        self.assertFalse(view)
+
+    def test_staff_user_has_not_perm_list_layer(self):
+        request = self.factory.get('/')
+        request.user = self.staff_user
+        view = self.admin.has_change_permission(request)
 
         self.assertFalse(view)

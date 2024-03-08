@@ -2,7 +2,7 @@ from typing import Dict, Any, Optional, Type, Tuple
 from guardian.admin import GuardedModelAdmin
 
 from django.db.models import Field
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.admin.helpers import AdminForm
 from django.forms import ModelForm
 from django import forms
@@ -13,8 +13,9 @@ from mothers.admin import MotherAdmin
 from mothers.forms import StateAdminForm
 from mothers.models import State, Mother
 from mothers.services.state import extract_choices, filter_choices, inject_request_into_form, \
-    convert_to_utc_and_save, assign_permissions_to_user, has_permission, adjust_button_visibility
-from mothers.services.mother import get_model_objects
+    convert_to_utc_and_save, assign_permissions_to_user, has_permission, adjust_button_visibility, after_add_message, \
+    after_change_message
+from mothers.services.mother import get_model_objects, on_primary_stage
 
 
 @admin.register(State)
@@ -42,20 +43,29 @@ class StateAdmin(GuardedModelAdmin):
             return ()
 
     def has_module_permission(self, request: HttpRequest) -> bool:
-        """Not access to site layer for all."""
-        if super().has_module_permission(request):
-            return False
+        """
+        Refused access for all on site layer.
+        """
+        return False
 
-    def has_view_permission(self, request: HttpRequest, obj=None) -> bool:
+    def has_view_permission(self, request: HttpRequest, obj: State = None) -> bool:
         return has_permission(self, request, obj, 'view')
 
-    def has_change_permission(self, request: HttpRequest, obj=None) -> bool:
+    def has_change_permission(self, request: HttpRequest, obj: State = None) -> bool:
         return has_permission(self, request, obj, 'change')
 
     def has_add_permission(self, request: HttpRequest, obj=None) -> bool:
-        """Obviously assign base permission or if mother objects belong to user"""
+        """
+        Can add just only user that has model base ``add`` ``Permission``
+        and when user and ``Mother`` instance are assigned custom permission during creation.
+        """
+
         mother_admin = MotherAdmin(Mother, admin.site)
-        return super().has_add_permission(request) or get_model_objects(mother_admin, request).exists()
+        data = get_model_objects(mother_admin, request, ['primary_stage'])
+        users_mothers = on_primary_stage(data).exists()
+
+        base_case = super().has_add_permission(request)
+        return base_case or users_mothers
 
     def render_change_form(self, request: HttpRequest, context: Dict[str, Any],
                            add: bool = False, change: bool = False,
@@ -80,12 +90,14 @@ class StateAdmin(GuardedModelAdmin):
         """After add redirect ot mother changelist page."""
 
         mother_changelist = reverse('admin:mothers_mother_changelist')
+        self.message_user(request, after_add_message(obj), level=messages.SUCCESS)
         return HttpResponseRedirect(mother_changelist)
 
     def response_change(self, request: HttpRequest, obj: State) -> HttpResponseRedirect:
         """After any change redirect ot mother changelist page."""
 
         mother_changelist = reverse('admin:mothers_mother_changelist')
+        self.message_user(request, after_change_message(obj), level=messages.SUCCESS)
         return HttpResponseRedirect(mother_changelist)
 
     def save_model(self, request: HttpRequest, obj: State, form: ModelForm, change: bool) -> None:
@@ -101,7 +113,7 @@ class StateAdmin(GuardedModelAdmin):
 
         if is_new:
             # Assign permission for each new instance of Condition
-            assign_permissions_to_user(request.user, obj, ['view_state', 'change_state'])
+            assign_permissions_to_user(request.user, obj, ['primary_state'])
 
     def get_form(self, request: HttpRequest, obj=None, **kwargs) -> Type[forms.ModelForm]:
         """

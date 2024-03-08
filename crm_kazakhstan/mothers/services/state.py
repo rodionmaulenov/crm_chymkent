@@ -17,8 +17,10 @@ from django.templatetags.static import static
 from django.contrib.auth import get_user_model
 from django.utils.safestring import mark_safe
 
+from gmail_messages.services.manager_factory import ManagerFactory
 from mothers.models import Mother, State, Ban
 from mothers.forms import StateAdminForm
+from mothers.services.mother import reduce_text
 
 Mother: models
 State: models
@@ -248,29 +250,34 @@ def convert_to_utc_and_save(request: HttpRequest, obj: State) -> None:
 
 def assign_permissions_to_user(user: User, obj: Union[State, Ban], perms: list) -> None:
     """
-    Assigns 'view_condition' and 'change_condition' permissions to the user for the given Condition instance.
+    To specific user is assigned custom ``Permission``-``primary_stage`` to just now created ``State`` instance.
     """
     # Retrieve or define the user to whom permissions will be assigned
     username = user.username
-    user_primary_stage = User.objects.get(username=username)
+    user = User.objects.get(username=username)
 
-    # Assign permission for each new instance of Condition
-    for perm in perms:
-        assign_perm(perm, user_primary_stage, obj)
+    # Assign permission for each new instance of State
+    factory = ManagerFactory()
+    primary_manager = factory.create('PrimaryStageManager')
+    primary_manager.assign_user(perms, obj, user)
 
 
-def has_permission(adm: ModelAdmin, request: HttpRequest, obj: State, action: str) -> bool:
+def has_permission(adm: ModelAdmin, request: HttpRequest, obj: Union[State, Ban], action: str) -> bool:
     """
-    User has or model lvl permission or assigned permission
+    User has obj level permission when has model ``view, change, delete`` and in case
+    when user is assigned custom permission ``primary_stage`` on some ``Stage`` instance.
     """
+    custom_act = 'mothers.primary_state'
     _meta = adm.opts
-    code_name = f'{action}_{_meta.model_name}'
-    perm = f'{_meta.app_label}.{code_name}'
-    obj_perm = request.user.has_perm(perm, obj)
-    perm = request.user.has_perm(perm)
+    app_label = _meta.app_label
+    model_name = _meta.model_name
+    base_perm = f'{app_label}.{action}_{model_name}'
+
+    obj_lvl_perm = request.user.has_perm(custom_act, obj)
+    modl_lvl_perm = request.user.has_perm(base_perm)
 
     if obj:
-        return obj_perm or perm
+        return obj_lvl_perm or modl_lvl_perm
 
     return False
 
@@ -286,21 +293,27 @@ def adjust_button_visibility(context: Dict[str, Any], add: bool, change: bool) -
         context['show_save'] = True  # Ensure "Save" button is visible
 
 
-def after_add_message(self: ModelAdmin, request: HttpRequest, obj: State) -> None:
+def after_add_message(obj: State) -> str:
+    text = reduce_text(obj)
     url = reverse('admin:mothers_mother_change', args=[obj.mother.id])
-    message = format_html(
-        f'Condition "<strong>{obj.get_condition_display()}</strong>" '
-        f'successfully created for <a href="{url}">{obj.mother}</a>'
+    added_message = format_html(
+        f'State {text} successfully created for <strong><a href="{url}">{obj.mother}</a></strong>'
     )
-    self.message_user(request, message, messages.SUCCESS)
+    return added_message
 
 
-def after_change_message(self: ModelAdmin, request: HttpRequest, obj: State) -> None:
+def after_change_message(obj: State) -> str:
+    text = reduce_text(obj)
+
     url = reverse('admin:mothers_mother_change', args=[obj.mother.id])
 
     if obj.finished:
-        message = format_html(
-            f'Condition "<strong>{obj.get_condition_display()}</strong>"'
-            f' already completed for <a href="{url}">{obj.mother}</a>'
+        complete_message = format_html(
+            f'State {text} already completed for <strong><a href="{url}">{obj.mother}</a></strong>'
         )
-        self.message_user(request, message, messages.SUCCESS)
+        return complete_message
+
+    changed_message = format_html(
+        f'State {text} changed for <strong><a href="{url}">{obj.mother}</a></strong>'
+    )
+    return changed_message

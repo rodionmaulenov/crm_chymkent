@@ -18,7 +18,7 @@ class DisplayReasonMethodTest(TestCase):
 
     def test_display_reason_if_exists(self):
         condition = State.objects.create(mother=self.mother, condition=State.ConditionChoices.NO_BABY,
-                                             reason='for example')
+                                         reason='for example')
         reason_display = self.inline_condition.display_reason(condition)
 
         expected_value = condition.reason
@@ -28,6 +28,5 @@ class DisplayReasonMethodTest(TestCase):
         condition = State.objects.create(mother=self.mother, condition=State.ConditionChoices.NO_BABY)
         reason_display = self.inline_condition.display_reason(condition)
 
-        expected_value = '_'
+        expected_value = '-'
         self.assertEqual(reason_display, expected_value)
-

@@ -14,7 +14,7 @@ class Mother(models.Model):
     citizenship = models.CharField(max_length=100, blank=True, null=True)
     blood = models.CharField(max_length=100, blank=True, null=True)
     maried = models.CharField(max_length=100, blank=True, null=True)
-    date_create = models.DateTimeField(auto_now_add=True)
+    created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.name
@@ -40,3 +40,9 @@ class Mother(models.Model):
         if ban:
             return finished
         return False
+
+    class Meta:
+        permissions = (
+            ('primary_stage', 'primary stage'),
+        )
+

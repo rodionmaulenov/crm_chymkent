@@ -10,7 +10,7 @@ class State(models.Model):
         WROTE_IN_WHATSAPP_AND_WAITING = 'WWW', 'wrote WhatsApp, waiting the answer'
 
     mother = models.ForeignKey("Mother", on_delete=models.CASCADE)
-    condition = models.CharField(max_length=10, choices=ConditionChoices.choices, default=ConditionChoices.EMPTY,
+    condition = models.CharField(max_length=20, choices=ConditionChoices.choices, default=ConditionChoices.EMPTY,
                                  blank=True, null=True)
     reason = models.TextField(blank=True, null=True)
     scheduled_date = models.DateField(blank=True, null=True)
@@ -19,4 +19,9 @@ class State(models.Model):
     finished = models.BooleanField(default=False)
 
     def __str__(self):
-        return ''
+        return f'{self.mother}.state instance'
+
+    class Meta:
+        permissions = (
+            ('primary_state', 'primary state'),
+        )

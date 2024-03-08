@@ -6,3 +6,6 @@ class Ban(models.Model):
     comment = models.TextField()
     created = models.DateTimeField(auto_now_add=True)
     banned = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f'{self.mother}.ban instance'

@@ -1,7 +1,7 @@
 import pytz
 
 from datetime import datetime, time, date
-from typing import Optional
+from typing import Optional, Union
 
 from django.contrib.admin import ModelAdmin
 from django.db.models import Count
@@ -13,7 +13,7 @@ from django.db.models import QuerySet, Q
 from django.utils.html import format_html, mark_safe
 from guardian.shortcuts import get_objects_for_user
 
-from mothers.models import Stage, State, Mother
+from mothers.models import Stage, State, Mother, Ban
 
 Stage: models
 State: models
@@ -58,24 +58,44 @@ def convert_utc_to_local(request: HttpRequest, utc_date: date, utc_time: time) -
 
 def on_primary_stage(queryset: QuerySet) -> QuerySet:
     """
-    Get only mothers where Stage is Primary
+    Gets ``Mother`` instances from ``Stage.StageChoices.PRIMARY``.
     """
     return queryset.filter(stage__stage=Stage.StageChoices.PRIMARY, stage__finished=False)
 
 
 def we_are_working(queryset: QuerySet) -> QuerySet:
     """
-    Get only mothers where state is working
+    When `State`` becomes 'we are working'.
     """
     return queryset.filter(state__condition=State.ConditionChoices.WORKING, state__finished=False)
 
 
-def convert_to_local_time(obj: Mother, user_timezone: str) -> timezone.datetime:
+def convert_to_local_time(obj: Union[Mother, Ban], user_timezone: str) -> timezone.datetime:
     """
     Converts the 'date_create' of a Mother instance from UTC to the user's local timezone.
     """
     user_tz = pytz.timezone(str(user_timezone))
-    return timezone.localtime(obj.date_create, timezone=user_tz)
+    return timezone.localtime(obj.created, timezone=user_tz)
+
+
+def tuple_inlines(obj: Mother, inlines) -> tuple:
+    """
+    Get inlines if their queryset not none.
+    """
+    from mothers.inlines import StateInline, BanInline
+    filtered_inlines = []
+    for inline in inlines:
+        if inline is StateInline:
+            states = obj.state_set.all()
+            not_one = len(states) > 1
+            if not_one:
+                filtered_inlines.append(inline)
+        if inline is BanInline:
+            bans = obj.ban_set.exists()
+            if bans:
+                filtered_inlines.append(inline)
+
+    return tuple(filtered_inlines)
 
 
 def output_time_format(local_scheduled_datetime: Optional[datetime]) -> str:
@@ -85,37 +105,38 @@ def output_time_format(local_scheduled_datetime: Optional[datetime]) -> str:
     return formats.date_format(local_scheduled_datetime, "N j, Y, H:i")
 
 
-def get_model_objects(adm: ModelAdmin, request: HttpRequest) -> QuerySet:
+def get_model_objects(adm: ModelAdmin, request: HttpRequest, actions: Union[list, str]) -> QuerySet:
     """
     Retrieves a QuerySet of objects from the model associated with the provided MotherAdmin instance (`adm`).
-    The objects are filtered based on the user's permissions. It checks if the user has either 'view' or 'change'
-    permissions for the objects of the model.
+    The objects are filtered based on the user's permissions. It checks if the user has custom permissions
+    for the objects of the model.
     """
-    _meta = adm.opts
-    actions = ['view', 'change']  # Define the permissions to check
-    perms = [f'{perm}_{_meta.model_name}' for perm in actions]  # Construct permission codenames
-    klass = _meta.model  # The model class associated with the ModelAdmin
+    klass = adm.opts.model
 
     # Retrieve and return the objects for which the user has the specified permissions
-    return get_objects_for_user(user=request.user, perms=perms, klass=klass, any_perm=True)
+    return get_objects_for_user(user=request.user, perms=actions, klass=klass, any_perm=True)
 
 
 def has_permission(adm: ModelAdmin, request: HttpRequest, obj: Mother, action: str) -> bool:
     """
-    Two type users. First see only assigned him objects. Second see all objects if he had corresponding permission.
+    User has obj level and list level permission when has model ``view, change, delete`` and in case
+    when user is assigned custom permission ``primary_stage`` on some ``Mother`` instance.
     """
-    app_label = adm.opts.app_label
-    model_name = adm.opts.model_name
-    permission = f'{app_label}.{action}_{model_name}'
-    obj_perm = request.user.has_perm(permission, obj)
-    perm = request.user.has_perm(permission)
+    custom_act = 'mothers.primary_stage'
+    _meta = adm.opts
+    app_label = _meta.app_label
+    model_name = _meta.model_name
+    base_perm = f'{app_label}.{action}_{model_name}'
+
+    obj_lvl_perm = request.user.has_perm(custom_act, obj)
+    modl_lvl_perm = request.user.has_perm(base_perm)
 
     if obj:
-        return obj_perm or perm
+        return obj_lvl_perm or modl_lvl_perm
 
-    user_obj = get_model_objects(adm, request)
-    data_exists = on_primary_stage(user_obj).exists()
-    return data_exists or perm
+    users_objs = get_model_objects(adm, request, custom_act)
+    data_exists = on_primary_stage(users_objs).exists()
+    return data_exists or modl_lvl_perm
 
 
 def get_already_created(queryset: QuerySet) -> QuerySet:
@@ -149,6 +170,15 @@ def get_empty_state(queryset: QuerySet) -> QuerySet:
     """
     return queryset.filter((Q(state__condition=State.ConditionChoices.EMPTY) | Q(state__condition=None))
                            & Q(state__finished=False))
+
+
+def after_change_message(obj: Mother) -> str:
+    url = reverse('admin:mothers_mother_change', args=[obj.pk])
+
+    changed_message = format_html(
+        f'Changes for <strong><a href="{url}">{obj}</a></strong> saved successfully.'
+    )
+    return changed_message
 
 
 def reduce_text(last_condition: State) -> format_html:

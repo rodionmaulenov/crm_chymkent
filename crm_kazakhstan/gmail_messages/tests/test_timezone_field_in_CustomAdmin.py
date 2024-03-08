@@ -10,3 +10,8 @@ class CustomUserAdminTest(TestCase):
         admin = CustomUserAdmin(CustomUser, AdminSite())
         timezone_exists = any('timezone' in fieldset[1]['fields'] for fieldset in admin.fieldsets)
         self.assertTrue(timezone_exists)
+
+    def test_stage_field_in_fieldsets(self):
+        admin = CustomUserAdmin(CustomUser, AdminSite())
+        timezone_exists = any('stage' in fieldset[1]['fields'] for fieldset in admin.fieldsets)
+        self.assertTrue(timezone_exists)

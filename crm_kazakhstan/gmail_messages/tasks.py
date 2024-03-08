@@ -3,13 +3,13 @@ import os
 
 from datetime import timedelta
 from celery import shared_task
-from guardian.shortcuts import assign_perm
 
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils import timezone
 
-from gmail_messages.service_inbox import InboxMessages
+from gmail_messages.services.manager_factory import ManagerFactory
+from gmail_messages.services.service_inbox import InboxMessages
 
 from mothers.models import Mother, State, Stage
 
@@ -48,6 +48,7 @@ translation_dict = {
     'Семейное положение': 'maried',
 }
 
+
 @shared_task
 def save_message():
     inbox = InboxMessages()
@@ -71,16 +72,15 @@ def save_message():
             State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED, finished=True)
             Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
 
-            # Get or create the group
-            rushane = User.objects.get(username='Rushana')
-
-            # Assign permission for each instance of Mother
-            assign_perm('view_mother', rushane, mother)
-            assign_perm('change_mother', rushane, mother)
+            factory = ManagerFactory()
+            primary_manager = factory.create('PrimaryStageManager')
+            primary_manager.assign_user(['primary_stage'], mother)
 
         inbox.not_proceed_emails.clear()
         # Close the mailbox
         inbox.mail.logout()
+    except Exception as e:
+        print(e)
     except IndexError:
         # Close the mailbox
         inbox.mail.logout()

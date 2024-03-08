@@ -1,17 +1,18 @@
-from datetime import date, time
-
 import pytz
+
+from datetime import date, time
+from freezegun import freeze_time
+from guardian.shortcuts import get_perms
+from urllib.parse import urlencode
 
 from django.db import models
 from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from urllib.parse import urlencode
 from django.utils import timezone
-from freezegun import freeze_time
-from guardian.shortcuts import get_perms
 
+from gmail_messages.models import CustomUser
 from mothers.models import State, Mother
 from mothers.admin import StateAdmin
 
@@ -27,11 +28,10 @@ class SaveModelTest(TestCase):
         self.admin = StateAdmin(State, self.site)
         self.factory = RequestFactory()
 
-        self.staff_user_without_local_time = User.objects.create_superuser(username='admin', password='password',
-                                                                           is_staff=True)
-        self.super_user_with_local_time = User.objects.create_superuser(username='admin1', password='password',
-                                                                        timezone='Europe/Kyiv')
-        self.rushana = User.objects.create_user(username='Rushana', password='password')
+        self.user_without_timezone = User.objects.create_superuser(username='staff2', password='password',
+                                                           is_staff=True, stage=CustomUser.StageChoices.PRIMARY)
+        self.user_timezone = User.objects.create_superuser(username='admin1', password='password',
+                                                                   timezone='Europe/Kyiv')
 
     def test_add_first_condition_created(self):
         mother = Mother.objects.create(name='Mother')
@@ -49,7 +49,7 @@ class SaveModelTest(TestCase):
         url = f"{relative_path}?{urlencode(query_params)}"
 
         request = self.factory.get(url)
-        request.user = self.staff_user_without_local_time
+        request.user = self.user_without_timezone
 
         form_class = self.admin.get_form(request=request, change=False)
 
@@ -60,7 +60,7 @@ class SaveModelTest(TestCase):
 
     def test_add_second_condition_created_raise_error(self):
         mother = Mother.objects.create(name='Mother')
-        State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED)
+        State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED, finished=True)
         form_data = {
             'mother': mother.pk,
             'condition': 'created',
@@ -75,7 +75,7 @@ class SaveModelTest(TestCase):
         url = f"{relative_path}?{urlencode(query_params)}"
 
         request = self.factory.get(url)
-        request.user = self.staff_user_without_local_time
+        request.user = self.user_without_timezone
 
         form_class = self.admin.get_form(request=request, change=False)
 
@@ -98,7 +98,8 @@ class SaveModelTest(TestCase):
     @freeze_time("2024-01-18 12:00:00")
     def test_add_condition_scheduled_date_and_time_without_local_user_time(self):
         mother = Mother.objects.create(name='Mother')
-        State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED)
+        State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED, finished=True)
+
         form_data = {
             'mother': mother.pk,
             'condition': 'no baby',
@@ -113,7 +114,7 @@ class SaveModelTest(TestCase):
         url = f"{relative_path}?{urlencode(query_params)}"
 
         request = self.factory.get(url)
-        request.user = self.staff_user_without_local_time
+        request.user = self.user_without_timezone
 
         form_class = self.admin.get_form(request=request, change=False)
 
@@ -142,7 +143,6 @@ class SaveModelTest(TestCase):
             scheduled_date=date(2024, 1, 18),
             scheduled_time=time(12, 0, 0)
         )
-
         # Kyiv is typically UTC+2 or UTC+3 depending on DST, adjust accordingly
         kyiv_timezone = pytz.timezone('Europe/Kyiv')
         timezone.activate(kyiv_timezone)
@@ -161,7 +161,7 @@ class SaveModelTest(TestCase):
         url = f"{relative_path}?{urlencode({'mother': mother.pk})}"
 
         request = self.factory.get(url)
-        request.user = self.staff_user_without_local_time
+        request.user = self.user_without_timezone
 
         form_class = self.admin.get_form(request=request, obj=existing_condition, change=True)
         form_instance = form_class(data=form_data, instance=existing_condition)
@@ -171,14 +171,14 @@ class SaveModelTest(TestCase):
             existing_condition.refresh_from_db()
 
             self.assertEqual(existing_condition.scheduled_date, date(2024, 1, 18))
-            self.assertEqual(existing_condition.scheduled_time, time(14, 0, 0),)
+            self.assertEqual(existing_condition.scheduled_time, time(14, 0, 0), )
             self.assertEqual(existing_condition.reason, 'Updated reason')
         else:
             self.fail(f'Form is not valid: {form_instance.errors}')
 
         timezone.deactivate()
 
-    @freeze_time("2024-01-18 12:00:00")
+    @freeze_time("2024-01-18 15:00:00")
     def test_change_condition_scheduled_date_and_time_with_local_user_time(self):
         mother = Mother.objects.create(name='Mother')
         # Create an existing Condition instance
@@ -186,7 +186,7 @@ class SaveModelTest(TestCase):
             mother=mother,
             condition=State.ConditionChoices.NO_BABY,
             scheduled_date=date(2024, 1, 18),
-            scheduled_time=time(12, 0, 0)
+            scheduled_time=time(15, 0, 0)
         )
 
         # Kyiv is typically UTC+2 or UTC+3 depending on DST, adjust accordingly
@@ -207,7 +207,7 @@ class SaveModelTest(TestCase):
         url = f"{relative_path}?{urlencode({'mother': mother.pk})}"
 
         request = self.factory.get(url)
-        request.user = self.super_user_with_local_time
+        request.user = self.user_timezone
 
         form_class = self.admin.get_form(request=request, obj=existing_condition, change=True)
         form_instance = form_class(data=form_data, instance=existing_condition)
@@ -224,12 +224,12 @@ class SaveModelTest(TestCase):
 
         timezone.deactivate()
 
-    def test_aa_condition_with_perms_change_and_view(self):
+    def test_aa_condition_with_custom_perm(self):
         mother = Mother.objects.create(name='Mother')
         obj = State(mother=mother, scheduled_date=date(2024, 1, 18))
         self.assertIsNone(obj.pk)
         request = self.factory.get('/')
-        request.user = self.rushana
+        request.user = self.user_without_timezone
 
         form = self.admin.get_form(request)
         self.admin.save_model(request, obj, form, change=False)
@@ -237,6 +237,5 @@ class SaveModelTest(TestCase):
         obj.refresh_from_db()
         self.assertIsNotNone(obj.pk)
 
-        perms = get_perms(self.rushana, obj)
-        self.assertIn('view_state', perms)
-        self.assertIn('change_state', perms)
+        perms = get_perms(self.user_without_timezone, obj)
+        self.assertIn('primary_state', perms)

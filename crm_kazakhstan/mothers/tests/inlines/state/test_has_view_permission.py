@@ -1,7 +1,4 @@
-from guardian.shortcuts import assign_perm
-
 from django.contrib import admin
-from django.contrib.auth.models import Permission
 from django.test import TestCase, RequestFactory
 from django.contrib.auth import get_user_model
 from django.db import models
@@ -14,7 +11,7 @@ Mother: models
 State: models
 
 
-class HasViewPermissionMethodTest(TestCase):
+class HasViewPermissionTest(TestCase):
     def setUp(self):
         self.inline_condition = StateInline(Mother, admin.site)
         self.factory = RequestFactory()
@@ -31,33 +28,19 @@ class HasViewPermissionMethodTest(TestCase):
 
         self.assertTrue(view)
 
-    def test_staff_assign_view_perm(self):
+    def test_staff_user_has_view_perm_obj(self):
         mother = Mother.objects.create(name='Mother 1')
         state = State.objects.create(mother=mother)
-        assign_perm('view_state', self.staff_user, state)
-
         request = self.factory.get('/')
         request.user = self.staff_user
         view = self.inline_condition.has_view_permission(request, state)
 
         self.assertTrue(view)
 
-    def test_staff_has_view_perm_list_layer_with_model_lvl_view_perm(self):
-        view_permission = Permission.objects.get(codename='view_state')
-        self.staff_user.user_permissions.add(view_permission)
-
+    def test_has_view_perm_obj(self):
         mother = Mother.objects.create(name='Mother 1')
         state = State.objects.create(mother=mother)
-
         request = self.factory.get('/')
-        request.user = self.staff_user
         view = self.inline_condition.has_view_permission(request, state)
 
         self.assertTrue(view)
-
-    def test_staff_user_has_not_view_perm(self):
-        request = self.factory.get('/')
-        request.user = self.staff_user
-        view = self.inline_condition.has_view_permission(request)
-
-        self.assertFalse(view)

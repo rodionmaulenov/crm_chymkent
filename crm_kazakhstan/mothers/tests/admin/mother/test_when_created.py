@@ -29,7 +29,7 @@ class MotherDateCreateTest(TestCase):
 
         self.mother_obj = Mother.objects.create(
             name='Test Mother',
-            date_create=timezone.make_aware(
+            created=timezone.make_aware(
                 datetime.datetime(2023, 12, 12, 16, 0, 0), timezone=timezone.utc)
         )
 

@@ -14,15 +14,14 @@ Stage: models
 Mother: models
 
 
-class GetQuerySetMethodTest(TestCase):
+class GetQuerysetTest(TestCase):
     def setUp(self):
         self.site = AdminSite()
         self.admin = MotherAdmin(Mother, self.site)
         self.factory = RequestFactory()
 
-        self.rushana = User.objects.create_user(username='Rushana', password='password')
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
-        self.staff_user = User.objects.create(username='staffuser', password='password', is_staff=True)
+        self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True)
 
     def test_has_queryset_for_superuser(self):
         request = self.factory.get('/')
@@ -48,7 +47,7 @@ class GetQuerySetMethodTest(TestCase):
 
         self.assertEqual(len(queryset), 0)
 
-    def test_has_queryset_for_superuser_mother_instance_on_another_stage(self):
+    def test_has_queryset_for_superuser_mother_instance_mix_stage(self):
         request = self.factory.get('/')
         request.user = self.superuser
         queryset = self.admin.get_queryset(request)
@@ -67,7 +66,7 @@ class GetQuerySetMethodTest(TestCase):
 
         self.assertEqual(len(queryset), 0)
 
-    def test_has_queryset_for_staff_without_group_perms_and_mothers_without_obj_lvl_perms(self):
+    def test_has_queryset_for_staff_without_perms(self):
         request = self.factory.get('/')
         request.user = self.staff_user
         queryset = self.admin.get_queryset(request)
@@ -79,7 +78,7 @@ class GetQuerySetMethodTest(TestCase):
 
         self.assertEqual(len(queryset), 0)
 
-    def test_has_queryset_for_staff_has_group_primary_stage_and_mothers_without_obj_lvl_perms(self):
+    def test_staff_user_has_obj_lvl_perm(self):
         request = self.factory.get('/')
         request.user = self.staff_user
         queryset = self.admin.get_queryset(request)
@@ -89,41 +88,14 @@ class GetQuerySetMethodTest(TestCase):
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
         Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
 
-        self.assertEqual(len(queryset), 0)
-
-    def test_queryset_for_staff_has_group_primary_stage_and_mothers_without_obj_lvl_perms(self):
-        request = self.factory.get('/')
-        request.user = self.staff_user
-        queryset = self.admin.get_queryset(request)
-
-        mother = Mother.objects.create(name='Mother 1')
-        mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
-
-        self.assertEqual(len(queryset), 0)
-
-    def test_queryset_for_rushana_has_mothers(self):
-        request = self.factory.get('/')
-        request.user = self.rushana
-        queryset = self.admin.get_queryset(request)
-
-        mother = Mother.objects.create(name='Mother 1')
-        mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
-
-        assign_perm('view_mother', self.rushana, mother)
-        assign_perm('change_mother', self.rushana, mother)
-
-        assign_perm('view_mother', self.rushana, mother2)
-        assign_perm('change_mother', self.rushana, mother2)
+        assign_perm('primary_stage', self.staff_user, mother)
+        assign_perm('primary_stage', self.staff_user, mother2)
 
         self.assertEqual(len(queryset), 2)
 
-    def test_queryset_for_rushana_has_mother(self):
+    def test_staff_user_has_obj_lvl_perm_on_one_instance(self):
         request = self.factory.get('/')
-        request.user = self.rushana
+        request.user = self.staff_user
         queryset = self.admin.get_queryset(request)
 
         mother = Mother.objects.create(name='Mother 1')
@@ -131,48 +103,24 @@ class GetQuerySetMethodTest(TestCase):
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
         Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
 
-        assign_perm('view_mother', self.rushana, mother)
-        assign_perm('change_mother', self.rushana, mother)
+        assign_perm('primary_stage', self.staff_user, mother)
 
         self.assertEqual(len(queryset), 1)
 
-    def test_queryset_for_rushana_has_mother_first_visit_stages(self):
-        request = self.factory.get('/')
-        request.user = self.rushana
-        queryset = self.admin.get_queryset(request)
-
+    def test_staff_user_has_model_view_perm(self):
         mother = Mother.objects.create(name='Mother 1')
-        mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
 
-        assign_perm('view_mother', self.rushana, mother)
-        assign_perm('change_mother', self.rushana, mother)
+        view_permission = Permission.objects.get(codename='view_mother')
+        self.staff_user.user_permissions.add(view_permission)
 
-        assign_perm('view_mother', self.rushana, mother2)
-        assign_perm('change_mother', self.rushana, mother2)
-
-        self.assertEqual(len(queryset), 0)
-
-    def test_queryset_for_rushana_has_mother_first_visit_stages_and_primary(self):
         request = self.factory.get('/')
-        request.user = self.rushana
+        request.user = self.staff_user
         queryset = self.admin.get_queryset(request)
-
-        mother = Mother.objects.create(name='Mother 1')
-        mother2 = Mother.objects.create(name='Mother 2')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
-        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
-
-        assign_perm('view_mother', self.rushana, mother)
-        assign_perm('change_mother', self.rushana, mother)
-
-        assign_perm('view_mother', self.rushana, mother2)
-        assign_perm('change_mother', self.rushana, mother2)
 
         self.assertEqual(len(queryset), 1)
 
-    def tes_user_with_base_mother_model_view_perm(self):
+    def test_staff_user_has_model_view_perm_on_diff_stage(self):
         view_permission = Permission.objects.get(codename='view_mother')
         self.staff_user.user_permissions.add(view_permission)
 
@@ -181,20 +129,11 @@ class GetQuerySetMethodTest(TestCase):
         queryset = self.admin.get_queryset(request)
 
         mother = Mother.objects.create(name='Mother 1')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
-
-        self.assertEqual(len(queryset), 1)
-
-    def test_user_with_base_mother_model_view_perm_on_primary_stage(self):
-        request = self.factory.get('/')
-        request.user = self.superuser
-        queryset = self.admin.get_queryset(request)
-
-        mother = Mother.objects.create(name='Mother 1')
         mother_2 = Mother.objects.create(name='Mother 2')
 
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=True)
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT, finished=True)
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
 
         Stage.objects.create(mother=mother_2, stage=Stage.StageChoices.PRIMARY, finished=False)
         Stage.objects.create(mother=mother_2, stage=Stage.StageChoices.FIRST_VISIT, finished=True)

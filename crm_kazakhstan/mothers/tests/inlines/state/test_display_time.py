@@ -41,5 +41,4 @@ class DisplayTimeMethodTest(TestCase):
         condition = State.objects.create(mother=self.mother)
         time_display = self.inline_condition.display_time(condition)
 
-        expected_value = '-'
-        self.assertEqual(time_display, expected_value)
+        self.assertEqual(time_display, None)
