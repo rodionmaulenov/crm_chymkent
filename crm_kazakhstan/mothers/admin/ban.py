@@ -70,41 +70,41 @@ class BanAdmin(admin.ModelAdmin):
             # Assign permission for each new instance of Condition
             assign_permissions_to_user(request.user, obj, ['view_ban'])
 
-    # def has_module_permission(self, request: HttpRequest) -> bool:
-    #     """
-    #     Permission for first layer on site, see or not Mother. If superuser True else objects that has the same
-    #     with user perms exist or not.
-    #     """
-    #     mother_admin = MotherAdmin(Mother, admin.site)
-    #     users_objs = get_model_objects(mother_admin, request, ['view', 'change']).exists()
-    #
-    #     base = super().has_module_permission(request)
-    #     return base or users_objs
-    #
-    # def get_queryset(self, request: HttpRequest) -> QuerySet:
-    #     """
-    #     Queryset contains exclusively the Mother instances where Stage is Ban
-    #     """
-    #     # assign request for using in custom MotherAdmin methods
-    #     self.request = request
-    #
-    #     queryset = super().get_queryset(request)
-    #     queryset = queryset.select_related(
-    #         'mother'
-    #     )
-    #     if request.user.has_perm('mothers.view_ban'):
-    #         return queryset
-    #
-    #     data = get_model_objects(self, request)
-    #     data = on_ban_stage(data)
-    #     return data
-    #
-    # def has_view_permission(self, request: HttpRequest, obj: Ban = None) -> bool:
-    #     return view_perm(self, request, obj, 'view')
-    #
-    # def has_add_permission(self, request: HttpRequest) -> bool:
-    #     add = super().has_add_permission(request)
-    #     return add_perm(request, add)
+    def has_module_permission(self, request: HttpRequest) -> bool:
+        """
+        Permission for first layer on site, see or not Mother. If superuser True else objects that has the same
+        with user perms exist or not.
+        """
+        mother_admin = MotherAdmin(Mother, admin.site)
+        users_objs = get_model_objects(mother_admin, request, ['view', 'change']).exists()
+
+        base = super().has_module_permission(request)
+        return base or users_objs
+
+    def get_queryset(self, request: HttpRequest) -> QuerySet:
+        """
+        Queryset contains exclusively the Mother instances where Stage is Ban
+        """
+        # assign request for using in custom MotherAdmin methods
+        self.request = request
+
+        queryset = super().get_queryset(request)
+        queryset = queryset.select_related(
+            'mother'
+        )
+        if request.user.has_perm('mothers.view_ban'):
+            return queryset
+
+        data = get_model_objects(self, request)
+        data = on_ban_stage(data)
+        return data
+
+    def has_view_permission(self, request: HttpRequest, obj: Ban = None) -> bool:
+        return view_perm(self, request, obj, 'view')
+
+    def has_add_permission(self, request: HttpRequest) -> bool:
+        add = super().has_add_permission(request)
+        return add_perm(request, add)
 
     # def response_add(self, request: HttpRequest, obj: Ban, post_url_continue=None) -> HttpResponseRedirect:
     #     """After add redirect ot mother changelist page."""
