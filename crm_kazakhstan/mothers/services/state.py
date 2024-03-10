@@ -1,13 +1,11 @@
 from datetime import date, time
 from typing import Tuple, Union, Dict, Any, Optional, List, Type
-from guardian.shortcuts import assign_perm
 
 from django.urls import reverse
 from django.utils.html import format_html
 from django.contrib.admin import ModelAdmin
 from django.forms import ModelForm
 from django import forms
-from django.contrib import messages
 from django.db.models import Q, Field
 from django.http import HttpRequest
 from django.utils import timezone
@@ -256,7 +254,7 @@ def assign_permissions_to_user(user: User, obj: Union[State, Ban], perms: list) 
     username = user.username
     user = User.objects.get(username=username)
 
-    # Assign permission for each new instance of State
+    # Assign permission for each new instance
     factory = ManagerFactory()
     primary_manager = factory.create('PrimaryStageManager')
     primary_manager.assign_user(perms, obj, user)

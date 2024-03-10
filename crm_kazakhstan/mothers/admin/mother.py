@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.db.models import QuerySet, F
 from django.utils.translation import ngettext
-from django.db import transaction
+from django.db import transaction, models
 from django.contrib import admin, messages
 
 from mothers.filters import BoardFilter, BanFilter
@@ -17,6 +17,8 @@ from mothers.services.state import filtered_mothers, filters_datetime, adjust_bu
 from mothers.services.mother import on_primary_stage, has_permission, get_model_objects, output_time_format, \
     convert_to_local_time, add_new, simple_text, reduce_text, extract_from_url, change, can_not_change_on_changelist, \
     FromUrlSpec, BaseFilter, convert_utc_to_local, after_change_message, tuple_inlines
+
+Mother: models
 
 # Globally disable delete selected
 admin.site.disable_action('delete_selected')
@@ -65,6 +67,17 @@ class MotherAdmin(admin.ModelAdmin):
         'create_condition_datetime')
 
     actions = ["move_to_ban"]
+
+    def get_actions(self, request):
+        """
+        Delete actions in specific conditions.
+        """
+        action_dict = super().get_actions(request)
+        mothers = Mother.objects.filter(stage__stage=Stage.StageChoices.PRIMARY, stage__finished=False,
+                                        ban__banned=False)
+        if not mothers:
+            del action_dict['move_to_ban']
+        return action_dict
 
     def get_inlines(self, request, obj):
         inlines = super().get_inlines(request, obj)
@@ -145,12 +158,12 @@ class MotherAdmin(admin.ModelAdmin):
         return users_mothers
 
     def has_view_permission(self, request: HttpRequest, obj: Mother = None) -> bool:
-        return has_permission(self, request, obj, 'view')
+        return has_permission(self, request, 'view', obj)
 
     def has_change_permission(self, request: HttpRequest, obj: Mother = None) -> bool:
         mother_changelist = reverse('admin:mothers_mother_changelist')
         if mother_changelist in request.get_full_path():
-            return has_permission(self, request, obj, 'change')
+            return has_permission(self, request, 'change', obj)
         return request.user.is_superuser
 
     @admin.display(description='created', empty_value="no date", )

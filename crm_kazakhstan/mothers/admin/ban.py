@@ -1,7 +1,8 @@
 from typing import Optional, Tuple, Dict, Any
 
-from django.contrib import admin
-from django.http import HttpRequest
+from django.contrib import admin, messages
+from django.urls import reverse
+from django.http import HttpRequest, HttpResponseRedirect
 from django.db.models import QuerySet
 from django.forms import ModelForm
 from django.contrib.admin.helpers import AdminForm
@@ -9,7 +10,7 @@ from django.contrib.admin.helpers import AdminForm
 from mothers.admin import MotherAdmin
 from mothers.forms import BanAdminForm
 from mothers.models import Ban, Mother
-from mothers.services.ban import view_perm, add_perm, on_ban_stage
+from mothers.services.ban import on_ban_stage, has_permission, after_add_message
 from mothers.services.mother import get_model_objects
 from mothers.services.state import adjust_button_visibility, assign_permissions_to_user
 
@@ -68,22 +69,21 @@ class BanAdmin(admin.ModelAdmin):
 
         if is_new:
             # Assign permission for each new instance of Condition
-            assign_permissions_to_user(request.user, obj, ['view_ban'])
+            assign_permissions_to_user(request.user, obj, ['ban_state'])
 
     def has_module_permission(self, request: HttpRequest) -> bool:
         """
-        Permission for first layer on site, see or not Mother. If superuser True else objects that has the same
-        with user perms exist or not.
+        When user has an object created by him or when has model level permission.
         """
-        mother_admin = MotherAdmin(Mother, admin.site)
-        users_objs = get_model_objects(mother_admin, request, ['view', 'change']).exists()
+        users_objs = get_model_objects(self, request, ['ban_state'])
+        on_ban = on_ban_stage(users_objs).exists()
 
         base = super().has_module_permission(request)
-        return base or users_objs
+        return base or on_ban
 
     def get_queryset(self, request: HttpRequest) -> QuerySet:
         """
-        Queryset contains exclusively the Mother instances where Stage is Ban
+        All mother instances on ``Stage`` ``Ban``.
         """
         # assign request for using in custom MotherAdmin methods
         self.request = request
@@ -92,23 +92,27 @@ class BanAdmin(admin.ModelAdmin):
         queryset = queryset.select_related(
             'mother'
         )
-        if request.user.has_perm('mothers.view_ban'):
-            return queryset
 
-        data = get_model_objects(self, request)
-        data = on_ban_stage(data)
-        return data
+        if request.user.has_perm('mothers.view_ban'):
+            return on_ban_stage(queryset)
+
+        users_objs = get_model_objects(self, request, ['ban_state'])
+        return on_ban_stage(users_objs)
 
     def has_view_permission(self, request: HttpRequest, obj: Ban = None) -> bool:
-        return view_perm(self, request, obj, 'view')
+        return has_permission(self, request, 'view', obj)
 
     def has_add_permission(self, request: HttpRequest) -> bool:
-        add = super().has_add_permission(request)
-        return add_perm(request, add)
+        from mothers.services.mother import has_permission
+        admin_mother = MotherAdmin(Mother, admin.site)
+        add_url = reverse('admin:mothers_ban_add')
 
-    # def response_add(self, request: HttpRequest, obj: Ban, post_url_continue=None) -> HttpResponseRedirect:
-    #     """After add redirect ot mother changelist page."""
-    #
-    #     mother_changelist = reverse('admin:mothers_mother_changelist')
-    #     self.message_user(request, after_add_message(obj), level=messages.SUCCESS)
-    #     return HttpResponseRedirect(mother_changelist)
+        if add_url in request.get_full_path():
+            return has_permission(admin_mother, request, 'add')
+        return False
+
+    def response_add(self, request: HttpRequest, obj: Ban, post_url_continue=None) -> HttpResponseRedirect:
+
+        mother_changelist = reverse('admin:mothers_mother_changelist')
+        self.message_user(request, after_add_message(obj), level=messages.SUCCESS)
+        return HttpResponseRedirect(mother_changelist)

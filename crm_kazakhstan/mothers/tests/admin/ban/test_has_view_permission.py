@@ -20,75 +20,68 @@ class HasViewPermissionTest(TestCase):
         self.admin = BanAdmin(Ban, admin.site)
         self.factory = RequestFactory()
 
+        self.mother = Mother.objects.create(name='mother')
+        self.ban = Ban.objects.create(mother=self.mother, comment='some reason', banned=False)
+
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
-        self.staff_user = User.objects.create(username='staffuser', password='password', is_staff=True)
+        self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True)
 
-    def test_super_user_has_view_perm(self):
+    def test_super_user_has_perm_if_obj(self):
         request = self.factory.get('/')
         request.user = self.superuser
-        view = self.admin.has_view_permission(request, obj=None)
+        view = self.admin.has_view_permission(request, self.ban)
 
         self.assertTrue(view)
 
-    def test_super_user_has_view_perm_obj(self):
-        mother = Mother.objects.create(name='Mother 1')
-        ban = Ban.objects.create(mother=mother, comment='some comment')
+    def test_super_user_has_perm_list_layer(self):
         request = self.factory.get('/')
         request.user = self.superuser
-        view = self.admin.has_view_permission(request, ban)
+        view = self.admin.has_view_permission(request)
 
         self.assertTrue(view)
 
-    def test_staff_user_has_model_view_perm_obj(self):
-        mother = Mother.objects.create(name='Mother 1')
-        ban = Ban.objects.create(mother=mother, comment='some comment')
+    def test_staff_has_perm_if_obj(self):
+        assign_perm('ban_state', self.staff_user, self.ban)
+
+        request = self.factory.get('/')
+        request.user = self.staff_user
+        view = self.admin.has_view_permission(request, self.ban)
+
+        self.assertTrue(view)
+
+    def test_staff_has_perm_list_layer(self):
+        Stage.objects.create(mother=self.mother, stage=Stage.StageChoices.BAN, finished=False)
+        assign_perm('ban_state', self.staff_user, self.ban)
+
+        request = self.factory.get('/')
+        request.user = self.staff_user
+        view = self.admin.has_view_permission(request)
+
+        self.assertTrue(view)
+
+    def test_staff_assign_model_perm_if_obj(self):
         view_permission = Permission.objects.get(codename='view_ban')
         self.staff_user.user_permissions.add(view_permission)
+
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request, ban)
+        view = self.admin.has_view_permission(request, self.ban)
 
         self.assertTrue(view)
 
-    def test_staff_user_has_view_perm_obj(self):
-        mother = Mother.objects.create(name='Mother 1')
-        ban = Ban.objects.create(mother=mother, comment='some comment')
-        assign_perm('view_ban', self.staff_user, ban)
+    def test_staff_assign_model_perm_list_layer(self):
+        view_permission = Permission.objects.get(codename='view_ban')
+        self.staff_user.user_permissions.add(view_permission)
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request, ban)
+        view = self.admin.has_view_permission(request)
 
         self.assertTrue(view)
 
-    def test_staff_user_not_has_model_view_perm_obj(self):
-        mother = Mother.objects.create(name='Mother 1')
-        ban = Ban.objects.create(mother=mother, comment='some comment')
+    def test_staff_user_has_not_any_perms(self):
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request, ban)
+        view = self.admin.has_view_permission(request)
 
         self.assertFalse(view)
-
-    def test_staff_user_has_list_view_perm(self):
-        mother = Mother.objects.create(name='Mother 1')
-        Ban.objects.create(mother=mother, comment='some comment')
-        view_permission = Permission.objects.get(codename='view_ban')
-        self.staff_user.user_permissions.add(view_permission)
-        request = self.factory.get('/')
-        request.user = self.staff_user
-        view = self.admin.has_view_permission(request, obj=None)
-
-        self.assertTrue(view)
-
-    def test_staff_user_has_list_view_perm_2(self):
-        mother = Mother.objects.create(name='Mother 1')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.BAN)
-        Ban.objects.create(mother=mother, comment='some comment')
-        assign_perm('view_mother', self.staff_user, mother)
-
-        request = self.factory.get('/')
-        request.user = self.staff_user
-        view = self.admin.has_view_permission(request, obj=None)
-
-        self.assertTrue(view)

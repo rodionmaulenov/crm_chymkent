@@ -117,7 +117,7 @@ def get_model_objects(adm: ModelAdmin, request: HttpRequest, actions: Union[list
     return get_objects_for_user(user=request.user, perms=actions, klass=klass, any_perm=True)
 
 
-def has_permission(adm: ModelAdmin, request: HttpRequest, obj: Mother, action: str) -> bool:
+def has_permission(adm: ModelAdmin, request: HttpRequest, action: str, obj: Mother = None) -> bool:
     """
     User has obj level and list level permission when has model ``view, change, delete`` and in case
     when user is assigned custom permission ``primary_stage`` on some ``Mother`` instance.
@@ -131,7 +131,7 @@ def has_permission(adm: ModelAdmin, request: HttpRequest, obj: Mother, action: s
     obj_lvl_perm = request.user.has_perm(custom_act, obj)
     modl_lvl_perm = request.user.has_perm(base_perm)
 
-    if obj:
+    if obj is not None:
         return obj_lvl_perm or modl_lvl_perm
 
     users_objs = get_model_objects(adm, request, custom_act)
