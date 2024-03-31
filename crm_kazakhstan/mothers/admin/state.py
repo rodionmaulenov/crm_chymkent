@@ -13,9 +13,10 @@ from mothers.admin import MotherAdmin
 from mothers.forms import StateAdminForm
 from mothers.models import State, Mother
 from mothers.services.state import extract_choices, filter_choices, inject_request_into_form, \
-    convert_to_utc_and_save, assign_permissions_to_user, has_permission, adjust_button_visibility, after_add_message, \
-    after_change_message
+    convert_to_utc_and_save, has_permission, adjust_button_visibility, after_add_message, after_change_message
 from mothers.services.mother import get_model_objects, on_primary_stage
+
+from gmail_messages.services.manager_factory import ManagerFactory
 
 
 @admin.register(State)
@@ -44,27 +45,30 @@ class StateAdmin(GuardedModelAdmin):
 
     def has_module_permission(self, request: HttpRequest) -> bool:
         """
-        Refused access for all on site layer.
+        Access is denied to everyone.
         """
         return False
 
     def has_view_permission(self, request: HttpRequest, obj: State = None) -> bool:
-        return has_permission(self, request, obj, 'view')
+        return has_permission(self, request, 'view', obj)
 
     def has_change_permission(self, request: HttpRequest, obj: State = None) -> bool:
-        return has_permission(self, request, obj, 'change')
+        return has_permission(self, request, 'change', obj)
 
-    def has_add_permission(self, request: HttpRequest, obj=None) -> bool:
+    def has_add_permission(self, request: HttpRequest) -> bool:
         """
         Can add just only user that has model base ``add`` ``Permission``
         and when user and ``Mother`` instance are assigned custom permission during creation.
         """
 
         mother_admin = MotherAdmin(Mother, admin.site)
-        data = get_model_objects(mother_admin, request, ['primary_stage'])
+        stage = request.user.stage
+
+        data = get_model_objects(mother_admin, request, stage)
         users_mothers = on_primary_stage(data).exists()
 
         base_case = super().has_add_permission(request)
+
         return base_case or users_mothers
 
     def render_change_form(self, request: HttpRequest, context: Dict[str, Any],
@@ -113,7 +117,11 @@ class StateAdmin(GuardedModelAdmin):
 
         if is_new:
             # Assign permission for each new instance of Condition
-            assign_permissions_to_user(request.user, obj, ['primary_state'])
+            user = request.user
+
+            factory = ManagerFactory()
+            primary_manager = factory.create('PrimaryStageManager')
+            primary_manager.assign_user(content_type=self, obj=obj, user=user)
 
     def get_form(self, request: HttpRequest, obj=None, **kwargs) -> Type[forms.ModelForm]:
         """

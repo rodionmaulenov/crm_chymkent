@@ -4,6 +4,7 @@ from django.contrib.admin.sites import AdminSite
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 
 from mothers.models import State, Mother
 from mothers.admin import StateAdmin
@@ -22,7 +23,8 @@ class ResponseAddMethodTest(TestCase):
 
     def test_response_add_with_extra_params(self):
         mother = Mother.objects.create(name='Mother')
-        condition = State.objects.create(mother=mother)
+        condition = State.objects.create(mother=mother, scheduled_date=timezone.now().date(),
+                                         scheduled_time=timezone.now().time())
 
         request = self.factory.post(
             '/admin/mothers/condition/add/?_changelist_filters=/admin/mothers/mother/%3Fsomefilter%3Dvalue'
@@ -38,7 +40,8 @@ class ResponseAddMethodTest(TestCase):
 
     def test_response_add(self):
         mother = Mother.objects.create(name='Mother')
-        condition = State.objects.create(mother=mother)
+        condition = State.objects.create(mother=mother, scheduled_date=timezone.now().date(),
+                                         scheduled_time=timezone.now().time())
 
         request = self.factory.post('/admin/mothers/condition/add/')
         request.user = self.superuser

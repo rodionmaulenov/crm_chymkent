@@ -16,24 +16,23 @@ class HasModulePermissionTest(TestCase):
         self.factory = RequestFactory()
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
-        self.staff_user = User.objects.create(username='staffuser', password='password', is_staff=True)
-        self.rushana = User.objects.create_user(username='Rushana', password='password')
+        self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True)
 
-    def test_has_not_access_to_first_layer_site_mother_for_superuser(self):
+    def test_super_user_has_not_access(self):
         request = self.factory.get('/')
         request.user = self.superuser
         access = self.admin.has_module_permission(request)
 
         self.assertFalse(access)
 
-    def test_has_not_access_to_first_layer_site_mother_staff_user(self):
+    def test_staff_user_has_not_access(self):
         request = self.factory.get('/')
         request.user = self.staff_user
         access = self.admin.has_module_permission(request)
 
         self.assertFalse(access)
 
-    def test_has_not_access_to_first_layer_site_mother_staff_user_with_view_perm(self):
+    def test_has_not_access_even_if_has_perm(self):
         view_permission = Permission.objects.get(codename='view_state')
         self.staff_user.user_permissions.add(view_permission)
         request = self.factory.get('/')

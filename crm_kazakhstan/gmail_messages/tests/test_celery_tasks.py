@@ -8,9 +8,9 @@ from guardian.shortcuts import get_perms
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
 
-from gmail_messages.models import CustomUser
 from gmail_messages.services.service_inbox import InboxMessages
-from gmail_messages.tasks import save_message
+from gmail_messages.tasks import save_message, Stage
+
 from mothers.models import Mother
 
 Mother: models
@@ -21,7 +21,7 @@ User = get_user_model()
 class SaveMessageTestCase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='test+user', password='password', is_staff=True,
-                                             stage=CustomUser.StageChoices.PRIMARY)
+                                             stage=Stage.StageChoices.PRIMARY)
 
         self.email_user = "example@gmail.com"
         self.email_pass = "testpassword"
@@ -73,7 +73,11 @@ class SaveMessageTestCase(TestCase):
         self.assertEqual(len(mothers.filter(stage__isnull=False)), 3)
 
         for mother in Mother.objects.all():
-            self.assertTrue(self.user.has_perm('mothers.primary_stage', mother))
+            stage = Stage.StageChoices.PRIMARY.value
+            model_name = mother.__class__.__name__
+            username = self.user.username
+            perm = f'{stage}_{model_name}_{username}'.lower()
+            self.assertTrue(self.user.has_perm(perm, mother))
 
         self.assertEqual(len(mothers), 3)
         self.assertEqual(Mother.objects.first().id, 12)

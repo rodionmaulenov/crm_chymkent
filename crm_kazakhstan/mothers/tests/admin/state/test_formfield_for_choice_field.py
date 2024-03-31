@@ -1,6 +1,7 @@
 from django.db import models
 from django.test import TestCase, RequestFactory
 from django.contrib import admin
+from django.utils import timezone
 
 from mothers.admin import StateAdmin
 from mothers.models import State, Mother
@@ -31,7 +32,8 @@ class FormFieldForChoiceFieldMethodTest(TestCase):
         db_field = State._meta.get_field('condition')
 
         mother = Mother.objects.create(name='Test')
-        condition_instance = State.objects.create(mother=mother)
+        condition_instance = State.objects.create(mother=mother, scheduled_date=timezone.now().date(),
+                                                  scheduled_time=timezone.now().time())
         self.admin.current_obj = condition_instance
 
         formfield = self.admin.formfield_for_choice_field(db_field, request)

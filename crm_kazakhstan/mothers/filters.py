@@ -20,6 +20,29 @@ class BaseSimpleListFilter(admin.SimpleListFilter):
             }
 
 
+class ActionFilter(BaseSimpleListFilter):
+    """Display three action ``planned``, ``statsu``, ``ban``."""
+    title = 'actions'
+    parameter_name = "actions"
+
+    def lookups(self, request, model_admin):
+        return (
+            ('planned_actions', 'planned'),
+            ('state_actions', 'state'),
+        )
+
+    def queryset(self, request, queryset):
+
+        if self.value() == "planned_actions":
+            return queryset.filter(
+                planned__finished=False
+            )
+        if self.value() == "state_actions":
+            return queryset.filter(
+                state__finished=False
+            )
+
+
 class BoardFilter(BaseSimpleListFilter):
     """Condition board filter."""
     title = 'board'
@@ -63,21 +86,3 @@ class BoardFilter(BaseSimpleListFilter):
         if self.value() == 'already_working':
             queryset = we_are_working(queryset)
             return queryset
-
-
-class BanFilter(BaseSimpleListFilter):
-    title = 'ban'
-    parameter_name = "ban"
-
-    def lookups(self, request, model_admin):
-        qs = model_admin.get_queryset(request)
-        queryset = ban_query(qs)
-        if queryset:
-            yield 'ban_exist', 'ban'
-
-    def queryset(self, request, queryset):
-        if self.value() == 'ban_exist':
-            queryset = ban_query(queryset)
-            return queryset
-
-

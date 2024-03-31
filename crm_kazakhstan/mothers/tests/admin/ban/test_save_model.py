@@ -5,9 +5,7 @@ from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 
-from gmail_messages.models import CustomUser
-
-from mothers.models import Ban, Mother
+from mothers.models import Ban, Mother, Stage
 from mothers.admin import BanAdmin
 
 User = get_user_model()
@@ -23,7 +21,7 @@ class SaveModelTest(TestCase):
         self.factory = RequestFactory()
 
         self.staff_user = User.objects.create(username='admin', password='password', is_staff=True,
-                                              stage=CustomUser.StageChoices.PRIMARY)
+                                              stage=Stage.StageChoices.PRIMARY)
 
     def test_when_add_is_assigned_obj_perm_view(self):
         mother = Mother.objects.create(name='Mother')
@@ -38,5 +36,4 @@ class SaveModelTest(TestCase):
 
         self.assertIsNotNone(obj.pk)
 
-        self.assertEqual(get_perms(self.staff_user, obj), ['ban_state'])
-
+        self.assertEqual(get_perms(self.staff_user, obj), ['primary_ban_admin'])

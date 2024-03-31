@@ -21,9 +21,9 @@ class RenderChangeFormTest(TestCase):
         self.admin = StateAdmin(State, self.site)
         self.factory = RequestFactory()
 
-        self.superuser = User.objects.create_superuser(username='testuser', email='test@example.com',
+        self.superuser = User.objects.create_superuser(username='admin', email='test@example.com',
                                                        password='top_secret')
-        self.staff_user = User.objects.create_user(username='staffuser', password='top_secret')
+        self.staff_user = User.objects.create_user(username='staff_user', password='top_secret')
 
     def test_render_change_form_add_for_superuser(self):
         request = self.factory.get('/')

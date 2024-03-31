@@ -35,11 +35,15 @@ class WeAreWorkingFilterTest(TestCase):
         State.objects.create(
             mother=mother,
             condition=State.ConditionChoices.CREATED,
+            scheduled_date=timezone.now().date(),
+            scheduled_time=timezone.now().time(),
             finished=True
         )
         State.objects.create(
             mother=mother,
             condition=State.ConditionChoices.WORKING,
+            scheduled_date=timezone.now().date(),
+            scheduled_time=timezone.now().time(),
             finished=False
         )
 
@@ -59,11 +63,15 @@ class WeAreWorkingFilterTest(TestCase):
         State.objects.create(
             mother=mother,
             condition=State.ConditionChoices.CREATED,
+            scheduled_date=timezone.now().date(),
+            scheduled_time=timezone.now().time(),
             finished=True
         )
         State.objects.create(
             mother=mother,
             condition=State.ConditionChoices.WORKING,
+            scheduled_date=timezone.now().date(),
+            scheduled_time=timezone.now().time(),
             finished=True
         )
 

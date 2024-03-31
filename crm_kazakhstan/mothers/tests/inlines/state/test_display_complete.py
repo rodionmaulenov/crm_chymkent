@@ -2,6 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.contrib import admin
+from django.utils import timezone
 
 from mothers.inlines import StateInline
 from mothers.models import Mother, State
@@ -21,7 +22,8 @@ class DisplayCompleteMethodTest(TestCase):
         self.inline_condition = StateInline(State, admin.site)
 
     def test_finished_false(self):
-        condition = State.objects.create(mother=self.mother, finished=False)
+        condition = State.objects.create(mother=self.mother, finished=False, scheduled_date=timezone.now().date(),
+                                         scheduled_time=timezone.now().time())
 
         not_complete = self.inline_condition.display_complete(condition)
 
@@ -31,7 +33,10 @@ class DisplayCompleteMethodTest(TestCase):
         self.assertEqual(not_complete, expected_value)
 
     def test_finished_True(self):
-        condition = State.objects.create(mother=self.mother, finished=True)
+        condition = State.objects.create(mother=self.mother, finished=True,
+                                         scheduled_date=timezone.now().date(),
+                                         scheduled_time=timezone.now().time()
+                                         )
         complete = self.inline_condition.display_complete(condition)
 
         expected_value = ('<img src="/static/mothers/icons/green_check_mark.jpg" '

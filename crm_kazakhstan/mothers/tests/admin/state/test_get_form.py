@@ -5,6 +5,7 @@ from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from mothers.models import State, Mother
 from mothers.admin import StateAdmin
@@ -81,7 +82,8 @@ class GetFormMethodTest(TestCase):
     def test_form_change_current_obj_attr_exists(self):
         request = self.factory.get('/admin/mothers/condition/123/change/')
         mother = Mother.objects.create(name='Test Mother')
-        condition_instance = State.objects.create(mother=mother)
+        condition_instance = State.objects.create(mother=mother, scheduled_date=timezone.now().date(),
+                                                  scheduled_time=timezone.now().time())
         self.condition_admin.get_form(request, obj=condition_instance)
 
         self.assertEqual(self.condition_admin.current_obj, condition_instance)

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 
 from django.test import TestCase, RequestFactory
 from django.contrib import admin
@@ -25,8 +25,9 @@ class AdminDisplayFirstPlannedVisitTest(TestCase):
 
         self.planned = Planned.objects.create(
             mother=self.mother,
-            plan=Planned.PlannedChoices.TAKE_TESTS,
-            scheduled_date=datetime(2023, 12, 27, tzinfo=timezone.utc)
+            plan=Planned.PlannedChoices.FIRST_TEST,
+            scheduled_date=datetime(2023, 12, 27, tzinfo=timezone.utc),
+            scheduled_time=time(21, 20, 0)
         )
 
     def test_ok_first_planned_visit(self):
@@ -47,8 +48,9 @@ class AdminDisplayFirstPlannedDateVisitTest(TestCase):
 
         self.planned = Planned.objects.create(
             mother=self.mother,
-            plan=Planned.PlannedChoices.TAKE_TESTS,
-            scheduled_date=datetime(2023, 12, 27, tzinfo=timezone.utc)
+            plan=Planned.PlannedChoices.FIRST_TEST,
+            scheduled_date=datetime(2023, 12, 27, tzinfo=timezone.utc),
+            scheduled_time=time(21, 20, 0)
         )
 
     def test_ok_first_planned_visit(self):

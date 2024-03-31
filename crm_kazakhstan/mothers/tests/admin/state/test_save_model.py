@@ -12,8 +12,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 
-from gmail_messages.models import CustomUser
-from mothers.models import State, Mother
+from mothers.models import State, Mother, Stage
 from mothers.admin import StateAdmin
 
 User = get_user_model()
@@ -28,12 +27,12 @@ class SaveModelTest(TestCase):
         self.admin = StateAdmin(State, self.site)
         self.factory = RequestFactory()
 
-        self.user_without_timezone = User.objects.create_superuser(username='staff2', password='password',
-                                                           is_staff=True, stage=CustomUser.StageChoices.PRIMARY)
         self.user_timezone = User.objects.create_superuser(username='admin1', password='password',
-                                                                   timezone='Europe/Kyiv')
+                                                           timezone='Europe/Kyiv')
 
     def test_add_first_condition_created(self):
+        user_without_timezone = User.objects.create_superuser(username='admin2', password='password',
+                                                              is_staff=True, stage=Stage.StageChoices.PRIMARY)
         mother = Mother.objects.create(name='Mother')
         form_data = {
             'mother': mother.pk,
@@ -49,7 +48,7 @@ class SaveModelTest(TestCase):
         url = f"{relative_path}?{urlencode(query_params)}"
 
         request = self.factory.get(url)
-        request.user = self.user_without_timezone
+        request.user = user_without_timezone
 
         form_class = self.admin.get_form(request=request, change=False)
 
@@ -59,8 +58,13 @@ class SaveModelTest(TestCase):
             self.fail(f'Form is not valid: {form_instance.errors}')
 
     def test_add_second_condition_created_raise_error(self):
+        user_without_timezone = User.objects.create_superuser(username='admin2', password='password',
+                                                              is_staff=True, stage=Stage.StageChoices.PRIMARY)
         mother = Mother.objects.create(name='Mother')
-        State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED, finished=True)
+        State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED, finished=True,
+                             scheduled_date=timezone.now().date(),
+                             scheduled_time=timezone.now().time()
+                             )
         form_data = {
             'mother': mother.pk,
             'condition': 'created',
@@ -75,7 +79,7 @@ class SaveModelTest(TestCase):
         url = f"{relative_path}?{urlencode(query_params)}"
 
         request = self.factory.get(url)
-        request.user = self.user_without_timezone
+        request.user = user_without_timezone
 
         form_class = self.admin.get_form(request=request, change=False)
 
@@ -97,8 +101,13 @@ class SaveModelTest(TestCase):
 
     @freeze_time("2024-01-18 12:00:00")
     def test_add_condition_scheduled_date_and_time_without_local_user_time(self):
+        user_without_timezone = User.objects.create_superuser(username='admin2', password='password',
+                                                              is_staff=True, stage=Stage.StageChoices.PRIMARY)
         mother = Mother.objects.create(name='Mother')
-        State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED, finished=True)
+        State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED, finished=True,
+                             scheduled_date=timezone.now().date(),
+                             scheduled_time=timezone.now().time()
+                             )
 
         form_data = {
             'mother': mother.pk,
@@ -114,7 +123,7 @@ class SaveModelTest(TestCase):
         url = f"{relative_path}?{urlencode(query_params)}"
 
         request = self.factory.get(url)
-        request.user = self.user_without_timezone
+        request.user = user_without_timezone
 
         form_class = self.admin.get_form(request=request, change=False)
 
@@ -135,6 +144,8 @@ class SaveModelTest(TestCase):
 
     @freeze_time("2024-01-18 12:00:00")
     def test_change_condition_scheduled_date_and_time_without_local_user_time(self):
+        user_without_timezone = User.objects.create_superuser(username='admin2', password='password',
+                                                              is_staff=True, stage=Stage.StageChoices.PRIMARY)
         mother = Mother.objects.create(name='Mother')
         # Create an existing Condition instance
         existing_condition = State.objects.create(
@@ -161,7 +172,7 @@ class SaveModelTest(TestCase):
         url = f"{relative_path}?{urlencode({'mother': mother.pk})}"
 
         request = self.factory.get(url)
-        request.user = self.user_without_timezone
+        request.user = user_without_timezone
 
         form_class = self.admin.get_form(request=request, obj=existing_condition, change=True)
         form_instance = form_class(data=form_data, instance=existing_condition)
@@ -224,12 +235,17 @@ class SaveModelTest(TestCase):
 
         timezone.deactivate()
 
-    def test_aa_condition_with_custom_perm(self):
+    def test_condition_with_custom_perm(self):
+        staff_user = User.objects.create(username='staff_user', password='password',
+                                         is_staff=True, stage=Stage.StageChoices.PRIMARY)
+
         mother = Mother.objects.create(name='Mother')
-        obj = State(mother=mother, scheduled_date=date(2024, 1, 18))
+        obj = State(mother=mother, scheduled_date=date(2024, 1, 18),
+                    scheduled_time=timezone.now().time())
+
         self.assertIsNone(obj.pk)
         request = self.factory.get('/')
-        request.user = self.user_without_timezone
+        request.user = staff_user
 
         form = self.admin.get_form(request)
         self.admin.save_model(request, obj, form, change=False)
@@ -237,5 +253,5 @@ class SaveModelTest(TestCase):
         obj.refresh_from_db()
         self.assertIsNotNone(obj.pk)
 
-        perms = get_perms(self.user_without_timezone, obj)
-        self.assertIn('primary_state', perms)
+        perms = get_perms(staff_user, obj)
+        self.assertIn('primary_state_staff_user', perms)

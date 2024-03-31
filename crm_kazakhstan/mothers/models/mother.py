@@ -20,29 +20,13 @@ class Mother(models.Model):
         return self.name
 
     @property
-    def last_state(self):
-        return self.state_set.filter(finished=False).exists()
+    def plan(self):
+        return self.planned_set.filter(finished=False)
 
     @property
-    def plan(self):
-        plan = self.planned_set.order_by('-created').exists()
-        finished = self.planned_set.filter(finished=False).order_by('-created').exists()
-
-        if plan:
-            return finished
-        return False
+    def state(self):
+        return self.state_set.filter(finished=False)
 
     @property
     def ban(self):
-        ban = self.ban_set.order_by('-created').exists()
-        finished = self.ban_set.filter(banned=False).order_by('-created').exists()
-
-        if ban:
-            return finished
-        return False
-
-    class Meta:
-        permissions = (
-            ('primary_stage', 'primary stage'),
-        )
-
+        return self.ban_set.filter(banned=False)

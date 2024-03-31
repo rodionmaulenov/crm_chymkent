@@ -1,12 +1,11 @@
-from guardian.shortcuts import assign_perm
-
 from django.test import TestCase, RequestFactory
-from django.contrib.auth.models import Permission
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.db import models
 
-from gmail_messages.models import CustomUser
+from gmail_messages.services.manager_factory import ManagerFactory
+
 from mothers.models import Mother, Stage
 from mothers.admin import MotherAdmin
 
@@ -24,7 +23,7 @@ class HasModulePermissionTest(TestCase):
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True,
-                                              stage=CustomUser.StageChoices.PRIMARY)
+                                              stage=Stage.StageChoices.PRIMARY)
 
     def test_superuser_has_access_for_site_layer(self):
         request = self.factory.get('/')
@@ -35,7 +34,10 @@ class HasModulePermissionTest(TestCase):
 
     def test_staff_has_access_to_site_layer_with_obj_lvl_permission(self):
         Stage.objects.create(mother=self.mother, stage=Stage.StageChoices.PRIMARY)
-        assign_perm('primary_stage', self.staff_user, self.mother)
+
+        factory = ManagerFactory()
+        primary_manager = factory.create('PrimaryStageManager')
+        primary_manager.assign_user(content_type='mothers', obj=self.mother)
 
         request = self.factory.get('/')
         request.user = self.staff_user

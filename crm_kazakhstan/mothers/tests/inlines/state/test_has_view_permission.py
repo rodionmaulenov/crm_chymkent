@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.test import TestCase, RequestFactory
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.utils import timezone
 
 from mothers.inlines import StateInline
 from mothers.models import Mother, State
@@ -21,7 +22,8 @@ class HasViewPermissionTest(TestCase):
 
     def test_super_user_has_view_perm_obj(self):
         mother = Mother.objects.create(name='Mother 1')
-        state = State.objects.create(mother=mother)
+        state = State.objects.create(mother=mother, scheduled_date=timezone.now().date(),
+                                     scheduled_time=timezone.now().time())
         request = self.factory.get('/')
         request.user = self.superuser
         view = self.inline_condition.has_view_permission(request, state)
@@ -30,7 +32,8 @@ class HasViewPermissionTest(TestCase):
 
     def test_staff_user_has_view_perm_obj(self):
         mother = Mother.objects.create(name='Mother 1')
-        state = State.objects.create(mother=mother)
+        state = State.objects.create(mother=mother, scheduled_date=timezone.now().date(),
+                                     scheduled_time=timezone.now().time())
         request = self.factory.get('/')
         request.user = self.staff_user
         view = self.inline_condition.has_view_permission(request, state)
@@ -39,7 +42,8 @@ class HasViewPermissionTest(TestCase):
 
     def test_has_view_perm_obj(self):
         mother = Mother.objects.create(name='Mother 1')
-        state = State.objects.create(mother=mother)
+        state = State.objects.create(mother=mother, scheduled_date=timezone.now().date(),
+                                     scheduled_time=timezone.now().time())
         request = self.factory.get('/')
         view = self.inline_condition.has_view_permission(request, state)
 

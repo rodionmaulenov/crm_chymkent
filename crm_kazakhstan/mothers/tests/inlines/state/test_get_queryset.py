@@ -2,6 +2,7 @@ from django.test import TestCase, RequestFactory
 from django.db import models
 from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 from mothers.inlines import StateInline
 from mothers.models import Mother, State
@@ -24,9 +25,11 @@ class GetQuerysetTest(TestCase):
     def test_first_condition_not_in_queryset(self):
         mother = Mother.objects.create(name="Test")
         State.objects.create(id=1, mother=mother, condition=State.ConditionChoices.CREATED,
-                             reason='for example')
+                             reason='for example', scheduled_date=timezone.now().date(),
+                             scheduled_time=timezone.now().time())
         State.objects.create(id=2, mother=mother, condition=State.ConditionChoices.NO_BABY,
-                             reason='for1 example')
+                             reason='for1 example', scheduled_date=timezone.now().date(),
+                             scheduled_time=timezone.now().time())
 
         request = self.factory.get('/')
         request.user = self.super_user

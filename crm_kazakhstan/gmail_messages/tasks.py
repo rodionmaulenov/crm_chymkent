@@ -69,12 +69,13 @@ def save_message():
             mother = Mother.objects.create(**mother_data)
 
             # at once create related models
-            State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED, finished=True)
+            State.objects.create(mother=mother, condition=State.ConditionChoices.CREATED, finished=True,
+                                 scheduled_date=timezone.now().date(), scheduled_time=timezone.now().time())
             Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
 
             factory = ManagerFactory()
             primary_manager = factory.create('PrimaryStageManager')
-            primary_manager.assign_user(['primary_stage'], mother)
+            primary_manager.assign_user(content_type='mothers', obj=mother)
 
         inbox.not_proceed_emails.clear()
         # Close the mailbox

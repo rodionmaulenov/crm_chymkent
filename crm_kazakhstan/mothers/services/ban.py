@@ -1,40 +1,44 @@
-from django.http import HttpRequest
-from django.contrib.admin import ModelAdmin
 from django.urls import reverse
 from django.db.models import QuerySet
 from django.utils.html import format_html
+from django.contrib.admin import ModelAdmin
+from django.http import HttpRequest
 
-from mothers.services.mother import get_model_objects
 from mothers.models import Ban, Stage
+from mothers.services.mother import get_model_objects
 
 
 def on_ban_stage(queryset: QuerySet) -> QuerySet:
     """
-    ``Mother`` instances from Stage is Ban.
+    Mother instance locate on ban stage.
     """
     return queryset.filter(mother__stage__stage=Stage.StageChoices.BAN, mother__stage__finished=False, banned=False)
 
 
 def has_permission(adm: ModelAdmin, request: HttpRequest, action: str, obj: Ban = None) -> bool:
     """
-    User has obj level and list level permission when has model ``view, change, delete`` and in case
-    when user is assigned custom permission ``ban_state`` on some ``Ban`` instance.
+    The user has permission to access the object and list level or not depending on what permission they have.
     """
-    custom_act = 'mothers.ban_state'
+    user = request.user
+    username = user.username
+    stage = user.stage
     _meta = adm.opts
-    app_label = _meta.app_label
-    model_name = _meta.model_name
-    base_perm = f'{app_label}.{action}_{model_name}'
+    app = _meta.app_label
+    model = _meta.model_name
 
-    obj_lvl_perm = request.user.has_perm(custom_act, obj)
-    modl_lvl_perm = request.user.has_perm(base_perm)
+    base_perm = f'{app}.{action}_{model}'
+    custom_perm = f'{stage}_{model}_{username}'.lower()
+
+    custom = user.has_perm(custom_perm, obj)
+    base = user.has_perm(base_perm)
 
     if obj is not None:
-        return obj_lvl_perm or modl_lvl_perm
+        return custom or base
 
-    users_objs = get_model_objects(adm, request, custom_act)
+    users_objs = get_model_objects(adm, request, stage)
     data_exists = on_ban_stage(users_objs).exists()
-    return data_exists or modl_lvl_perm
+
+    return data_exists or base
 
 
 def after_add_message(obj: Ban) -> str:

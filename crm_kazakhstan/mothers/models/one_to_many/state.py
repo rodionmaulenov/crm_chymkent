@@ -3,7 +3,7 @@ from django.db import models
 
 class State(models.Model):
     class ConditionChoices(models.TextChoices):
-        EMPTY = '', '-'
+        EMPTY = '', '------------'
         CREATED = 'created', 'recently created'
         WORKING = 'working', 'we are working'
         NO_BABY = 'no baby', 'has not baby'
@@ -13,15 +13,10 @@ class State(models.Model):
     condition = models.CharField(max_length=20, choices=ConditionChoices.choices, default=ConditionChoices.EMPTY,
                                  blank=True, null=True)
     reason = models.TextField(blank=True, null=True)
-    scheduled_date = models.DateField(blank=True, null=True)
-    scheduled_time = models.TimeField(blank=True, null=True)
+    scheduled_date = models.DateField()
+    scheduled_time = models.TimeField()
     created = models.DateTimeField(auto_now_add=True)
     finished = models.BooleanField(default=False)
 
     def __str__(self):
         return f'{self.mother}.state instance'
-
-    class Meta:
-        permissions = (
-            ('primary_state', 'primary state'),
-        )

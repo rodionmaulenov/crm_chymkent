@@ -17,7 +17,7 @@ State: models
 User = get_user_model()
 
 
-class CreateConditionLinkTest(TestCase):
+class StateDateTimeTest(TestCase):
 
     def setUp(self):
         self.mother = Mother.objects.create(name='Test')
@@ -25,9 +25,8 @@ class CreateConditionLinkTest(TestCase):
         self.admin = MotherAdmin(Mother, AdminSite())
         self.superuser = User.objects.create_superuser(username='superuser', password='password')
 
-    @freeze_time("2023-12-12 22:00:00")
-    def test_on_change_list_page_and_planned_time_has_not_come(self):
-        State.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 13),
+    def test_state_finished(self):
+        State.objects.create(mother=self.mother, finished=True, scheduled_date=date(2023, 12, 13),
                              scheduled_time=time(21, 20, 0), reason='some reason')
 
         filters = filters_datetime(self.mother)
@@ -42,12 +41,11 @@ class CreateConditionLinkTest(TestCase):
         request.user = self.superuser
         self.admin.request = request
 
-        result = self.admin.create_condition_datetime(obj=self.mother)
+        result = self.admin.state_datetime(mother=self.mother)
 
-        self.assertEqual(result, 'Dec. 13, 2023, 21:20')
+        self.assertIsNone(result)
 
-    @freeze_time("2023-12-12 22:00:00")
-    def test_on_changelist_page_and_planned_time_has_come(self):
+    def test_state_not_finished(self):
         State.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
                              scheduled_time=time(18, 20, 0), reason='some reason')
 
@@ -63,29 +61,5 @@ class CreateConditionLinkTest(TestCase):
         request.user = self.superuser
         self.admin.request = request
 
-        result = self.admin.create_condition_datetime(obj=self.mother)
-
-        self.assertEqual(result, 'Dec. 12, 2023, 18:20')
-
-    @freeze_time("2023-12-12 22:00:00")
-    def test_on_filtered_changelist_page(self):
-        State.objects.create(mother=self.mother, finished=False, scheduled_date=date(2023, 12, 12),
-                             scheduled_time=time(18, 20, 0), reason='some reason')
-
-        filters = filters_datetime(self.mother)
-        on_filtered_page = filtered_mothers(filters)
-
-        self.assertTrue(on_filtered_page)
-
-        request = self.factory.get('admin/mothers/mother/?planned_time=datetime')
-        middleware = SessionMiddleware()
-        middleware.process_request(request)
-        request.session.save()
-        request.user = self.superuser
-        self.admin.request = request
-
-        self.assertTrue(request.GET.get('planned_time'), 'datetime')
-
-        result = self.admin.create_condition_datetime(obj=self.mother)
-
-        self.assertEqual(result, 'Dec. 12, 2023, 18:20')
+        result = self.admin.state_datetime(mother=self.mother)
+        self.assertEqual(result, '<strong>12 December 23/18:20</strong>')

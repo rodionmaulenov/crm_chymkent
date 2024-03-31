@@ -1,6 +1,3 @@
-from datetime import date, time
-from freezegun import freeze_time
-
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.db import models
@@ -8,6 +5,7 @@ from django.test import TestCase, RequestFactory
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.contrib.admin.sites import AdminSite
+from django.utils import timezone
 
 from mothers.models import State, Mother
 from mothers.admin import StateAdmin
@@ -30,7 +28,8 @@ class ResponseChangeMethodTest(TestCase):
         self.condition_admin = StateAdmin(State, self.admin_site)
 
     def test_redirect_to_mother_change_list_with_extra_params(self):
-        condition = State.objects.create(mother=self.mother, finished=False)
+        condition = State.objects.create(mother=self.mother, finished=False, scheduled_date=timezone.now().date(),
+                                         scheduled_time=timezone.now().time())
 
         query_params = '?date_create__gte=2024-01-05+00%3A00%3A00%2B02%3A00'
         relative_path = reverse('admin:mothers_state_change', args=[condition.pk])
@@ -48,7 +47,10 @@ class ResponseChangeMethodTest(TestCase):
         self.assertEqual(response.url, reverse('admin:mothers_mother_changelist'))
 
     def test_redirect_to_mother_change_list_without_extra_params(self):
-        condition = State.objects.create(mother=self.mother, finished=False)
+        condition = State.objects.create(mother=self.mother, finished=False,
+                                         scheduled_date=timezone.now().date(),
+                                         scheduled_time=timezone.now().time()
+                                         )
 
         relative_path = reverse('admin:mothers_state_change', args=[condition.pk])
         request = self.factory.post(relative_path)

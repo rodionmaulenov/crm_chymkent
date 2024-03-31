@@ -5,14 +5,20 @@ from django.urls import reverse
 from django.http import HttpRequest, HttpResponseRedirect
 from django.db.models import QuerySet
 from django.forms import ModelForm
+from django.utils.html import format_html
 from django.contrib.admin.helpers import AdminForm
+from django.db import models
+
+from gmail_messages.services.manager_factory import ManagerFactory
 
 from mothers.admin import MotherAdmin
 from mothers.forms import BanAdminForm
-from mothers.models import Ban, Mother
-from mothers.services.ban import on_ban_stage, has_permission, after_add_message
+from mothers.models import Mother, Stage, Ban
+from mothers.services.ban import on_ban_stage, has_permission
 from mothers.services.mother import get_model_objects
-from mothers.services.state import adjust_button_visibility, assign_permissions_to_user
+from mothers.services.state import adjust_button_visibility
+
+Mother: models
 
 
 @admin.register(Ban)
@@ -20,6 +26,7 @@ class BanAdmin(admin.ModelAdmin):
     form = BanAdminForm
     fields = ('mother', 'comment', 'banned')
     readonly_fields = ('mother',)
+    actions = ["out_from_ban"]
 
     def get_fields(self, request: HttpRequest, obj: Optional[Ban] = None) -> Tuple[str, ...]:
         """
@@ -64,18 +71,23 @@ class BanAdmin(admin.ModelAdmin):
         Assigns permissions if it's a new instance.
         """
         is_new = not obj.pk  # Check if the object is new (has no primary key yet)
-
         super().save_model(request, obj, form, change)
 
         if is_new:
             # Assign permission for each new instance of Condition
-            assign_permissions_to_user(request.user, obj, ['ban_state'])
+            user = request.user
+
+            factory = ManagerFactory()
+            primary_manager = factory.create('PrimaryStageManager')
+            primary_manager.assign_user(content_type=self, obj=obj, user=user)
 
     def has_module_permission(self, request: HttpRequest) -> bool:
         """
-        When user has an object created by him or when has model level permission.
+        Has base or custom permission.
         """
-        users_objs = get_model_objects(self, request, ['ban_state'])
+
+        stage = Stage.StageChoices.PRIMARY.value
+        users_objs = get_model_objects(self, request, stage)
         on_ban = on_ban_stage(users_objs).exists()
 
         base = super().has_module_permission(request)
@@ -96,23 +108,66 @@ class BanAdmin(admin.ModelAdmin):
         if request.user.has_perm('mothers.view_ban'):
             return on_ban_stage(queryset)
 
-        users_objs = get_model_objects(self, request, ['ban_state'])
+        stage = Stage.StageChoices.PRIMARY.value
+        users_objs = get_model_objects(self, request, stage)
         return on_ban_stage(users_objs)
 
     def has_view_permission(self, request: HttpRequest, obj: Ban = None) -> bool:
         return has_permission(self, request, 'view', obj)
 
-    def has_add_permission(self, request: HttpRequest) -> bool:
-        from mothers.services.mother import has_permission
-        admin_mother = MotherAdmin(Mother, admin.site)
-        add_url = reverse('admin:mothers_ban_add')
+    def has_change_permission(self, request: HttpRequest, obj: Ban = None) -> bool:
+        return has_permission(self, request, 'change', obj)
 
-        if add_url in request.get_full_path():
-            return has_permission(admin_mother, request, 'add')
-        return False
+    def has_add_permission(self, request: HttpRequest) -> bool:
+
+        from mothers.services.mother import has_permission
+
+        admin_mother = MotherAdmin(Mother, admin.site)
+        return has_permission(admin_mother, request, 'add')
 
     def response_add(self, request: HttpRequest, obj: Ban, post_url_continue=None) -> HttpResponseRedirect:
+        """
+        Change stage on mother instance and then redirect on main page.
+        """
+        mother = obj.mother
+        stage = mother.stage_set.filter(finished=False).first()
+        stage.finished = True
+        stage.save()
+        new_stage = Stage(mother=mother, stage=Stage.StageChoices.BAN, finished=False)
+        new_stage.save()
 
+        self.message_user(
+            request,
+            format_html(f'<b>{mother}</b> has successfully transferred to ban'),
+            messages.SUCCESS,
+        )
         mother_changelist = reverse('admin:mothers_mother_changelist')
-        self.message_user(request, after_add_message(obj), level=messages.SUCCESS)
         return HttpResponseRedirect(mother_changelist)
+
+    @admin.action(description='from ban')
+    def out_from_ban(self, request, queryset):
+        """Move on primary stage."""
+
+        mothers_id = queryset.values_list('mother_id', flat=True)
+        mothers = Mother.objects.filter(
+            id__in=mothers_id,
+            stage__stage=Stage.StageChoices.BAN,
+            stage__finished=False,
+            ban__banned=False
+        ).prefetch_related('ban_set', 'stage_set')
+
+        for mother in mothers:
+            stage = mother.stage_set.filter(finished=False).first()
+            stage.finished = True
+            stage.save()
+            ban = mother.ban_set.filter(banned=False).first()
+            ban.banned = True
+            ban.save()
+            new_stage = Stage(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+            new_stage.save()
+
+            self.message_user(
+                request,
+                format_html(f'<b>{mother}</b> has successfully returned from ban'),
+                messages.SUCCESS,
+            )

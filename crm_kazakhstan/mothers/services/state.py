@@ -15,10 +15,9 @@ from django.templatetags.static import static
 from django.contrib.auth import get_user_model
 from django.utils.safestring import mark_safe
 
-from gmail_messages.services.manager_factory import ManagerFactory
-from mothers.models import Mother, State, Ban
+from mothers.models import Mother, State, Planned
 from mothers.forms import StateAdminForm
-from mothers.services.mother import reduce_text
+from mothers.services.mother_classes.formatter_interface import CombinedExtractor, StateExtractor, TextReducer
 
 Mother: models
 State: models
@@ -83,7 +82,6 @@ def get_mother_id_from_url(request: HttpRequest, key: str) -> int:
     In url from GET queryset obtain id by key
     """
     mother_id = request.GET.get(key)
-
     return mother_id
 
 
@@ -98,28 +96,6 @@ def cleaned_date_time_and_condition(cleaned_data: Dict[str, Any]) -> Tuple[date,
     return scheduled_date, scheduled_time, condition, reason
 
 
-def validate_time_date_dependencies(form: StateAdminForm, cleaned_data: Dict[str, Any]) -> None:
-    """
-    Ensures that if a time is set, a date must also be set, and vice versa.
-    """
-    scheduled_date, scheduled_time, _, _ = cleaned_date_time_and_condition(cleaned_data)
-
-    if scheduled_time and not scheduled_date:
-        form.add_error('scheduled_date', "Date must be provided if time is set.")
-    if scheduled_date and not scheduled_time:
-        form.add_error('scheduled_time', "Time must be provided if date is set.")
-
-
-def validate_condition_with_date(form: StateAdminForm, cleaned_data: Dict[str, Any]) -> None:
-    """
-    Checks conditions that require a date and adds an error if a date is not provided.
-    """
-    condition_has_date = ['no baby', 'WWW']  # list of states which must have scheduled date
-    scheduled_date, scheduled_time, condition, _ = cleaned_date_time_and_condition(cleaned_data)
-    if condition in condition_has_date and not (scheduled_date and scheduled_time):
-        form.add_error('condition', "Date and Time must be provided if this state is set.")
-
-
 def validate_empty_condition(form: StateAdminForm, cleaned_data: Dict[str, Any]) -> None:
     """
     Checks reason exists if condition is empty.
@@ -131,28 +107,13 @@ def validate_empty_condition(form: StateAdminForm, cleaned_data: Dict[str, Any])
         form.add_error('reason', "Specify understandable reason for empty state")
 
 
-def validate_reason_has_datetime(form: StateAdminForm, cleaned_data: Dict[str, Any]) -> None:
-    """
-    Checks reason has date and time.
-    """
-    scheduled_date, scheduled_time, condition, reason = cleaned_date_time_and_condition(cleaned_data)
-
-    if condition is None and reason and not scheduled_date:
-        form.add_error('scheduled_date', "Specify date")
-    if condition is None and reason and not scheduled_date:
-        form.add_error('scheduled_time', "Specify time")
-
-
 def if_field_error_exists(form: StateAdminForm, cleaned_data: Dict[str, Any]) -> None:
     """
     Finally, if from only single method error exists, then break validation and error display at the top of the field.
     """
     errors = form.errors
     functions = [
-        validate_time_date_dependencies,
-        validate_condition_with_date,
         validate_empty_condition,
-        validate_reason_has_datetime,
     ]
     for func in functions:
         func(form, cleaned_data)
@@ -180,7 +141,7 @@ def hide_mother_field_on_add(form: ModelForm) -> None:
     """
     Hides the mother field if this is a new instance (i.e., not yet saved in the database).
     """
-    if not form.instance.pk:
+    if not form.instance.pk and 'mother' in form.fields:
         form.fields['mother'].widget = forms.HiddenInput()
 
 
@@ -234,7 +195,7 @@ def inject_request_into_form(form: Type[forms.ModelForm], request: HttpRequest) 
     return RequestForm
 
 
-def convert_to_utc_and_save(request: HttpRequest, obj: State) -> None:
+def convert_to_utc_and_save(request: HttpRequest, obj: Union[State, Planned]) -> None:
     """
     Converts the scheduled date and time from the user's local timezone to UTC.
     """
@@ -246,36 +207,25 @@ def convert_to_utc_and_save(request: HttpRequest, obj: State) -> None:
         obj.scheduled_time = utc_aware_datetime.time()
 
 
-def assign_permissions_to_user(user: User, obj: Union[State, Ban], perms: list) -> None:
+def has_permission(adm: ModelAdmin, request: HttpRequest, action: str, obj: State = None) -> bool:
     """
-    To specific user is assigned custom ``Permission``-``primary_stage`` to just now created ``State`` instance.
+    The user has permission to access the object or not depending on what permission they have.
     """
-    # Retrieve or define the user to whom permissions will be assigned
+    user = request.user
     username = user.username
-    user = User.objects.get(username=username)
-
-    # Assign permission for each new instance
-    factory = ManagerFactory()
-    primary_manager = factory.create('PrimaryStageManager')
-    primary_manager.assign_user(perms, obj, user)
-
-
-def has_permission(adm: ModelAdmin, request: HttpRequest, obj: Union[State, Ban], action: str) -> bool:
-    """
-    User has obj level permission when has model ``view, change, delete`` and in case
-    when user is assigned custom permission ``primary_stage`` on some ``Stage`` instance.
-    """
-    custom_act = 'mothers.primary_state'
     _meta = adm.opts
     app_label = _meta.app_label
     model_name = _meta.model_name
+    stage = user.stage
+
     base_perm = f'{app_label}.{action}_{model_name}'
+    custom_perm = f'{stage}_{model_name}_{username}'.lower()
 
-    obj_lvl_perm = request.user.has_perm(custom_act, obj)
-    modl_lvl_perm = request.user.has_perm(base_perm)
+    custom = user.has_perm(custom_perm, obj)
+    base = user.has_perm(base_perm)
 
-    if obj:
-        return obj_lvl_perm or modl_lvl_perm
+    if obj is not None:
+        return custom or base
 
     return False
 
@@ -292,7 +242,10 @@ def adjust_button_visibility(context: Dict[str, Any], add: bool, change: bool) -
 
 
 def after_add_message(obj: State) -> str:
-    text = reduce_text(obj)
+    extractor = CombinedExtractor(StateExtractor())
+    cutter = TextReducer(extractor)
+    text = cutter.reduce_text(obj)
+
     url = reverse('admin:mothers_mother_change', args=[obj.mother.id])
     added_message = format_html(
         f'State {text} successfully created for <strong><a href="{url}">{obj.mother}</a></strong>'
@@ -301,7 +254,9 @@ def after_add_message(obj: State) -> str:
 
 
 def after_change_message(obj: State) -> str:
-    text = reduce_text(obj)
+    extractor = CombinedExtractor(StateExtractor())
+    cutter = TextReducer(extractor)
+    text = cutter.reduce_text(obj)
 
     url = reverse('admin:mothers_mother_change', args=[obj.mother.id])
 

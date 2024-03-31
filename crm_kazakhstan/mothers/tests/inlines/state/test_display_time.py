@@ -5,6 +5,7 @@ from django.test import TestCase, RequestFactory
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.contrib import admin
+from django.utils import timezone
 
 from mothers.inlines import StateInline
 from mothers.models import Mother, State
@@ -30,15 +31,9 @@ class DisplayTimeMethodTest(TestCase):
         request.user = self.staff_user
         self.inline_condition.request = request
         condition = State.objects.create(mother=self.mother, scheduled_date=date(2023, 12, 12),
-                                             scheduled_time=time(23, 0, 0))
+                                         scheduled_time=time(23, 0, 0))
 
         time_display = self.inline_condition.display_time(condition)
         expected_value = '01:00'
 
         self.assertEqual(time_display, expected_value)
-
-    def test_without_time(self):
-        condition = State.objects.create(mother=self.mother)
-        time_display = self.inline_condition.display_time(condition)
-
-        self.assertEqual(time_display, None)

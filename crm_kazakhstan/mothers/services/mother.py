@@ -2,6 +2,8 @@ import pytz
 
 from datetime import datetime, time, date
 from typing import Optional, Union
+from guardian.shortcuts import get_objects_for_user
+from abc import ABC, abstractmethod
 
 from django.contrib.admin import ModelAdmin
 from django.db.models import Count
@@ -11,7 +13,8 @@ from django.utils import timezone, formats
 from django.db import models
 from django.db.models import QuerySet, Q
 from django.utils.html import format_html, mark_safe
-from guardian.shortcuts import get_objects_for_user
+
+from gmail_messages.models import CustomUser
 
 from mothers.models import Stage, State, Mother, Ban
 
@@ -105,38 +108,55 @@ def output_time_format(local_scheduled_datetime: Optional[datetime]) -> str:
     return formats.date_format(local_scheduled_datetime, "N j, Y, H:i")
 
 
-def get_model_objects(adm: ModelAdmin, request: HttpRequest, actions: Union[list, str]) -> QuerySet:
+def bold_datetime_format(dt: datetime) -> str:
     """
-    Retrieves a QuerySet of objects from the model associated with the provided MotherAdmin instance (`adm`).
+    Formats the provided datetime as 'Day Month Year / Hour:Minute' in bold.
+    """
+    formatted_datetime = dt.strftime("%d %B %y/%H:%M")
+    return format_html(f'<strong>{formatted_datetime}</strong>')
+
+
+def get_model_objects(adm: ModelAdmin, request: HttpRequest, stage: Union[Stage, CustomUser]) -> QuerySet:
+    """
+    Retrieves a QuerySet of objects from the model associated with the provided ModelAdmin instance (`adm`).
     The objects are filtered based on the user's permissions. It checks if the user has custom permissions
     for the objects of the model.
+    Super-user gets all queryset.
     """
+    user = request.user
+    username = user.username
+    model = adm.opts.model_name
     klass = adm.opts.model
+    perms = [f'{stage}_{model}_{username}'.lower()]
 
     # Retrieve and return the objects for which the user has the specified permissions
-    return get_objects_for_user(user=request.user, perms=actions, klass=klass, any_perm=True)
+    return get_objects_for_user(user=user, perms=perms, klass=klass)
 
 
 def has_permission(adm: ModelAdmin, request: HttpRequest, action: str, obj: Mother = None) -> bool:
     """
-    User has obj level and list level permission when has model ``view, change, delete`` and in case
-    when user is assigned custom permission ``primary_stage`` on some ``Mother`` instance.
+    The user has permission to access the object and list level or not depending on what permission they have.
     """
-    custom_act = 'mothers.primary_stage'
+    user = request.user
+    username = user.username
+    stage = user.stage
     _meta = adm.opts
-    app_label = _meta.app_label
-    model_name = _meta.model_name
-    base_perm = f'{app_label}.{action}_{model_name}'
+    app = _meta.app_label
+    model = _meta.model_name
 
-    obj_lvl_perm = request.user.has_perm(custom_act, obj)
-    modl_lvl_perm = request.user.has_perm(base_perm)
+    base_perm = f'{app}.{action}_{model}'
+    custom_perm = f'{stage}_{model}_{username}'.lower()
+
+    custom = user.has_perm(custom_perm, obj)
+    base = user.has_perm(base_perm)
 
     if obj is not None:
-        return obj_lvl_perm or modl_lvl_perm
+        return custom or base
 
-    users_objs = get_model_objects(adm, request, custom_act)
+    users_objs = get_model_objects(adm, request, stage)
     data_exists = on_primary_stage(users_objs).exists()
-    return data_exists or modl_lvl_perm
+
+    return data_exists or base
 
 
 def get_already_created(queryset: QuerySet) -> QuerySet:
@@ -181,25 +201,6 @@ def after_change_message(obj: Mother) -> str:
     return changed_message
 
 
-def reduce_text(last_condition: State) -> format_html:
-    """
-    Retrieves the last condition for a `Mother` object, and returns its display string in a bold HTML format.
-    The display string is truncated to 50 characters if it's.
-    """
-
-    obj = last_condition
-    reason = obj.reason
-
-    for_display = ''
-    if reason:
-        for_display = reason
-    elif obj.condition:
-        for_display = obj.get_condition_display()
-
-    for_display = (for_display[:50] + '...') if len(for_display) > 50 else for_display
-    return mark_safe(f'<strong>{for_display}</strong>')
-
-
 def link_html(url: str, text: str) -> format_html:
     """Custom link."""
     return f'<a href="{url}">{text}</a>'
@@ -215,37 +216,22 @@ def extract_from_url(request: HttpRequest, key: str, value: str) -> bool:
     return False
 
 
-def simple_text(text: str) -> format_html:
+def add_new(path: str, obj: Mother) -> format_html:
     """
-    When one of the related with MotherAdmin instances exist. Returns simple bold text
+    Add new obj related with ``Mother`` instance.
     """
-    return mark_safe(text)
+    url = reverse(path)
+    return format_html(f'<a href="{url}?mother={obj.pk}"><b>adding</b></a>')
 
 
-def add_new(obj: Mother, text: str, path: str) -> format_html:
-    """
-    Add new obj with related with mother instance.
-    """
-    return format_html(f'<a href="{path}?mother={obj.pk}">{text}</a>')
-
-
-def change(condition: State, text: str) -> format_html:
+def change(url: str, instance: models, text: str) -> format_html:
     """
     Custom change link.
     """
-
-    change_url = reverse('admin:mothers_state_change', args=[condition.pk])
-
+    change_url = reverse(url, args=[instance.pk])
     link = link_html(change_url, text)
 
     return mark_safe(link)
-
-
-def can_not_change_on_changelist(text) -> format_html:
-    """
-    When action happens on changelist page and planned date is already occurs. Returns simple bold text.
-    """
-    return simple_text(text)
 
 
 class Specification:
@@ -281,3 +267,5 @@ class FromUrlSpec(Specification):
 class BaseFilter(Filter):
     def filter(self, item, spec) -> bool:
         return spec.is_verified(item)
+
+# Command Interface

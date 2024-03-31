@@ -5,11 +5,11 @@ Stage: models
 
 class Stage(models.Model):
     class StageChoices(models.TextChoices):
-        TRASH = 'Trash', 'trash'
-        BAN = 'Ban', 'ban'
-        PRIMARY = 'Primary', 'initial stage'
-        FIRST_VISIT = 'First Visit', 'first visit'
-        __empty__ = "(Unknown)"
+        TRASH = 'trash', 'trash'
+        BAN = 'ban', 'ban'
+        PRIMARY = 'primary', 'primary stage'
+        FIRST_VISIT = 'first_visit', 'first visit'
+        __empty__ = "-----"
 
     mother = models.ForeignKey("Mother", on_delete=models.CASCADE)
     stage = models.CharField(max_length=15, choices=StageChoices.choices, default=StageChoices.PRIMARY)

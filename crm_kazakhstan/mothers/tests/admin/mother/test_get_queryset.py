@@ -1,11 +1,10 @@
-from guardian.shortcuts import assign_perm
-
 from django.contrib.auth.models import Permission
 from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.db import models
 
+from gmail_messages.services.manager_factory import ManagerFactory
 from mothers.models import Mother, Stage
 from mothers.admin import MotherAdmin
 
@@ -21,7 +20,8 @@ class GetQuerysetTest(TestCase):
         self.factory = RequestFactory()
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
-        self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True)
+        self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True,
+                                              stage=Stage.StageChoices.PRIMARY)
 
     def test_has_queryset_for_superuser(self):
         request = self.factory.get('/')
@@ -88,8 +88,10 @@ class GetQuerysetTest(TestCase):
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
         Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
 
-        assign_perm('primary_stage', self.staff_user, mother)
-        assign_perm('primary_stage', self.staff_user, mother2)
+        for mother in Mother.objects.all():
+            factory = ManagerFactory()
+            primary_manager = factory.create('PrimaryStageManager')
+            primary_manager.assign_user(content_type='mothers', obj=mother)
 
         self.assertEqual(len(queryset), 2)
 
@@ -103,7 +105,9 @@ class GetQuerysetTest(TestCase):
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
         Stage.objects.create(mother=mother2, stage=Stage.StageChoices.PRIMARY, finished=False)
 
-        assign_perm('primary_stage', self.staff_user, mother)
+        factory = ManagerFactory()
+        primary_manager = factory.create('PrimaryStageManager')
+        primary_manager.assign_user(content_type='mothers', obj=mother)
 
         self.assertEqual(len(queryset), 1)
 

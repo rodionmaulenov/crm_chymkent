@@ -24,8 +24,9 @@ class GetListDisplayMethodTest(TestCase):
         request.user = self.superuser
 
         list_display = self.admin.get_list_display(request)
-        for_compare = ('id', 'when_created', 'name', 'number', 'age', 'blood', 'create_ban', 'create_condition_link', 'reason',
-                       'create_condition_datetime')
+        for_compare = (
+            'id', 'when_created', 'name', 'number', 'age', 'blood', 'create_plan', 'create_state'
+        )
         self.assertEqual(list_display, for_compare)
 
     def test_specific_list_for_scheduled_event(self):
@@ -37,6 +38,30 @@ class GetListDisplayMethodTest(TestCase):
 
         list_display = self.admin.get_list_display(request)
         for_compare = ('id', 'name', 'number', 'age', 'blood',
-                       'create_condition_link', 'reason', 'create_condition_datetime')
+                       'create_state', 'state_datetime', 'reason')
+
+        self.assertEqual(list_display, for_compare)
+
+    def test_specific_list_for_planned_actions(self):
+        url = '/admin/mothers/mother/'
+        query_parameters = {'actions': 'planned_actions'}
+        url_with_query_param = f'{url}?{urlencode(query_parameters)}'
+        request = self.factory.get(url_with_query_param)
+        request.user = self.superuser
+
+        list_display = self.admin.get_list_display(request)
+        for_compare = ('id', 'name', 'number', 'age', 'blood', 'create_plan')
+
+        self.assertEqual(list_display, for_compare)
+
+    def test_specific_list_for_state_actions(self):
+        url = '/admin/mothers/mother/'
+        query_parameters = {'actions': 'state_actions'}
+        url_with_query_param = f'{url}?{urlencode(query_parameters)}'
+        request = self.factory.get(url_with_query_param)
+        request.user = self.superuser
+
+        list_display = self.admin.get_list_display(request)
+        for_compare = 'id', 'name', 'number', 'age', 'blood', 'create_state', 'reason', 'state_datetime'
 
         self.assertEqual(list_display, for_compare)

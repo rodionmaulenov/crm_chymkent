@@ -3,7 +3,8 @@ from django.test import TestCase, RequestFactory
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.db import models
-from guardian.shortcuts import assign_perm
+
+from gmail_messages.services.manager_factory import ManagerFactory
 
 from mothers.models import Mother, Stage, State
 from mothers.admin import StateAdmin
@@ -20,7 +21,8 @@ class HasAddPermissionTest(TestCase):
         self.factory = RequestFactory()
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
-        self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True)
+        self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True,
+                                              stage=Stage.StageChoices.PRIMARY)
 
     def test_super_user_has_perm(self):
         request = self.factory.get('/')
@@ -33,7 +35,9 @@ class HasAddPermissionTest(TestCase):
         mother = Mother.objects.create(name='Mother 1')
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY)
 
-        assign_perm('primary_stage', self.staff_user, mother)
+        factory = ManagerFactory()
+        primary_manager = factory.create('PrimaryStageManager')
+        primary_manager.assign_user(content_type=self.admin, obj=mother)
 
         request = self.factory.get('/')
         request.user = self.staff_user

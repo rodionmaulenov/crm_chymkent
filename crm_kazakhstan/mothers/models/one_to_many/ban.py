@@ -9,8 +9,3 @@ class Ban(models.Model):
 
     def __str__(self):
         return f'{self.mother}.ban instance'
-
-    class Meta:
-        permissions = (
-            ('ban_state', 'ban state'),
-        )
