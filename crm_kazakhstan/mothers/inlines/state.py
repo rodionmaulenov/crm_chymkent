@@ -2,20 +2,22 @@ from datetime import date, time
 from typing import Union
 
 from django.contrib import admin
+from django.utils.html import format_html
 from django.db import models
 
 from mothers.models import State
-from mothers.services.state import render_icon, format_date_or_time
+from mothers.services.state import render_icon
 from mothers.services.mother import convert_utc_to_local
+from mothers.services.mother_classes.formatter_interface import DayMonthYearFormatter, HourMinuteFormatter
 
-Mother: models
+State: models
 
 
 class StateInline(admin.TabularInline):
     model = State
     extra = 0
-    readonly_fields = ['display_state', 'display_reason', 'display_date', 'display_time', 'display_complete']
-    fields = ['display_state', 'display_reason', 'display_date', 'display_time', 'display_complete']
+    readonly_fields = ['display_state', 'display_reason', 'display_date', 'display_time', 'display_icon']
+    fields = ['display_state', 'display_reason', 'display_date', 'display_time', 'display_icon']
 
     def get_queryset(self, request):
         self.request = request
@@ -25,32 +27,44 @@ class StateInline(admin.TabularInline):
 
         return queryset
 
-    def has_view_permission(self, request, obj=None):
+    def has_view_permission(self, request, state=None):
         return True
 
     @admin.display(description='state')
-    def display_state(self, obj: State) -> str:
-        return obj.get_condition_display()
+    def display_state(self, state: State) -> str:
+        return format_html('<strong>{}</strong>', state.get_condition_display().upper())
 
     @admin.display(description='reason')
-    def display_reason(self, obj: State) -> str:
-        return obj.reason if obj.reason else '-'
+    def display_reason(self, state: State) -> str:
+        return state.reason if state.reason else ''
 
-    @admin.display(description='date')
-    def display_date(self, obj: State) -> Union[date, str]:
-        if obj.scheduled_date and obj.scheduled_time:
-            user_date = convert_utc_to_local(self.request, obj.scheduled_date, obj.scheduled_time)
-            local_date = format_date_or_time(user_date.date())
-            return local_date
+    @admin.display(description='scheduled date')
+    def display_date(self, state: State) -> Union[date, str]:
+        """
+        Gets obj from database because on StateAdmin not exist fields:
+        scheduled_date, scheduled_time
+        """
+        state_obj = State.objects.get(pk=state.pk)
 
-    @admin.display(description='time')
-    def display_time(self, obj: State) -> Union[time, str]:
-        if obj.scheduled_date and obj.scheduled_time:
-            user_datetime = convert_utc_to_local(self.request, obj.scheduled_date, obj.scheduled_time)
-            local_time = format_date_or_time(user_datetime.time())
-            return local_time
+        local_time = convert_utc_to_local(self.request, state_obj.scheduled_date, state_obj.scheduled_time)
+        formatter = DayMonthYearFormatter()
+        formatting = formatter.format(local_time)
+        return formatting
 
-    @admin.display(description='complete')
-    def display_complete(self, obj: State) -> str:
-        tru_or_false = obj.finished
+    @admin.display(description='scheduled time')
+    def display_time(self, state: State) -> Union[time, str]:
+        """
+        Gets obj from database because on StateAdmin not exist fields:
+        scheduled_date, scheduled_time
+        """
+        state_obj = State.objects.get(pk=state.pk)
+
+        local_time = convert_utc_to_local(self.request, state_obj.scheduled_date, state_obj.scheduled_time)
+        formatter = HourMinuteFormatter()
+        formatting = formatter.format(local_time)
+        return formatting
+
+    @admin.display(description='completed')
+    def display_icon(self, state: State) -> str:
+        tru_or_false = state.finished
         return render_icon(tru_or_false)

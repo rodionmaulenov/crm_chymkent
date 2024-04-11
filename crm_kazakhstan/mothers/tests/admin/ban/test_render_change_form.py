@@ -1,5 +1,3 @@
-from datetime import date, time
-
 from django.contrib.admin.helpers import AdminForm
 from django.db import models
 from django.test import TestCase, RequestFactory
@@ -7,7 +5,7 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 
 from mothers.admin import BanAdmin
-from mothers.models import Ban, Mother
+from mothers.models import Ban, Mother, Stage
 
 User = get_user_model()
 
@@ -21,9 +19,10 @@ class RenderChangeFormTest(TestCase):
         self.admin = BanAdmin(Ban, self.site)
         self.factory = RequestFactory()
 
-        self.superuser = User.objects.create_superuser(username='testuser', email='test@example.com',
-                                                       password='top_secret')
-        self.staff_user = User.objects.create_user(username='staffuser', password='top_secret')
+        self.superuser = User.objects.create_superuser(username='superuser', email='test@example.com',
+                                                       password='top_secret', stage=Stage.StageChoices.PRIMARY)
+        self.staff_user = User.objects.create_user(username='staff_user', password='top_secret',
+                                                   stage=Stage.StageChoices.PRIMARY)
 
     def test_render_change_form_add_for_superuser(self):
         request = self.factory.get('/')

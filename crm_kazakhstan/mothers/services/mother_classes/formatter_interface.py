@@ -37,6 +37,18 @@ class BoldDayMonthYearHourMinuteFormatter(TimeFormatter):
         return format_html(f'<strong>{formatted_datetime}</strong>')
 
 
+class DayMonthYearFormatter(TimeFormatter):
+    def format_time(self, dt: datetime) -> str:
+        """Concrete implementation for 'Day.Month.Year' format."""
+        return dt.strftime("%d.%m.%Y")
+
+
+class HourMinuteFormatter(TimeFormatter):
+    def format_time(self, dt: datetime) -> str:
+        """Concrete implementation for 'Hour:Minute' format."""
+        return dt.strftime("%H:%M")
+
+
 """
 ----------------------------------------------------------------------------------------------------------
 """

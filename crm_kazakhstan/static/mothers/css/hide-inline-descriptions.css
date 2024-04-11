@@ -1,0 +1,9 @@
+/* Hide the ban instance description text */
+.inline-related.last-related .original p {
+    display: none;
+}
+
+/* Hide the planned, states instance description text */
+.inline-related .original p {
+    display: none;
+}

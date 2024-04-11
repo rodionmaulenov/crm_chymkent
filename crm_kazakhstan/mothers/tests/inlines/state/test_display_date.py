@@ -34,6 +34,6 @@ class DisplayDateMethodTest(TestCase):
                                          scheduled_time=time(23, 0, 0))
 
         date_display = self.inline_condition.display_date(condition)
-        expected_value = '13 Dec 2023'
+        expected_value = '13.12.2023'
 
         self.assertEqual(date_display, expected_value)

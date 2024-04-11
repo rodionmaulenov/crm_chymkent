@@ -48,6 +48,7 @@ class ResponseAddTest(TestCase):
         self.assertEqual(len(queryset), 0)
 
         new_stage_mother = ban.mother.stage_set.filter(finished=False).first().stage
+        self.assertEqual(ban.banned, True)
         self.assertEqual(new_stage_mother, Stage.StageChoices.BAN)
 
         self.assertEqual(redirect.url, "/admin/mothers/mother/")

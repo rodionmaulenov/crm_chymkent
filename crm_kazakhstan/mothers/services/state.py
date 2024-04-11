@@ -3,14 +3,12 @@ from typing import Tuple, Union, Dict, Any, Optional, List, Type
 
 from django.urls import reverse
 from django.utils.html import format_html
-from django.contrib.admin import ModelAdmin
 from django.forms import ModelForm
 from django import forms
 from django.db.models import Q, Field
 from django.http import HttpRequest
 from django.utils import timezone
 from django.db import models
-from django.utils import formats
 from django.templatetags.static import static
 from django.contrib.auth import get_user_model
 from django.utils.safestring import mark_safe
@@ -65,16 +63,6 @@ def render_icon(is_success: bool) -> str:
     return mark_safe(
         f'<img src="{icon_path}" alt="{"Success" if is_success else "Failure"}" style="width: 18px; height: 20px;"/>'
     )
-
-
-def format_date_or_time(value: Union[date, time]) -> str:
-    """
-    Return various string format based on date time type
-    """
-    if isinstance(value, date):
-        return formats.date_format(value, "j M Y")
-    elif isinstance(value, time):
-        return formats.date_format(value, "H:i")
 
 
 def get_mother_id_from_url(request: HttpRequest, key: str) -> int:
@@ -207,29 +195,6 @@ def convert_to_utc_and_save(request: HttpRequest, obj: Union[State, Planned]) ->
         obj.scheduled_time = utc_aware_datetime.time()
 
 
-def has_permission(adm: ModelAdmin, request: HttpRequest, action: str, obj: State = None) -> bool:
-    """
-    The user has permission to access the object or not depending on what permission they have.
-    """
-    user = request.user
-    username = user.username
-    _meta = adm.opts
-    app_label = _meta.app_label
-    model_name = _meta.model_name
-    stage = user.stage
-
-    base_perm = f'{app_label}.{action}_{model_name}'
-    custom_perm = f'{stage}_{model_name}_{username}'.lower()
-
-    custom = user.has_perm(custom_perm, obj)
-    base = user.has_perm(base_perm)
-
-    if obj is not None:
-        return custom or base
-
-    return False
-
-
 def adjust_button_visibility(context: Dict[str, Any], add: bool, change: bool) -> None:
     """
     Adjusts the visibility of form buttons in the admin change form context.
@@ -241,7 +206,7 @@ def adjust_button_visibility(context: Dict[str, Any], add: bool, change: bool) -
         context['show_save'] = True  # Ensure "Save" button is visible
 
 
-def after_add_message(obj: State) -> str:
+def after_add_message(obj: Union[State, Planned]) -> str:
     extractor = CombinedExtractor(StateExtractor())
     cutter = TextReducer(extractor)
     text = cutter.reduce_text(obj)

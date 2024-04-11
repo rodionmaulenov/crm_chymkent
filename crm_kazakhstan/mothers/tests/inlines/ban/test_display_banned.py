@@ -23,7 +23,7 @@ class DisplayBannedTest(TestCase):
         mother = Mother.objects.create(name='mother')
         ban = Ban.objects.create(mother=mother, comment='comment')
 
-        banned = self.inline_ban.display_banned(ban)
+        banned = self.inline_ban.display_icon(ban)
         self.assertEqual(
             '<img src="/static/mothers/icons/red_check_mark.jpg" alt="Failure" style="width: 18px; height: 20px;"/>',
             banned)
@@ -32,7 +32,7 @@ class DisplayBannedTest(TestCase):
         mother = Mother.objects.create(name='mother')
         ban = Ban.objects.create(mother=mother, comment='comment', banned=True)
 
-        banned = self.inline_ban.display_banned(ban)
+        banned = self.inline_ban.display_icon(ban)
         self.assertEqual(
             '<img src="/static/mothers/icons/green_check_mark.jpg" alt="Success" style="width: 18px; height: 20px;"/>',
             banned)

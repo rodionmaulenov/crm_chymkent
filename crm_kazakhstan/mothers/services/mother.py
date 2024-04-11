@@ -1,20 +1,17 @@
 import pytz
 
 from datetime import datetime, time, date
-from typing import Optional, Union
+from typing import Union
 from guardian.shortcuts import get_objects_for_user
-from abc import ABC, abstractmethod
 
 from django.contrib.admin import ModelAdmin
 from django.db.models import Count
 from django.http import HttpRequest
 from django.urls import reverse
-from django.utils import timezone, formats
+from django.utils import timezone
 from django.db import models
 from django.db.models import QuerySet, Q
 from django.utils.html import format_html, mark_safe
-
-from gmail_messages.models import CustomUser
 
 from mothers.models import Stage, State, Mother, Ban
 
@@ -66,6 +63,13 @@ def on_primary_stage(queryset: QuerySet) -> QuerySet:
     return queryset.filter(stage__stage=Stage.StageChoices.PRIMARY, stage__finished=False)
 
 
+def on_ban_stage(queryset: QuerySet) -> QuerySet:
+    """
+    Gets ``Mother`` instances from ``Stage.StageChoices.PRIMARY``.
+    """
+    return queryset.filter(stage__stage=Stage.StageChoices.BAN, stage__finished=False)
+
+
 def we_are_working(queryset: QuerySet) -> QuerySet:
     """
     When `State`` becomes 'we are working'.
@@ -85,7 +89,7 @@ def tuple_inlines(obj: Mother, inlines) -> tuple:
     """
     Get inlines if their queryset not none.
     """
-    from mothers.inlines import StateInline, BanInline
+    from mothers.inlines import StateInline, BanInline, PlannedInline
     filtered_inlines = []
     for inline in inlines:
         if inline is StateInline:
@@ -97,15 +101,11 @@ def tuple_inlines(obj: Mother, inlines) -> tuple:
             bans = obj.ban_set.exists()
             if bans:
                 filtered_inlines.append(inline)
-
+        if inline is PlannedInline:
+            plan = obj.planned_set.exists()
+            if plan:
+                filtered_inlines.append(inline)
     return tuple(filtered_inlines)
-
-
-def output_time_format(local_scheduled_datetime: Optional[datetime]) -> str:
-    """
-    Formats the provided datetime. Formats as 'Day Month Hour:Minute'.
-    """
-    return formats.date_format(local_scheduled_datetime, "N j, Y, H:i")
 
 
 def bold_datetime_format(dt: datetime) -> str:
@@ -116,7 +116,7 @@ def bold_datetime_format(dt: datetime) -> str:
     return format_html(f'<strong>{formatted_datetime}</strong>')
 
 
-def get_model_objects(adm: ModelAdmin, request: HttpRequest, stage: Union[Stage, CustomUser]) -> QuerySet:
+def get_model_objects(adm: ModelAdmin, request: HttpRequest) -> QuerySet:
     """
     Retrieves a QuerySet of objects from the model associated with the provided ModelAdmin instance (`adm`).
     The objects are filtered based on the user's permissions. It checks if the user has custom permissions
@@ -124,6 +124,7 @@ def get_model_objects(adm: ModelAdmin, request: HttpRequest, stage: Union[Stage,
     Super-user gets all queryset.
     """
     user = request.user
+    stage = user.stage
     username = user.username
     model = adm.opts.model_name
     klass = adm.opts.model
@@ -131,32 +132,6 @@ def get_model_objects(adm: ModelAdmin, request: HttpRequest, stage: Union[Stage,
 
     # Retrieve and return the objects for which the user has the specified permissions
     return get_objects_for_user(user=user, perms=perms, klass=klass)
-
-
-def has_permission(adm: ModelAdmin, request: HttpRequest, action: str, obj: Mother = None) -> bool:
-    """
-    The user has permission to access the object and list level or not depending on what permission they have.
-    """
-    user = request.user
-    username = user.username
-    stage = user.stage
-    _meta = adm.opts
-    app = _meta.app_label
-    model = _meta.model_name
-
-    base_perm = f'{app}.{action}_{model}'
-    custom_perm = f'{stage}_{model}_{username}'.lower()
-
-    custom = user.has_perm(custom_perm, obj)
-    base = user.has_perm(base_perm)
-
-    if obj is not None:
-        return custom or base
-
-    users_objs = get_model_objects(adm, request, stage)
-    data_exists = on_primary_stage(users_objs).exists()
-
-    return data_exists or base
 
 
 def get_already_created(queryset: QuerySet) -> QuerySet:
@@ -267,5 +242,3 @@ class FromUrlSpec(Specification):
 class BaseFilter(Filter):
     def filter(self, item, spec) -> bool:
         return spec.is_verified(item)
-
-# Command Interface

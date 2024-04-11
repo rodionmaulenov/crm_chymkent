@@ -15,7 +15,7 @@ Mother: models
 Stage: models
 
 
-class HasViewPermissionTest(TestCase):
+class HasChangePermissionTest(TestCase):
     def setUp(self):
         self.site = AdminSite()
         self.admin = MotherAdmin(Mother, self.site)
@@ -27,34 +27,36 @@ class HasViewPermissionTest(TestCase):
                                               stage=Stage.StageChoices.PRIMARY)
 
     def test_super_user_has_perm_if_obj(self):
-        request = self.factory.get('/')
+        mother_changelist = reverse('admin:mothers_mother_changelist')
+        request = self.factory.get(mother_changelist)
         request.user = self.superuser
-        view = self.admin.has_view_permission(request, self.mother)
+        change = self.admin.has_change_permission(request, self.mother)
 
-        self.assertTrue(view)
+        self.assertTrue(change)
 
     def test_super_user_has_perm_list_layer(self):
-        request = self.factory.get('/')
+        mother_changelist = reverse('admin:mothers_mother_changelist')
+        request = self.factory.get(mother_changelist)
         request.user = self.superuser
-        view = self.admin.has_view_permission(request)
+        change = self.admin.has_change_permission(request)
 
-        self.assertTrue(view)
+        self.assertTrue(change)
 
     def test_super_user_has_perm_if_obj_and_spec_url(self):
         mother_changelist = reverse('admin:mothers_mother_changelist')
         request = self.factory.get(mother_changelist)
         request.user = self.superuser
-        view = self.admin.has_view_permission(request, self.mother)
+        change = self.admin.has_change_permission(request, self.mother)
 
-        self.assertTrue(view)
+        self.assertTrue(change)
 
     def test_super_user_has_perm_list_layer_and_spec_url(self):
         mother_changelist = reverse('admin:mothers_mother_changelist')
         request = self.factory.get(mother_changelist)
         request.user = self.superuser
-        view = self.admin.has_view_permission(request)
+        change = self.admin.has_change_permission(request)
 
-        self.assertTrue(view)
+        self.assertTrue(change)
 
     def test_staff_has_perm_if_obj_and_spec_url(self):
         Stage.objects.create(mother=self.mother, stage=Stage.StageChoices.PRIMARY)
@@ -66,9 +68,9 @@ class HasViewPermissionTest(TestCase):
         mother_changelist = reverse('admin:mothers_mother_changelist')
         request = self.factory.get(mother_changelist)
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request)
+        change = self.admin.has_change_permission(request)
 
-        self.assertTrue(view)
+        self.assertTrue(change)
 
     def test_staff_has_perm_list_layer_and_spec_url(self):
         Stage.objects.create(mother=self.mother, stage=Stage.StageChoices.PRIMARY)
@@ -80,39 +82,46 @@ class HasViewPermissionTest(TestCase):
         mother_changelist = reverse('admin:mothers_mother_changelist')
         request = self.factory.get(mother_changelist)
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request)
+        change = self.admin.has_change_permission(request)
 
-        self.assertTrue(view)
+        self.assertTrue(change)
 
     def test_staff_assign_model_perm_if_obj(self):
         Stage.objects.create(mother=self.mother, stage=Stage.StageChoices.PRIMARY)
 
-        view_permission = Permission.objects.get(codename='view_mother')
+        view_permission = Permission.objects.get(codename='change_mother')
         self.staff_user.user_permissions.add(view_permission)
 
         mother_changelist = reverse('admin:mothers_mother_changelist')
         request = self.factory.get(mother_changelist)
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request, self.mother)
+        change = self.admin.has_change_permission(request, self.mother)
 
-        self.assertTrue(view)
+        self.assertTrue(change)
 
     def test_staff_assign_model_perm_list_layer(self):
         Stage.objects.create(mother=self.mother, stage=Stage.StageChoices.PRIMARY)
 
-        view_permission = Permission.objects.get(codename='view_mother')
+        view_permission = Permission.objects.get(codename='change_mother')
         self.staff_user.user_permissions.add(view_permission)
 
         mother_changelist = reverse('admin:mothers_mother_changelist')
         request = self.factory.get(mother_changelist)
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request)
+        change = self.admin.has_change_permission(request)
 
-        self.assertTrue(view)
+        self.assertTrue(change)
 
     def test_staff_user_has_not_any_perms(self):
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_view_permission(request)
+        change = self.admin.has_change_permission(request)
 
-        self.assertFalse(view)
+        self.assertFalse(change)
+
+    def test_super_user_not_on_change_list(self):
+        request = self.factory.get('/')
+        request.user = self.superuser
+        change = self.admin.has_change_permission(request, self.mother)
+
+        self.assertFalse(change)

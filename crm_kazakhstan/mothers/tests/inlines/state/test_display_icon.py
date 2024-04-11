@@ -13,7 +13,7 @@ State: models
 User = get_user_model()
 
 
-class DisplayCompleteMethodTest(TestCase):
+class DisplayIconTest(TestCase):
 
     def setUp(self):
         self.mother = Mother.objects.create(name="Test")
@@ -25,7 +25,7 @@ class DisplayCompleteMethodTest(TestCase):
         condition = State.objects.create(mother=self.mother, finished=False, scheduled_date=timezone.now().date(),
                                          scheduled_time=timezone.now().time())
 
-        not_complete = self.inline_condition.display_complete(condition)
+        not_complete = self.inline_condition.display_icon(condition)
 
         expected_value = ('<img src="/static/mothers/icons/red_check_mark.jpg" '
                           'alt="Failure" style="width: 18px; height: 20px;"/>')
@@ -37,7 +37,7 @@ class DisplayCompleteMethodTest(TestCase):
                                          scheduled_date=timezone.now().date(),
                                          scheduled_time=timezone.now().time()
                                          )
-        complete = self.inline_condition.display_complete(condition)
+        complete = self.inline_condition.display_icon(condition)
 
         expected_value = ('<img src="/static/mothers/icons/green_check_mark.jpg" '
                           'alt="Success" style="width: 18px; height: 20px;"/>')

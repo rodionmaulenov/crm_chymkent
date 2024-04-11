@@ -33,4 +33,4 @@ class GetReadOnlyFieldsMethodTest(TestCase):
             finished=False)
         request = self.factory.get('/admin/mothers/mother/{}/change/'.format(planned.pk))
         readonly_fields = self.admin.get_readonly_fields(request, planned)
-        self.assertEqual(readonly_fields, self.admin.readonly_fields)
+        self.assertEqual(readonly_fields, ('mother', 'display_plan', 'note', 'display_date', 'display_time'))

@@ -1,3 +1,5 @@
+from freezegun import freeze_time
+
 from django.contrib import admin
 from django.test import TestCase, RequestFactory
 from django.contrib.auth import get_user_model
@@ -16,9 +18,10 @@ class WhenCreatedTest(TestCase):
         self.inline_ban = BanInline(Ban, admin.site)
         self.factory = RequestFactory()
 
-        self.staff_user = User.objects.create(username='staffuser', password='password', is_staff=True,
+        self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True,
                                               timezone='Europe/Kiev')
 
+    @freeze_time('01.04.2024')
     def test_what_display(self):
         mother = Mother.objects.create(name='mother')
         ban = Ban.objects.create(mother=mother, comment='comment')
@@ -28,12 +31,4 @@ class WhenCreatedTest(TestCase):
         self.inline_ban.get_queryset(request)
         created = self.inline_ban.when_created(ban)
 
-        mother = Mother.objects.create(name='mother')
-        ban = Ban.objects.create(mother=mother, comment='comment')
-        request = self.factory.get('/')
-        request.user = User.objects.create(username='staffuser1', password='password', is_staff=True)
-
-        self.inline_ban.get_queryset(request)
-        created_utc = self.inline_ban.when_created(ban)
-
-        self.assertGreater(created, created_utc)
+        self.assertEqual(created, '04.01.2024')

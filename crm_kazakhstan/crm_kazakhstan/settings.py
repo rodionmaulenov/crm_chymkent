@@ -52,6 +52,7 @@ INSTALLED_APPS = [
 
     # MY APPS
     'mothers',
+    'ban',
     'first_visit',
     'gmail_messages',
     # many-to-one relationships with mother
@@ -178,22 +179,3 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
     'guardian.backends.ObjectPermissionBackend',
 )
-
-#
-# LOGGING = {
-#     'version': 1,
-#
-#     'handlers': {
-#         'console': {
-#             'class': 'logging.StreamHandler',
-#         },
-#     },
-#     'loggers': {
-#         'django.db.backends': {
-#             'handlers': ['console'],
-#             'level': 'DEBUG',
-#         },
-#     },
-# }
-
-

@@ -12,11 +12,15 @@ from django.urls import reverse
 from mothers.admin import MotherAdmin
 from mothers.forms import StateAdminForm
 from mothers.models import State, Mother
+from mothers.services.mother_classes.permissions import PermissionCheckerFactory
 from mothers.services.state import extract_choices, filter_choices, inject_request_into_form, \
-    convert_to_utc_and_save, has_permission, adjust_button_visibility, after_add_message, after_change_message
+    convert_to_utc_and_save, adjust_button_visibility, after_add_message, after_change_message
 from mothers.services.mother import get_model_objects, on_primary_stage
 
 from gmail_messages.services.manager_factory import ManagerFactory
+
+
+CLASS_NAME = 'ObjectLevelPermission'
 
 
 @admin.register(State)
@@ -24,6 +28,11 @@ class StateAdmin(GuardedModelAdmin):
     form = StateAdminForm
     fields = ('mother', 'condition', 'reason', 'scheduled_date', 'scheduled_time', 'finished')
     readonly_fields = ('mother',)
+
+    class Media:
+        css = {
+            'all': ('mothers/css/hide-timezone-time.css',)
+        }
 
     def get_fields(self, request: HttpRequest, obj: Optional[State] = None) -> Tuple[str, ...]:
         """
@@ -47,29 +56,29 @@ class StateAdmin(GuardedModelAdmin):
         """
         Access is denied to everyone.
         """
+        base = super().has_module_permission(request)
+        if base:
+            return False
         return False
 
-    def has_view_permission(self, request: HttpRequest, obj: State = None) -> bool:
-        return has_permission(self, request, 'view', obj)
+    def has_view_permission(self, request: HttpRequest, state: State = None) -> bool:
+        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME)
+        has_perm = permission_checker.has_permission('view', obj=state)
+        return has_perm
 
-    def has_change_permission(self, request: HttpRequest, obj: State = None) -> bool:
-        return has_permission(self, request, 'change', obj)
+    def has_change_permission(self, request: HttpRequest, state: State = None) -> bool:
+        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME)
+        has_perm = permission_checker.has_permission('change', obj=state)
+        return has_perm
 
     def has_add_permission(self, request: HttpRequest) -> bool:
-        """
-        Can add just only user that has model base ``add`` ``Permission``
-        and when user and ``Mother`` instance are assigned custom permission during creation.
-        """
+        base = super().has_add_permission(request)
 
         mother_admin = MotherAdmin(Mother, admin.site)
-        stage = request.user.stage
-
-        data = get_model_objects(mother_admin, request, stage)
-        users_mothers = on_primary_stage(data).exists()
-
-        base_case = super().has_add_permission(request)
-
-        return base_case or users_mothers
+        class_name = 'ModulePermission'
+        permission_checker = PermissionCheckerFactory.get_checker(mother_admin, request, class_name)
+        has_perm = permission_checker.has_permission(base, on_primary_stage)
+        return has_perm
 
     def render_change_form(self, request: HttpRequest, context: Dict[str, Any],
                            add: bool = False, change: bool = False,

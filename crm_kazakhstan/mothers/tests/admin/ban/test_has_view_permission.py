@@ -21,7 +21,7 @@ class HasViewPermissionTest(TestCase):
         self.factory = RequestFactory()
 
         self.mother = Mother.objects.create(name='mother')
-        self.ban = Ban.objects.create(mother=self.mother, comment='some reason', banned=False)
+        self.ban = Ban.objects.create(mother=self.mother, comment='some reason', banned=True)
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True,

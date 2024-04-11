@@ -1,5 +1,4 @@
 from datetime import time, date
-from freezegun import freeze_time
 
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.middleware import SessionMiddleware

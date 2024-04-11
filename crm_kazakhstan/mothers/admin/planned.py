@@ -1,44 +1,63 @@
 from typing import Dict, Any, Optional, Tuple, Type
 
 from django.contrib import admin
+from django.utils.html import format_html
 from django.contrib.admin.helpers import AdminForm
 from django.contrib.auth import get_user_model
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponseRedirect
 from django.forms import ModelForm
+from django.urls import reverse
 
 from mothers.admin import MotherAdmin
 from mothers.forms import PlannedAdminForm
 from mothers.models import Planned, Mother
-from mothers.services.mother import get_model_objects, on_primary_stage
-from mothers.services.state import convert_to_utc_and_save, has_permission, adjust_button_visibility, \
-    inject_request_into_form
+from mothers.services.mother import on_primary_stage, convert_utc_to_local
+from mothers.services.mother_classes.formatter_interface import DayMonthYearFormatter, HourMinuteFormatter
+from mothers.services.mother_classes.permissions import PermissionCheckerFactory
+from mothers.services.state import convert_to_utc_and_save, adjust_button_visibility, inject_request_into_form
 
 from gmail_messages.services.manager_factory import ManagerFactory
 
+
 User = get_user_model()
+
+CLASS_NAME = 'ObjectLevelPermission'
 
 
 @admin.register(Planned)
 class PlannedAdmin(admin.ModelAdmin):
     form = PlannedAdminForm
-    fields = ('mother', 'plan', 'note', 'scheduled_date', 'scheduled_time', "created", 'finished')
-    readonly_fields = ('mother', 'created')
+    fields = ('mother', 'plan', 'note', 'scheduled_date', 'scheduled_time', 'finished')
+    readonly_fields = ('mother', 'display_date', 'display_time', 'display_plan')
+
+    class Media:
+        css = {
+            'all': ('mothers/css/hide-timezone-time.css',)
+        }
+
+    def get_queryset(self, request):
+        self.request = request
+
+        queryset = super().get_queryset(request).select_related('mother')
+        return queryset
 
     def get_fields(self, request: HttpRequest, obj: Optional[Planned] = None) -> Tuple[str, ...]:
         """
         Define which fields to display on the add and change forms.
         """
         if obj is None:
+            # This is the add form, include 'scheduled_date' and 'scheduled_time'
             return 'mother', 'plan', 'note', 'scheduled_date', 'scheduled_time'
         else:
-            return 'mother', 'plan', 'note', 'scheduled_date', 'scheduled_time', "created", 'finished'
+            # This is the change form, include 'display_date' and 'display_time' as read-only
+            return 'mother', 'display_plan', 'note', 'display_date', 'display_time', 'finished'
 
     def get_readonly_fields(self, request: HttpRequest, obj=None) -> Tuple[str, ...]:
         """
         Determine the readonly fields based on whether an object is being added or changed.
         """
         if obj:  # This is the change page
-            return self.readonly_fields
+            return 'mother', 'display_plan', 'note', 'display_date', 'display_time'
         else:  # This is the add page
             return ()
 
@@ -98,19 +117,46 @@ class PlannedAdmin(admin.ModelAdmin):
             return False
         return False
 
-    def has_view_permission(self, request: HttpRequest, obj: Planned = None) -> bool:
-        return has_permission(self, request, 'view', obj, )
+    def has_view_permission(self, request: HttpRequest, planned: Planned = None) -> bool:
+        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME)
+        has_perm = permission_checker.has_permission('view', obj=planned)
+        return has_perm
 
-    def has_change_permission(self, request: HttpRequest, obj: Planned = None) -> bool:
-        return has_permission(self, request, 'change', obj)
+    def has_change_permission(self, request: HttpRequest, planned: Planned = None) -> bool:
+        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME)
+        has_perm = permission_checker.has_permission('change', obj=planned)
+        return has_perm
 
     def has_add_permission(self, request: HttpRequest) -> bool:
+        base = super().has_add_permission(request)
+
         mother_admin = MotherAdmin(Mother, admin.site)
-        stage = request.user.stage
+        class_name = 'ModulePermission'
+        permission_checker = PermissionCheckerFactory.get_checker(mother_admin, request, class_name)
+        has_perm = permission_checker.has_permission(base, on_primary_stage)
+        return has_perm
 
-        data = get_model_objects(mother_admin, request, stage)
-        users_mothers = on_primary_stage(data).exists()
+    def response_add(self, request: HttpRequest, obj: Planned, post_url_continue=None) -> HttpResponseRedirect:
+        """
+        After add redirect ot mother changelist page.
+        """
+        mother_changelist = reverse('admin:mothers_mother_changelist')
+        return HttpResponseRedirect(mother_changelist)
 
-        base_case = super().has_add_permission(request)
+    @admin.display(description='plan')
+    def display_plan(self, planned: Planned):
+        return format_html('<strong>{}</strong>', planned.get_plan_display().upper())
 
-        return base_case or users_mothers
+    @admin.display(description='scheduled date')
+    def display_date(self, planned: Planned):
+        local_time = convert_utc_to_local(self.request, planned.scheduled_date, planned.scheduled_time)
+        formatter = DayMonthYearFormatter()
+        formatting = formatter.format(local_time)
+        return formatting
+
+    @admin.display(description='scheduled time')
+    def display_time(self, planned: Planned):
+        local_time = convert_utc_to_local(self.request, planned.scheduled_date, planned.scheduled_time)
+        formatter = HourMinuteFormatter()
+        formatting = formatter.format(local_time)
+        return formatting

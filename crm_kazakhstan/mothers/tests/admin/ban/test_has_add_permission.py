@@ -27,23 +27,22 @@ class HasAddPermissionTest(TestCase):
     def test_super_user_can_add(self):
         request = self.factory.get('/')
         request.user = self.superuser
-        view = self.admin.has_add_permission(request)
+        add = self.admin.has_add_permission(request)
 
-        self.assertTrue(view)
+        self.assertTrue(add)
 
     def test_staff_user_can_add_with_model_lvl_perm(self):
-        view_permission = Permission.objects.get(codename='add_mother')
+        view_permission = Permission.objects.get(codename='add_ban')
         self.staff_user.user_permissions.add(view_permission)
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_add_permission(request)
+        add = self.admin.has_add_permission(request)
 
-        self.assertTrue(view)
+        self.assertTrue(add)
 
     def test_staff_user_can_add_with_obj_assign_perm(self):
         mother = Mother.objects.create(name='Mother 1')
-        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
 
         factory = ManagerFactory()
         primary_manager = factory.create('PrimaryStageManager')
@@ -51,13 +50,13 @@ class HasAddPermissionTest(TestCase):
 
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_add_permission(request)
+        add = self.admin.has_add_permission(request)
 
-        self.assertTrue(view)
+        self.assertTrue(add)
 
     def test_staff_user_can_not_add(self):
         request = self.factory.get('/')
         request.user = self.staff_user
-        view = self.admin.has_add_permission(request)
+        add = self.admin.has_add_permission(request)
 
-        self.assertFalse(view)
+        self.assertFalse(add)

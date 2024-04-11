@@ -23,4 +23,4 @@ class DisplayCommentTest(TestCase):
         ban = Ban.objects.create(mother=mother, comment='comment')
 
         comment = self.inline_ban.display_comment(ban)
-        self.assertEqual(comment, 'comment')
+        self.assertEqual(comment, '<strong>COMMENT</strong>')

@@ -30,7 +30,7 @@ class GetFieldsTest(TestCase):
         request = self.factory.get('/')
         fields = self.admin.get_fields(request, planned)
 
-        expected_fields = ('mother', 'plan', 'note', 'scheduled_date', 'scheduled_time', "created", 'finished')
+        expected_fields = ('mother', 'display_plan', 'note', 'display_date', 'display_time', 'finished')
 
         self.assertEqual(fields, expected_fields)
 
