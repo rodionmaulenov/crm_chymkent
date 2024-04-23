@@ -36,7 +36,7 @@ class StateInline(admin.TabularInline):
 
     @admin.display(description='reason')
     def display_reason(self, state: State) -> str:
-        return state.reason if state.reason else ''
+        return state.reason if state.reason else '-'
 
     @admin.display(description='scheduled date')
     def display_date(self, state: State) -> Union[date, str]:

@@ -1,19 +1,23 @@
 import pytz
 
 from datetime import datetime, time, date
-from typing import Union
+from typing import Union, Optional
+from urllib.parse import urlparse, urlencode
 from guardian.shortcuts import get_objects_for_user
 
 from django.contrib.admin import ModelAdmin
+from django.contrib import messages
 from django.db.models import Count
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse
 from django.utils import timezone
 from django.db import models
 from django.db.models import QuerySet, Q
-from django.utils.html import format_html, mark_safe
+from django.utils.html import format_html
 
 from mothers.models import Stage, State, Mother, Ban
+from mothers.services.mother_classes.create_messages import MessageCreator
+from mothers.services.mother_classes.url_decorators import BaseURL, QueryParameterDecorator, MessageDecorator
 
 Stage: models
 State: models
@@ -163,22 +167,8 @@ def get_empty_state(queryset: QuerySet) -> QuerySet:
     """
     Objs with empty condition
     """
-    return queryset.filter((Q(state__condition=State.ConditionChoices.EMPTY) | Q(state__condition=None))
+    return queryset.filter((Q(state__condition='') | Q(state__condition=None))
                            & Q(state__finished=False))
-
-
-def after_change_message(obj: Mother) -> str:
-    url = reverse('admin:mothers_mother_change', args=[obj.pk])
-
-    changed_message = format_html(
-        f'Changes for <strong><a href="{url}">{obj}</a></strong> saved successfully.'
-    )
-    return changed_message
-
-
-def link_html(url: str, text: str) -> format_html:
-    """Custom link."""
-    return f'<a href="{url}">{text}</a>'
 
 
 def extract_from_url(request: HttpRequest, key: str, value: str) -> bool:
@@ -191,54 +181,56 @@ def extract_from_url(request: HttpRequest, key: str, value: str) -> bool:
     return False
 
 
-def add_new(path: str, obj: Mother) -> format_html:
-    """
-    Add new obj related with ``Mother`` instance.
-    """
-    url = reverse(path)
-    return format_html(f'<a href="{url}?mother={obj.pk}"><b>adding</b></a>')
+def set_url(request: HttpRequest, path: str, text: str = None) -> str:
+    filters = {key: value for key, value in request.GET.items()}
+
+    parsed_url = urlparse(path)
+    path_only = parsed_url.path
+    query_string = parsed_url.query
+
+    if query_string:
+        filters['mother'] = query_string.split('=')[1]
+
+    base_url = BaseURL(path_only)
+    query_params = QueryParameterDecorator(base_url, filters)
+    uri = query_params.construct_url(text)
+    return uri
 
 
-def change(url: str, instance: models, text: str) -> format_html:
-    """
-    Custom change link.
-    """
-    change_url = reverse(url, args=[instance.pk])
-    link = link_html(change_url, text)
+def redirect_to(request: HttpRequest, obj: models.Model, text: str, url_collection: dict,
+                level: int) -> HttpResponseRedirect:
+    message_creator = MessageCreator(obj, url_collection['message_url'])
+    message = message_creator.message(text)
 
-    return mark_safe(link)
+    filters = {key: value for key, value in request.GET.items()}
+    if filters.get('mother', []): del filters['mother']
 
-
-class Specification:
-    """
-    Base class for inheritance future child spec
-    """
-
-    def __init__(self, spec):
-        self.spec = spec
-
-    def is_verified(self, item):
-        pass
+    base_url = BaseURL(url_collection['base_url'])
+    query_params = QueryParameterDecorator(base_url, filters)
+    message_url = MessageDecorator(query_params, request, message, level)
+    return HttpResponseRedirect(message_url.construct_url())
 
 
-class Filter:
-    """
-    Base class for inheritance future child filter
-    """
-
-    def filter(self, item, spec):
-        pass
+def simple_redirect(request: HttpRequest, url: str, message: str, level: int):
+    base_url = BaseURL(url)
+    message_url = MessageDecorator(base_url, request, message, level)
+    return HttpResponseRedirect(message_url.construct_url())
 
 
-class FromUrlSpec(Specification):
-    def is_verified(self, item):
-        """
-        Get the specific query from request session
-        """
-        spec = item.get(self.spec, False)
-        return spec
+def check_cond(request: HttpRequest, mother: Mother, model: str) -> Optional[set_url]:
+    if model == 'state':
+        iterable = mother.state.exists(), mother.plan.exists()
+        mothers_obj = mother.state.first()
+    else:
+        iterable = mother.plan.exists(), mother.state.exists()
+        mothers_obj = mother.plan.first()
 
-
-class BaseFilter(Filter):
-    def filter(self, item, spec) -> bool:
-        return spec.is_verified(item)
+    match iterable:
+        case (True, _):
+            url = reverse(f'admin:mothers_{model}_change', args=[mothers_obj.id])
+            return set_url(request, url, mothers_obj)
+        case (False, False):
+            url = reverse(f'admin:mothers_{model}_add') + '?' + urlencode({'mother': mother.pk})
+            return set_url(request, url, 'add new')
+        case (False, True):
+            return

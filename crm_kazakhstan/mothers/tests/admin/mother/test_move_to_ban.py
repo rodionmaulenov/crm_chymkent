@@ -1,11 +1,14 @@
 from datetime import date, time
+from urllib.parse import urlencode
 
 from django.test import TestCase, RequestFactory
 from django.contrib.auth.models import Permission
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.middleware import SessionMiddleware
+from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.messages.middleware import MessageMiddleware
+from django.contrib.messages import get_messages
 from django.db import models
 from django.urls import reverse
 
@@ -27,7 +30,7 @@ class MoveToBanTest(TestCase):
         self.factory = RequestFactory()
         self.session = SessionMiddleware()
         self.message = MessageMiddleware()
-        self.mother = Mother.objects.create(name='name')
+        self.mother = Mother.objects.create(name='Test mother')
         self.user = User.objects.create(username='username', password='password', is_staff=True,
                                         stage=Stage.StageChoices.PRIMARY)
 
@@ -54,6 +57,10 @@ class MoveToBanTest(TestCase):
         self.assertEqual(result.status_code, 302)
         self.assertEqual(result.url, f'/admin/mothers/ban/add/?mother={self.mother.pk}')
 
+        messages = list(get_messages(request))
+        with self.assertRaises(IndexError):
+            x = messages[0]
+
     def test_moved_to_ban_with_model_perm(self):
         Stage.objects.create(mother=self.mother, stage=Stage.StageChoices.PRIMARY, finished=False)
         Ban.objects.create(mother=self.mother, comment='comment')
@@ -71,6 +78,10 @@ class MoveToBanTest(TestCase):
         result = self.admin.move_to_ban(request, queryset)
         self.assertEqual(result.status_code, 302)
         self.assertEqual(result.url, f'/admin/mothers/ban/add/?mother={self.mother.pk}')
+
+        messages = list(get_messages(request))
+        with self.assertRaises(IndexError):
+            x = messages[0]
 
     def test_when_mother_has_another_actions(self):
         Stage.objects.create(mother=self.mother, stage=Stage.StageChoices.PRIMARY, finished=False)
@@ -99,6 +110,10 @@ class MoveToBanTest(TestCase):
         change_url = reverse('admin:mothers_mother_changelist')
         self.assertEqual(result.url, change_url)
 
+        messages = list(get_messages(request))
+        expected_message = '<b>Test mother</b> has no finished action'
+        self.assertEqual(expected_message, str(messages[0]))
+
     def test_when_queryset_greater_one(self):
         Stage.objects.create(mother=self.mother, stage=Stage.StageChoices.PRIMARY, finished=False)
         Ban.objects.create(mother=self.mother, comment='comment')
@@ -110,6 +125,10 @@ class MoveToBanTest(TestCase):
         self.user.user_permissions.add(view_permission)
 
         request = self.factory.get('/')
+        middleware = SessionMiddleware(request)
+        middleware.process_request(request)
+        request.session.save()
+        request._messages = FallbackStorage(request)
         request.user = self.user
         self.prepare_request(request)
 
@@ -118,5 +137,9 @@ class MoveToBanTest(TestCase):
 
         result = self.admin.move_to_ban(request, queryset)
         self.assertEqual(result.status_code, 302)
-        change_url = reverse('admin:mothers_mother_changelist')
-        self.assertEqual(result.url, change_url)
+        full_url = reverse('admin:mothers_mother_changelist')
+        self.assertEqual(result.url, full_url)
+
+        messages = list(get_messages(request))
+        expected_message = 'Please choose exactly one instance'
+        self.assertEqual(expected_message, str(messages[0]))

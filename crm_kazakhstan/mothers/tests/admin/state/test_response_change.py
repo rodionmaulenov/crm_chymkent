@@ -1,5 +1,6 @@
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.middleware import SessionMiddleware
+from django.contrib.messages import get_messages
 from django.db import models
 from django.test import TestCase, RequestFactory
 from django.urls import reverse
@@ -16,7 +17,7 @@ State: models
 Mother: models
 
 
-class ResponseChangeMethodTest(TestCase):
+class ResponseChangeTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
@@ -29,6 +30,7 @@ class ResponseChangeMethodTest(TestCase):
 
     def test_redirect_to_mother_change_list_with_extra_params(self):
         condition = State.objects.create(mother=self.mother, finished=False, scheduled_date=timezone.now().date(),
+                                         condition=State.ConditionChoices.WORKING,
                                          scheduled_time=timezone.now().time())
 
         query_params = '?date_create__gte=2024-01-05+00%3A00%3A00%2B02%3A00'
@@ -46,10 +48,16 @@ class ResponseChangeMethodTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse('admin:mothers_mother_changelist'))
 
+        messages = list(get_messages(request))
+        expected_message = (f'We are working, successfully added for <a href="/admin/mothers/mother/{self.mother.pk}'
+                            f'/change/" ><b>Test Mother</b></a>')
+        self.assertIn(expected_message, str(messages[0]))
+
     def test_redirect_to_mother_change_list_without_extra_params(self):
         condition = State.objects.create(mother=self.mother, finished=False,
                                          scheduled_date=timezone.now().date(),
-                                         scheduled_time=timezone.now().time()
+                                         scheduled_time=timezone.now().time(),
+                                         reason='some reason'
                                          )
 
         relative_path = reverse('admin:mothers_state_change', args=[condition.pk])
@@ -64,3 +72,8 @@ class ResponseChangeMethodTest(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse('admin:mothers_mother_changelist'))
+
+        messages = list(get_messages(request))
+        expected_message = (f'Some reason, successfully added for <a href="/admin/mothers/mother/{self.mother.pk}'
+                            f'/change/" ><b>Test Mother</b></a>')
+        self.assertIn(expected_message, str(messages[0]))

@@ -30,7 +30,7 @@ class SaveModelTest(TestCase):
                                               stage=Stage.StageChoices.PRIMARY)
 
     def test_when_add_is_assigned_obj_perm_view(self):
-        document = Document(mother=self.mother, file=self.mock_file)
+        document = Document(mother=self.mother, file=self.mock_file, note='some', title='some')
         self.assertIsNone(document.pk)
 
         request = self.factory.get('/')

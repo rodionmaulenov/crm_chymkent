@@ -1,8 +1,6 @@
 from datetime import date, time
 from typing import Tuple, Union, Dict, Any, Optional, List, Type
 
-from django.urls import reverse
-from django.utils.html import format_html
 from django.forms import ModelForm
 from django import forms
 from django.db.models import Q, Field
@@ -15,7 +13,6 @@ from django.utils.safestring import mark_safe
 
 from mothers.models import Mother, State, Planned
 from mothers.forms import StateAdminForm
-from mothers.services.mother_classes.formatter_interface import CombinedExtractor, StateExtractor, TextReducer
 
 Mother: models
 State: models
@@ -89,7 +86,7 @@ def validate_empty_condition(form: StateAdminForm, cleaned_data: Dict[str, Any])
     Checks reason exists if condition is empty.
     """
     _, _, condition, reason = cleaned_date_time_and_condition(cleaned_data)
-    empty_condition = condition is None or condition == State.ConditionChoices.EMPTY
+    empty_condition = condition is None or condition == ''
 
     if empty_condition and not reason:
         form.add_error('reason', "Specify understandable reason for empty state")
@@ -204,34 +201,3 @@ def adjust_button_visibility(context: Dict[str, Any], add: bool, change: bool) -
         context['show_save_and_add_another'] = False  # Remove "Save and add another" button
         context['show_save_and_continue'] = False  # Remove "Save and continue editing" button
         context['show_save'] = True  # Ensure "Save" button is visible
-
-
-def after_add_message(obj: Union[State, Planned]) -> str:
-    extractor = CombinedExtractor(StateExtractor())
-    cutter = TextReducer(extractor)
-    text = cutter.reduce_text(obj)
-
-    url = reverse('admin:mothers_mother_change', args=[obj.mother.id])
-    added_message = format_html(
-        f'State {text} successfully created for <strong><a href="{url}">{obj.mother}</a></strong>'
-    )
-    return added_message
-
-
-def after_change_message(obj: State) -> str:
-    extractor = CombinedExtractor(StateExtractor())
-    cutter = TextReducer(extractor)
-    text = cutter.reduce_text(obj)
-
-    url = reverse('admin:mothers_mother_change', args=[obj.mother.id])
-
-    if obj.finished:
-        complete_message = format_html(
-            f'State {text} already completed for <strong><a href="{url}">{obj.mother}</a></strong>'
-        )
-        return complete_message
-
-    changed_message = format_html(
-        f'State {text} changed for <strong><a href="{url}">{obj.mother}</a></strong>'
-    )
-    return changed_message

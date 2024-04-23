@@ -1,25 +1,25 @@
 from typing import Any, Dict, Optional, Tuple, Union
+
 from rangefilter.filters import DateRangeFilter
 
 from django.contrib.admin.helpers import AdminForm
 from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse
-from django.utils.html import format_html
 from django.db.models import QuerySet
-from django.shortcuts import redirect
 from django.db import models
 from django.contrib import admin, messages
 
 from mothers.filters import BoardFilter, ActionFilter
 from mothers.inlines import StateInline, PlannedInline, BanInline
 from mothers.models import Mother
-from mothers.services.mother_classes.command_interface import get_command, get_command2
+from mothers.services.mother_classes.command_interface import MoveToBanCommand, ScheduledDateTimeCommand, \
+    WhenCreatedCommand
 from mothers.services.mother_classes.formatter_interface import BoldDayMonthYearHourMinuteFormatter, \
-    CombinedExtractor, StateExtractor, TextReducer, DayMonthHourMinuteFormatter, PlanExtractor
+    DayMonthHourMinuteFormatter
 from mothers.services.mother_classes.permissions import PermissionCheckerFactory
 from mothers.services.state import adjust_button_visibility
-from mothers.services.mother import on_primary_stage, get_model_objects, convert_to_local_time, \
-    change, FromUrlSpec, BaseFilter, convert_utc_to_local, after_change_message, tuple_inlines
+from mothers.services.mother import on_primary_stage, get_model_objects, convert_to_local_time, convert_utc_to_local, \
+    tuple_inlines, redirect_to, check_cond
 
 # Globally disable delete selected
 admin.site.disable_action('delete_selected')
@@ -111,18 +111,15 @@ class MotherAdmin(admin.ModelAdmin):
 
     def response_change(self, request: HttpRequest, obj: Mother) -> HttpResponseRedirect:
         """
-        After change redirect on previous url if exists or on changelist
+        Redirect on filtered or without filters change list page.
         """
-        self.message_user(request, after_change_message(obj), level=messages.SUCCESS)
-        mother_changelist = reverse('admin:mothers_mother_changelist')
+        text = 'Successfully changed'
+        path_dict = {
+            'message_url': reverse('admin:mothers_mother_change', args=[obj.pk]),
+            'base_url': reverse('admin:mothers_mother_changelist')
+        }
 
-        changelist_spec = FromUrlSpec('_changelist_filters')
-        changelist = BaseFilter()
-        changelist_param = changelist.filter(request.GET, changelist_spec)
-
-        if changelist_param:
-            return HttpResponseRedirect(mother_changelist + '?' + changelist_param)
-        return HttpResponseRedirect(mother_changelist)
+        return redirect_to(request, obj, text, path_dict, messages.SUCCESS)
 
     def has_module_permission(self, request: HttpRequest) -> bool:
         """
@@ -167,112 +164,49 @@ class MotherAdmin(admin.ModelAdmin):
         has_perm = permission_checker.has_permission('change', on_primary_stage, obj=mother)
         return has_perm
 
-    @admin.display(description='created', empty_value="no date", )
+    @admin.display(description='created')
     def when_created(self, obj: Mother) -> str:
         """
-        Returns the creation date of the Mother instance, converted from UTC to the user's local timezone.
+        Converts the UTC creation date to the user's local time.
         """
-        user_timezone = getattr(self.request.user, 'timezone', 'UTC')
+        date_creation = WhenCreatedCommand(self.request, obj)
+        return date_creation.execute()
 
-        local_time = convert_to_local_time(obj, user_timezone)
-        formatter = DayMonthHourMinuteFormatter()
-        formatting = formatter.format(local_time)
-        return formatting
-
-    @admin.display(description='extra reason', empty_value='')
+    @admin.display(description='extra reason')
     def reason(self, obj: Mother) -> str:
         return obj.state.first().reason
 
-    @admin.display(description='state', empty_value='')
-    def create_state(self, mother: Mother) -> format_html:
+    @admin.display(description='state')
+    def create_state(self, mother: Mother) -> Union[str, None]:
         """
-        Generate links for different states.
+        Generate links for different states:
+          First, if the state exists, the URL for changing is generated;
+          Second, if another related instance already exists, nothing is returned;
+          Third, returns the URL for adding if no instances exist.
         """
-        change_url = 'admin:mothers_state_change'
-        add_url = 'admin:mothers_state_add'
+        return check_cond(self.request, mother, 'state')
 
-        state = mother.state.exists()
-        plan = mother.plan.exists()
-        ban = mother.ban.exists()
-
-        state_instance = None
-        text = None
-        if state:
-            state_instance = mother.state.first()
-            extractor = CombinedExtractor(StateExtractor())
-            cutter = TextReducer(extractor)
-            text = cutter.reduce_text(state_instance)
-
-        command = get_command(state, plan, ban)
-        result = command.execute(change_url=change_url, add_url=add_url, mother=mother, obj=state_instance, text=text)
-        return result
-
-    @admin.display(description='scheduled date/time', empty_value='')
+    @admin.display(description='scheduled date/time')
     def state_datetime(self, mother: Mother) -> Union[str, None]:
         """
-        Show timetable for state.
+        Show scheduled time for mother state.
         """
-        request = self.request
-        state = mother.state.exists()
+        planed_date = ScheduledDateTimeCommand(self.request, mother)
+        return planed_date.execute()
 
-        formatting = None
-        if state:
-            state_instance = mother.state.first()
-            to_local = convert_utc_to_local(request, state_instance.scheduled_date, state_instance.scheduled_time)
-
-            formatter = BoldDayMonthYearHourMinuteFormatter()
-            formatting = formatter.format(to_local)
-
-        return formatting
-
-    @admin.display(description='plan', empty_value='')
-    def create_plan(self, mother: Mother) -> str:
+    @admin.display(description='plan')
+    def create_plan(self, mother: Mother) -> Union[str, None]:
         """
         Prepares client for sending into laboratory.
+
+        Generate links for different states:
+          First, if the plan exists, the URL for changing is generated;
+          Second, if another related instance already exists, nothing is returned;
+          Third, returns the URL for adding if no instances exist.
         """
-        change_url = 'admin:mothers_planned_change'
-        add_url = 'admin:mothers_planned_add'
-
-        state = mother.state.exists()
-        plan = mother.plan.exists()
-        ban = mother.ban.exists()
-
-        plan_instance = None
-        text = None
-        if plan:
-            plan_instance = mother.plan.first()
-            extractor = CombinedExtractor(PlanExtractor())
-            cutter = TextReducer(extractor)
-            text = cutter.reduce_text(plan_instance)
-
-        command = get_command2(state, plan, ban)
-        result = command.execute(change_url=change_url, add_url=add_url, mother=mother, obj=plan_instance, text=text)
-        return result
+        return check_cond(self.request, mother, 'planned')
 
     @admin.action(description='move to ban')
     def move_to_ban(self, request, queryset):
-        change_url = reverse('admin:mothers_mother_changelist')
-        add_url = reverse('admin:mothers_ban_add')
-
-        mothers = queryset.count()
-        if mothers == 1:
-            mother = queryset.first()
-
-            if mother.state.exists() or mother.plan.exists():
-                self.message_user(
-                    request,
-                    format_html(f'<b>{mother}</b> has no finished action'),
-                    messages.ERROR,
-                )
-                return redirect(change_url)
-
-            # Add the mother's ID as a query parameter
-            add_url_with_mother_id = f"{add_url}?mother={mother.pk}"
-            return redirect(add_url_with_mother_id)
-        else:
-            self.message_user(
-                request,
-                format_html('Please choose only one instance'),
-                messages.ERROR,
-            )
-            return redirect(change_url)
+        send_to_ban = MoveToBanCommand(request, queryset)
+        return send_to_ban.execute()

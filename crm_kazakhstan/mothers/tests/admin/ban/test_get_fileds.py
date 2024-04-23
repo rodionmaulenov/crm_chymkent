@@ -21,7 +21,7 @@ class GetFieldsTest(TestCase):
         request = self.factory.get('/')
         fields = self.admin.get_fields(request, obj)
 
-        expected_fields = ('mother', 'comment')
+        expected_fields = ()
 
         self.assertEqual(fields, expected_fields)
 

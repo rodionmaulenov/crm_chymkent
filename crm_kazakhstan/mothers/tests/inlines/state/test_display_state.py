@@ -26,14 +26,3 @@ class DisplayStateMethodTest(TestCase):
         expected_value = condition.get_condition_display().upper()
         value = format_html('<strong>{}</strong>', expected_value)
         self.assertEqual(state_display, value)
-
-    def test_condition_display_state(self):
-        condition = State.objects.create(mother=self.mother, condition=State.ConditionChoices.EMPTY,
-                                         scheduled_date=timezone.now().date(),
-                                         scheduled_time=timezone.now().time()
-                                         )
-        state_display = self.inline_condition.display_state(condition)
-
-        expected_value = condition.get_condition_display().upper()
-        value = format_html('<strong>{}</strong>', expected_value)
-        self.assertEqual(state_display, value)

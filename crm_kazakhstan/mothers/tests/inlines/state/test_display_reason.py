@@ -32,5 +32,5 @@ class DisplayReasonMethodTest(TestCase):
                                          scheduled_time=timezone.now().time())
         reason_display = self.inline_condition.display_reason(condition)
 
-        expected_value = ''
+        expected_value = '-'
         self.assertEqual(reason_display, expected_value)

@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth import get_user_model
 from django.contrib.messages.middleware import MessageMiddleware
 from django.contrib.sessions.middleware import SessionMiddleware
@@ -42,7 +42,7 @@ class ResponseAddTest(TestCase):
         old_stage_mother = ban.mother.stage_set.filter(finished=False).first().stage
         self.assertEqual(old_stage_mother, Stage.StageChoices.PRIMARY)
 
-        redirect = self.admin.response_add(request, ban)
+        redirect = self.admin.response_add(request, ban, messages.SUCCESS)
 
         queryset = self.mother_admin.get_queryset(request)
         self.assertEqual(len(queryset), 0)

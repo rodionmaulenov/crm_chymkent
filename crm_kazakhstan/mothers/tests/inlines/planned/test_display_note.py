@@ -26,7 +26,7 @@ class DisplayNoteTest(TestCase):
             finished=False)
 
         text = self.inline.display_note(planned)
-        self.assertEqual(text, '')
+        self.assertEqual(text, '-')
 
     def test_some_note(self):
         planned = Planned.objects.create(

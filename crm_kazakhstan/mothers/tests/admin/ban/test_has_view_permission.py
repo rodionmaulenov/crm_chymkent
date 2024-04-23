@@ -39,7 +39,7 @@ class HasViewPermissionTest(TestCase):
         request.user = self.superuser
         view = self.admin.has_view_permission(request)
 
-        self.assertTrue(view)
+        self.assertFalse(view)
 
     def test_staff_has_perm_if_obj(self):
         factory = ManagerFactory()
@@ -63,7 +63,7 @@ class HasViewPermissionTest(TestCase):
         request.user = self.staff_user
         view = self.admin.has_view_permission(request)
 
-        self.assertTrue(view)
+        self.assertFalse(view)
 
     def test_staff_assign_model_perm_if_obj(self):
         view_permission = Permission.objects.get(codename='view_ban')
@@ -83,7 +83,7 @@ class HasViewPermissionTest(TestCase):
         request.user = self.staff_user
         view = self.admin.has_view_permission(request)
 
-        self.assertTrue(view)
+        self.assertFalse(view)
 
     def test_staff_user_has_not_any_perms(self):
         request = self.factory.get('/')

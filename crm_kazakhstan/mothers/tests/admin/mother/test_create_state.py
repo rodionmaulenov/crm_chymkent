@@ -1,5 +1,4 @@
 from datetime import time, date
-from freezegun import freeze_time
 
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.middleware import SessionMiddleware
@@ -10,7 +9,6 @@ from django.utils import timezone
 
 from mothers.models import Mother, State, Planned, Ban, Stage
 from mothers.admin import MotherAdmin
-from mothers.services.mother import extract_from_url
 
 Mother: models
 State: models
@@ -21,7 +19,7 @@ Stage: models
 User = get_user_model()
 
 
-class CreateConditionLinkTest(TestCase):
+class CreateStateTest(TestCase):
 
     def setUp(self):
         self.mother = Mother.objects.create(name='Test')
@@ -30,7 +28,7 @@ class CreateConditionLinkTest(TestCase):
         self.admin = MotherAdmin(Mother, AdminSite())
         self.superuser = User.objects.create_superuser(username='superuser', password='password')
 
-    def test_state_finished_and_not_another_inst(self):
+    def test_state(self):
         State.objects.create(mother=self.mother, finished=True,
                              condition=State.ConditionChoices.CREATED,
                              scheduled_date=timezone.now().date(),
@@ -44,25 +42,8 @@ class CreateConditionLinkTest(TestCase):
         self.admin.request = request
 
         result = self.admin.create_state(mother=self.mother)
-
-        self.assertEqual(f'<a href="/admin/mothers/state/add/?mother={self.mother.pk}"><b>adding</b></a>', result)
-
-    def test_ban_exists(self):
-        State.objects.create(mother=self.mother, finished=True, condition=State.ConditionChoices.CREATED,
-                             scheduled_date=timezone.now().date(),
-                             scheduled_time=timezone.now().time())
-        Ban.objects.create(mother=self.mother, banned=False)
-
-        request = self.factory.get('/')
-        middleware = SessionMiddleware()
-        middleware.process_request(request)
-        request.session.save()
-        request.user = self.superuser
-        self.admin.request = request
-
-        result = self.admin.create_state(mother=self.mother)
-
-        self.assertIsNone(result)
+        required = f'<a href="/admin/mothers/state/add/?mother={self.mother.pk}" ><b>add new</b></a>'
+        self.assertEqual(result, required)
 
     def test_plan_exists(self):
         State.objects.create(mother=self.mother,
@@ -98,10 +79,8 @@ class CreateConditionLinkTest(TestCase):
         self.admin.request = request
 
         result = self.admin.create_state(mother=self.mother)
-
-        self.assertEqual(
-            f'<a href="/admin/mothers/state/add/?mother={self.mother.pk}"><b>adding</b></a>',
-            result)
+        required = f'<a href="/admin/mothers/state/add/?mother={self.mother.pk}" ><b>add new</b></a>'
+        self.assertEqual(result, required)
 
     def test_instance_not_finished_and_not_another(self):
         state = State.objects.create(mother=self.mother, finished=False, condition=State.ConditionChoices.CREATED,
@@ -117,7 +96,25 @@ class CreateConditionLinkTest(TestCase):
         self.admin.request = request
 
         result = self.admin.create_state(mother=self.mother)
-        self.assertEqual(
-            f'<a href="/admin/mothers/state/{state.pk}/change/"><strong>recently created</strong></a>',
-            result)
+        required = f'<a href="/admin/mothers/state/{state.pk}/change/" ><b>Recently created</b></a>'
+        self.assertEqual(result, required)
+
+    def test_instance_not_finished_and_not_another_adn_reason(self):
+        state = State.objects.create(mother=self.mother, finished=False,
+                                     scheduled_date=timezone.now().date(),
+                                     scheduled_time=timezone.now().time(),
+                                     reason='some reason'
+                                     )
+
+        request = self.factory.get('/')
+        middleware = SessionMiddleware()
+        middleware.process_request(request)
+        request.session.save()
+        request.user = self.superuser
+        self.admin.request = request
+
+        result = self.admin.create_state(mother=self.mother)
+        required = f'<a href="/admin/mothers/state/{state.pk}/change/" ><b>Some reason</b></a>'
+        self.assertEqual(result, required)
+
 

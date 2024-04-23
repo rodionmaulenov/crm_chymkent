@@ -27,5 +27,5 @@ class DisplayPlanTest(TestCase):
             finished=False)
 
         text = self.inline.display_plan(planned)
-        example = 'laboratory is planned'.upper()
+        example = 'laboratory'.upper()
         self.assertEqual(text, f'<strong>{example}</strong>')

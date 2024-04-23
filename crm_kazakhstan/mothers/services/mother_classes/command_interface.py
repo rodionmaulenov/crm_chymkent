@@ -1,129 +1,140 @@
-# This code demonstrates the use of the Command Design Pattern and the Chain of Responsibility
-# Design Pattern in Python to handle different conditions related to a `Mother` object in a system.
-# The Command Pattern is used to encapsulate actions as objects, and the Chain of Responsibility
-# Pattern is used to determine which command to execute based on the provided conditions.
+from typing import Optional
+
+from django.urls import reverse_lazy
+from django.http import HttpResponseRedirect, HttpRequest
+from django.contrib import messages
+from django.db.models import QuerySet
+
+from mothers.models import Stage, Ban, Mother
+from mothers.services.mother import redirect_to, simple_redirect, convert_utc_to_local, convert_to_local_time
+from mothers.services.mother_classes.formatter_interface import BoldDayMonthYearHourMinuteFormatter
 
 
-from abc import ABC, abstractmethod
-from typing import Optional, Union
-
-from mothers.models import Mother, Planned, Ban, State
-from mothers.services.mother import add_new, change
-
-
-class ConditionCommand(ABC):
-    @abstractmethod
-    def execute(self, *args, **kwargs) -> Optional[str]:
-        """Abstract method to be implemented by concrete commands."""
-        pass
+# Command Interface
+class Command:
+    def execute(self, *args, **kwargs):
+        raise NotImplementedError("You should implement this method.")
 
 
-# Concrete Commands
-class EmptyCommand(ConditionCommand):
-    def execute(self, *args, **kwargs) -> None:
-        """Concrete command that does nothing."""
-        return
+# Concrete Command
+class MoveToBanCommand(Command):
+    _MOTHER_CHANGELIST_URL = reverse_lazy('admin:mothers_mother_changelist')
+    _MOTHER_ADD_URL = reverse_lazy('admin:mothers_ban_add')
+    _related_exists: Optional[str] = None
+
+    @classmethod
+    def check_queryset(cls, request, queryset: QuerySet):
+        """Previously check that mother must be only one."""
+        if queryset.count() != 1:
+            message = 'Please choose exactly one instance'
+            return simple_redirect(request, cls._MOTHER_CHANGELIST_URL, message, messages.INFO)
+
+    def __init__(self, request, queryset):
+        self.request = request
+        self.http_redirect = self.check_queryset(request, queryset)
+        self.mother = self.http_redirect if isinstance(self.http_redirect, HttpResponseRedirect) else queryset.first()
+
+    @property
+    def foreign_model(self):
+        return self.if_exists(self.mother)
+
+    def if_exists(self, mother):
+        """Verify if mothers related objects exist."""
+        if mother.state.exists() or mother.plan.exists():
+            message = f'<b>{mother}</b> has no finished action'
+            return simple_redirect(self.request, self._MOTHER_CHANGELIST_URL, message, messages.INFO)
+
+    def execute(self, *args, **kwargs):
+        """Redirect on add Ban page."""
+        if isinstance(self.mother, HttpResponseRedirect):
+            return self.http_redirect
+
+        if isinstance(self.foreign_model, HttpResponseRedirect):
+            return self.foreign_model
+        else:
+            # Add the mother's ID as a query parameter
+            add_url = f"{self._MOTHER_ADD_URL}?mother={self.mother.pk}"
+            return HttpResponseRedirect(add_url)
 
 
-class AddNewCommand(ConditionCommand):
-    def execute(self, *args, **kwargs) -> str:
-        """Concrete command to add a new Mother object."""
-        path: str = kwargs.get('add_url')
-        mother: Mother = kwargs.get('mother')
-        return add_new(path, mother)
+class ResponseAddBanCommand(Command):
+    def __init__(self, request: HttpRequest, obj: Ban, path: dict, post_url_continue=None):
+        self.request = request
+        self.obj = obj
+        self.post_url_continue = post_url_continue
+        self.path = path
+
+    @property
+    def get_mother(self):
+        return self.obj.mother
+
+    def end_stage(self):
+        stage = self.get_mother.stage_set.filter(finished=False).first()
+        stage.finished = True
+        stage.save()
+
+    def end_ban(self):
+        self.obj.banned = True
+        self.obj.save()
+
+    def proceed_stage(self, stage):
+        new_stage = Stage(mother=self.get_mother, stage=stage, finished=False)
+        new_stage.save()
+
+    def execute(self, text=None, message_state=None):
+        """The mother has been assigned a different state and the previous one has been completed."""
+        self.end_stage()
+        self.end_ban()
+
+        self.proceed_stage(Stage.StageChoices.BAN)
+
+        return redirect_to(self.request, self.obj, text, self.path, message_state)
 
 
-class ChangeCommand(ConditionCommand):
-    def execute(self, *args, **kwargs) -> str:
-        """Concrete command to change a Mother object."""
-        path: str = kwargs.get('change_url')
-        obj: Union[Planned, Ban, State] = kwargs.get('obj')
-        text: str = kwargs.get('text')
-        return change(path, obj, text)
+class ScheduledDateTimeCommand(Command):
+    _format = None
+
+    def __init__(self, request: HttpRequest, obj: Mother):
+        self.request = request
+        self.obj = obj
+
+    @property
+    def is_state(self):
+        return self.obj.state.exists()
+
+    @property
+    def state(self):
+        return self.obj.state.first()
+
+    def formated_time(self, local_time):
+        formatter = BoldDayMonthYearHourMinuteFormatter()
+        self._format = formatter.format(local_time)
+
+    def execute(self, *args, **kwargs):
+        """Getting user local time in specified format."""
+        if self.is_state:
+            local_time = convert_utc_to_local(self.request, self.state.scheduled_date, self.state.scheduled_time)
+            self.formated_time(local_time)
+
+        return self._format
 
 
-# Handler Interface
-class CommandHandler(ABC):
-    def __init__(self) -> None:
-        self._next_handler: Optional[CommandHandler] = None
+class WhenCreatedCommand(Command):
+    _format = None
 
-    def set_next(self, handler: 'CommandHandler') -> 'CommandHandler':
-        """Sets the next handler in the chain."""
-        self._next_handler = handler
-        return handler
+    def __init__(self, request: HttpRequest, obj: Mother):
+        self.request = request
+        self.obj = obj
 
-    @abstractmethod
-    def handle(self, state: bool, plan: bool, ban: bool) -> ConditionCommand:
-        """Abstract method to handle the request or pass it to the next handler."""
-        if self._next_handler:
-            return self._next_handler.handle(state, plan, ban)
+    @property
+    def users_timezone(self):
+        return getattr(self.request.user, 'timezone', 'UTC')
 
+    def formated_time(self, local_time):
+        formatter = BoldDayMonthYearHourMinuteFormatter()
+        self._format = formatter.format(local_time)
 
-# Concrete Handlers for "State"
-class PlanOrBanHandler(CommandHandler):
-    def handle(self, state: bool, plan: bool, ban: bool) -> ConditionCommand:
-        """Handler for the case when plan or ban is true."""
-        if not state and (plan or ban):
-            return EmptyCommand()
-        return super().handle(state, plan, ban)
-
-
-class BanOrStateHandler(CommandHandler):
-    def handle(self, state: bool, plan: bool, ban: bool) -> ConditionCommand:
-        """Handler for the case when state or ban is true."""
-        if not plan and (ban or state):
-            return EmptyCommand()
-        return super().handle(state, plan, ban)
-
-
-class NoOneHandler(CommandHandler):
-    def handle(self, state: bool, plan: bool, ban: bool) -> ConditionCommand:
-        """Handler for the case when all flags are false."""
-        if not state and not plan and not ban:
-            return AddNewCommand()
-        return super().handle(state, plan, ban)
-
-
-class StateHandler(CommandHandler):
-    def handle(self, state: bool, plan: bool, ban: bool) -> ConditionCommand:
-        """Handler for the case when only the state flag is true."""
-        if state and not plan and not ban:
-            return ChangeCommand()
-        return super().handle(state, plan, ban)
-
-
-class PlanHandler(CommandHandler):
-    def handle(self, state: bool, plan: bool, ban: bool) -> ConditionCommand:
-        """Handler for the case when only the plan flag is true."""
-        if plan and not ban and not state:
-            return ChangeCommand()
-        return super().handle(state, plan, ban)
-
-
-# Client Code For Creating ``State`` Instance
-def get_command(state: bool, plan: bool, ban: bool):
-    """
-    Create a chain for "State" conditions. Depending on the conditions,
-    it returns an appropriate command for adding, changing, or performing another action.
-    """
-    handler1 = PlanOrBanHandler()
-    handler2 = NoOneHandler()
-    handler3 = StateHandler()
-
-    handler1.set_next(handler2).set_next(handler3)
-
-    return handler1.handle(state, plan, ban)
-
-
-def get_command2(state: bool, plan: bool, ban: bool):
-    """
-    Create a chain for "Planned" conditions. Depending on the conditions,
-    it returns an appropriate command for adding, changing, or performing another action.
-    """
-    handler1 = BanOrStateHandler()
-    handler2 = NoOneHandler()
-    handler3 = PlanHandler()
-
-    handler1.set_next(handler2).set_next(handler3)
-
-    return handler1.handle(state, plan, ban)
+    def execute(self, *args, **kwargs):
+        """Turns UTC time into the local user time."""
+        self.formated_time(self.users_timezone)
+        return self._format

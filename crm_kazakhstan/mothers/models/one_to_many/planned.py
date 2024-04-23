@@ -3,7 +3,7 @@ from django.db import models
 
 class Planned(models.Model):
     class PlannedChoices(models.TextChoices):
-        FIRST_TEST = 'laboratory', 'laboratory is planned'
+        FIRST_TEST = 'LABORATORY', 'Laboratory'
         __empty__ = "-----"
 
     mother = models.ForeignKey("Mother", on_delete=models.CASCADE)

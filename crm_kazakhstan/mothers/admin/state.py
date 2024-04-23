@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, Type, Tuple
+from typing import Dict, Any, Optional, Type, Tuple, Final
 from guardian.admin import GuardedModelAdmin
 
 from django.db.models import Field
@@ -14,13 +14,12 @@ from mothers.forms import StateAdminForm
 from mothers.models import State, Mother
 from mothers.services.mother_classes.permissions import PermissionCheckerFactory
 from mothers.services.state import extract_choices, filter_choices, inject_request_into_form, \
-    convert_to_utc_and_save, adjust_button_visibility, after_add_message, after_change_message
-from mothers.services.mother import get_model_objects, on_primary_stage
+    convert_to_utc_and_save, adjust_button_visibility
+from mothers.services.mother import on_primary_stage, redirect_to
 
 from gmail_messages.services.manager_factory import ManagerFactory
 
-
-CLASS_NAME = 'ObjectLevelPermission'
+CLASS_NAME: Final[str] = 'ObjectLevelPermission'
 
 
 @admin.register(State)
@@ -99,19 +98,36 @@ class StateAdmin(GuardedModelAdmin):
         return super().render_change_form(request, context, add=add, change=change,
                                           form_url=form_url, obj=obj)
 
-    def response_add(self, request: HttpRequest, obj: State, post_url_continue=None) -> HttpResponseRedirect:
-        """After add redirect ot mother changelist page."""
+    @staticmethod
+    def handle_redirect(request: HttpRequest, obj: State, text: str) -> HttpResponseRedirect:
+        """
+        Handles the redirection logic after adding or changing an object.
+        """
+        path_dict = {
+            'message_url': reverse('admin:mothers_mother_change', args=[obj.mother.id]),
+            'base_url': reverse('admin:mothers_mother_changelist')
+        }
+        return redirect_to(request, obj, text, path_dict, messages.SUCCESS)
 
-        mother_changelist = reverse('admin:mothers_mother_changelist')
-        self.message_user(request, after_add_message(obj), level=messages.SUCCESS)
-        return HttpResponseRedirect(mother_changelist)
+    def response_add(self, request: HttpRequest, obj: State, post_url_continue=None) -> HttpResponseRedirect:
+        """
+        After add redirect on mother change list.
+
+        As well if changelist has been filtered before add statement,
+        it redirects on this filtered change list page.
+        """
+        text = f'{obj}, successfully added for'
+        return self.handle_redirect(request, obj, text)
 
     def response_change(self, request: HttpRequest, obj: State) -> HttpResponseRedirect:
-        """After any change redirect ot mother changelist page."""
+        """
+        After change redirect on mother change list.
 
-        mother_changelist = reverse('admin:mothers_mother_changelist')
-        self.message_user(request, after_change_message(obj), level=messages.SUCCESS)
-        return HttpResponseRedirect(mother_changelist)
+        As well if changelist has been filtered before add statement,
+        it redirects on this filtered change list page.
+        """
+        text = f'{obj}, successfully added for'
+        return self.handle_redirect(request, obj, text)
 
     def save_model(self, request: HttpRequest, obj: State, form: ModelForm, change: bool) -> None:
         """

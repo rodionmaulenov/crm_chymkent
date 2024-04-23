@@ -63,7 +63,6 @@ class AssignNewStatusFilterTest(TestCase):
         State.objects.create(
             mother=mother,
             reason='Some reason',
-            condition=State.ConditionChoices.EMPTY,
             scheduled_date=datetime(2023, 12, 12, tzinfo=timezone.utc),
             scheduled_time=time(14, 30, 0),
             finished=False
@@ -91,7 +90,6 @@ class AssignNewStatusFilterTest(TestCase):
         State.objects.create(
             mother=mother,
             reason='Some reason',
-            condition=State.ConditionChoices.EMPTY,
             scheduled_date=datetime(2023, 12, 12, tzinfo=timezone.utc),
             scheduled_time=time(14, 30, 0),
             finished=True

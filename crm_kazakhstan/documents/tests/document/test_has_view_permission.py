@@ -25,7 +25,7 @@ class HasViewPermissionTest(TestCase):
 
         self.mother = Mother.objects.create(name='mother')
         self.mock_file = SimpleUploadedFile('test.txt', b'This is a test file', content_type='text/plain')
-        self.document = Document.objects.create(mother=self.mother, file=self.mock_file)
+        self.document = Document.objects.create(mother=self.mother, file=self.mock_file, note='some', title='some')
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True,
@@ -43,7 +43,7 @@ class HasViewPermissionTest(TestCase):
         request.user = self.superuser
         view = self.admin.has_view_permission(request)
 
-        self.assertTrue(view)
+        self.assertFalse(view)
 
     def test_staff_has_perm_if_obj(self):
         factory = ManagerFactory()
@@ -65,7 +65,7 @@ class HasViewPermissionTest(TestCase):
         request.user = self.staff_user
         view = self.admin.has_view_permission(request)
 
-        self.assertTrue(view)
+        self.assertFalse(view)
 
     def test_staff_assign_model_perm_if_obj(self):
         view_permission = Permission.objects.get(codename='view_document')
@@ -85,7 +85,7 @@ class HasViewPermissionTest(TestCase):
         request.user = self.staff_user
         view = self.admin.has_view_permission(request)
 
-        self.assertTrue(view)
+        self.assertFalse(view)
 
     def test_staff_user_has_not_any_perms(self):
         request = self.factory.get('/')

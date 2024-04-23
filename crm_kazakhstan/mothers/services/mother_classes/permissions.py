@@ -12,28 +12,6 @@ from mothers.services.mother import get_model_objects
 MOTHERS_CHANGE_LIST_URL = reverse_lazy('admin:mothers_mother_changelist')
 
 
-class CheckData:
-    @property
-    def model_objects(self) -> QuerySet:
-        """
-        Get objects owned to user.
-        """
-        return get_model_objects(self.admin, self.request)
-
-    def filtered_data(self, func = None) -> QuerySet:
-        """
-        Add custom filter.
-        """
-        data = func(self.model_objects) if func is not None else self.model_objects
-        return data
-
-    def data_exists(self, func = None) -> bool:
-        """
-        Verify if data exists.
-        """
-        return self.filtered_data(func).exists()
-
-
 class PermissionChecker(ABC):
     def __init__(self, admin: ModelAdmin, request: HttpRequest):
         self.admin = admin
@@ -66,6 +44,28 @@ class PermissionChecker(ABC):
         if len(args) > 1:
             func = args[1]
         return action, func
+
+
+class CheckData:
+    @property
+    def model_objects(self) -> QuerySet:
+        """
+        Get objects owned to user.
+        """
+        return get_model_objects(self.admin, self.request)
+
+    def filtered_data(self, func=None) -> QuerySet:
+        """
+        Add custom filter.
+        """
+        data = func(self.model_objects) if func is not None else self.model_objects
+        return data
+
+    def data_exists(self, func=None) -> bool:
+        """
+        Verify if data exists.
+        """
+        return self.filtered_data(func).exists()
 
 
 class ModulePermission(PermissionChecker, CheckData):

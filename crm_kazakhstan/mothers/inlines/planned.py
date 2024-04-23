@@ -36,7 +36,7 @@ class PlannedInline(admin.TabularInline):
 
     @admin.display(description='note')
     def display_note(self, planned: Planned):
-        return planned.note if planned.note else ''
+        return planned.note if planned.note else '-'
 
     @admin.display(description='planned date')
     def display_date(self, planned: Planned):

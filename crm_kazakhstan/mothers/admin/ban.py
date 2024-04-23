@@ -5,7 +5,6 @@ from django.urls import reverse
 from django.http import HttpRequest, HttpResponseRedirect
 from django.db.models import QuerySet
 from django.forms import ModelForm
-from django.utils.html import format_html
 from django.contrib.admin.helpers import AdminForm
 from django.db import models
 
@@ -13,7 +12,8 @@ from gmail_messages.services.manager_factory import ManagerFactory
 
 from mothers.admin import MotherAdmin
 from mothers.forms import BanAdminForm
-from mothers.models import Mother, Stage, Ban
+from mothers.models import Mother, Ban
+from mothers.services.mother_classes.command_interface import ResponseAddBanCommand
 from mothers.services.mother_classes.permissions import PermissionCheckerFactory
 from mothers.services.state import adjust_button_visibility
 
@@ -24,7 +24,6 @@ Mother: models
 class BanAdmin(admin.ModelAdmin):
     form = BanAdminForm
     fields = ('mother', 'comment')
-    list_display = ('mother', 'comment')
     readonly_fields = ('mother',)
 
     def get_fields(self, request: HttpRequest, obj: Optional[Ban] = None) -> Tuple[str, ...]:
@@ -34,7 +33,7 @@ class BanAdmin(admin.ModelAdmin):
         if obj is None:
             return 'mother', 'comment'
         else:
-            return 'mother', 'comment'
+            return ()
 
     def get_readonly_fields(self, request: HttpRequest, obj=None) -> Tuple[str, ...]:
         """
@@ -96,10 +95,13 @@ class BanAdmin(admin.ModelAdmin):
         return queryset
 
     def has_view_permission(self, request: HttpRequest, ban: Ban = None) -> bool:
-        class_name = 'ObjectListLevelPermission'
+        class_name = 'ObjectLevelPermission'
         permission_checker = PermissionCheckerFactory.get_checker(self, request, class_name)
         has_perm = permission_checker.has_permission('view', obj=ban)
         return has_perm
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
     def has_add_permission(self, request: HttpRequest, ban: Ban = None) -> bool:
         base = super().has_add_permission(request)
@@ -112,24 +114,13 @@ class BanAdmin(admin.ModelAdmin):
 
     def response_add(self, request: HttpRequest, obj: Ban, post_url_continue=None) -> HttpResponseRedirect:
         """
-        Change stage on mother instance and then redirect on main page.
+        Change stage for mother instance and then redirect on main page.
         """
-        mother = obj.mother
+        path_dict = {
+            'message_url': reverse('admin:mothers_mother_change', args=[obj.mother.id]),
+            'base_url': reverse('admin:mothers_mother_changelist')
+        }
 
-        stage = mother.stage_set.filter(finished=False).first()
-        stage.finished = True
-        stage.save()
-
-        obj.banned = True
-        obj.save()
-
-        new_stage = Stage(mother=mother, stage=Stage.StageChoices.BAN, finished=False)
-        new_stage.save()
-
-        self.message_user(
-            request,
-            format_html(f'<b>{mother}</b> has successfully transferred to ban'),
-            messages.SUCCESS,
-        )
-        mother_changelist = reverse('admin:mothers_mother_changelist')
-        return HttpResponseRedirect(mother_changelist)
+        command = ResponseAddBanCommand(request, obj, path_dict)
+        text = 'Successfully transferred to ban'
+        return command.execute(text, messages.SUCCESS)

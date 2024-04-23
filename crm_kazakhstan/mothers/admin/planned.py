@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional, Tuple, Type
 
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.utils.html import format_html
 from django.contrib.admin.helpers import AdminForm
 from django.contrib.auth import get_user_model
@@ -11,7 +11,7 @@ from django.urls import reverse
 from mothers.admin import MotherAdmin
 from mothers.forms import PlannedAdminForm
 from mothers.models import Planned, Mother
-from mothers.services.mother import on_primary_stage, convert_utc_to_local
+from mothers.services.mother import on_primary_stage, convert_utc_to_local, redirect_to
 from mothers.services.mother_classes.formatter_interface import DayMonthYearFormatter, HourMinuteFormatter
 from mothers.services.mother_classes.permissions import PermissionCheckerFactory
 from mothers.services.state import convert_to_utc_and_save, adjust_button_visibility, inject_request_into_form
@@ -136,12 +136,36 @@ class PlannedAdmin(admin.ModelAdmin):
         has_perm = permission_checker.has_permission(base, on_primary_stage)
         return has_perm
 
+    @staticmethod
+    def handle_redirect(request: HttpRequest, obj: Planned, text: str) -> HttpResponseRedirect:
+        """
+        Handles the redirection logic after adding or changing an object.
+        """
+        path_dict = {
+            'message_url': reverse('admin:mothers_mother_change', args=[obj.mother.id]),
+            'base_url': reverse('admin:mothers_mother_changelist')
+        }
+        return redirect_to(request, obj, text, path_dict, messages.SUCCESS)
+
     def response_add(self, request: HttpRequest, obj: Planned, post_url_continue=None) -> HttpResponseRedirect:
         """
-        After add redirect ot mother changelist page.
+        After add redirect on mother change list.
+
+        As well if changelist has been filtered before add statement,
+        it redirects on this filtered change list page.
         """
-        mother_changelist = reverse('admin:mothers_mother_changelist')
-        return HttpResponseRedirect(mother_changelist)
+        text = f'{obj} plan successfully added for'
+        return self.handle_redirect(request, obj, text)
+
+    def response_change(self, request: HttpRequest, obj: Planned) -> HttpResponseRedirect:
+        """
+        After change redirect on mother change list.
+
+        As well if changelist has been filtered before add statement,
+        it redirects on this filtered change list page.
+        """
+        text = f'{obj} plan successfully changed for'
+        return self.handle_redirect(request, obj, text)
 
     @admin.display(description='plan')
     def display_plan(self, planned: Planned):

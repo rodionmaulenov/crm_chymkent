@@ -24,7 +24,7 @@ class RenderChangeFormTest(TestCase):
 
         self.mother = Mother.objects.create(name='mother')
         self.mock_file = SimpleUploadedFile('test.txt', b'This is a test file', content_type='text/plain')
-        self.document = Document.objects.create(mother=self.mother, file=self.mock_file)
+        self.document = Document.objects.create(mother=self.mother, file=self.mock_file, note='some', title='some')
 
         self.superuser = User.objects.create_superuser(username='superuser', email='test@example.com',
                                                        password='top_secret', stage=Stage.StageChoices.PRIMARY)

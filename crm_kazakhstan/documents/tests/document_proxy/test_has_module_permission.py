@@ -51,7 +51,7 @@ class HasModulePermissionTest(TestCase):
         self.assertTrue(access)
 
     def test_staff_has_access_with_base_perm(self):
-        view_permission = Permission.objects.get(codename='view_mother')
+        view_permission = Permission.objects.get(codename='view_document')
         self.staff_user.user_permissions.add(view_permission)
 
         request = self.factory.get('/')

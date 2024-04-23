@@ -1,5 +1,3 @@
-from datetime import date, time
-
 from django.db import models
 from django.test import TestCase, RequestFactory
 from django.contrib import admin

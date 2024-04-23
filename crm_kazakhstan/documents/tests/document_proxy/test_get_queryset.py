@@ -6,7 +6,9 @@ from django.db import models
 
 from documents.admin import DocumentProxyAdmin
 from documents.models import DocumentProxy
+
 from gmail_messages.services.manager_factory import ManagerFactory
+
 from mothers.models import Mother, Stage
 from mothers.admin import MotherAdmin
 
@@ -117,7 +119,7 @@ class GetQuerysetTest(TestCase):
         mother = Mother.objects.create(name='Mother 1')
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
 
-        view_permission = Permission.objects.get(codename='view_mother')
+        view_permission = Permission.objects.get(codename='view_document')
         self.staff_user.user_permissions.add(view_permission)
 
         request = self.factory.get('/')
@@ -127,7 +129,7 @@ class GetQuerysetTest(TestCase):
         self.assertEqual(len(queryset), 1)
 
     def test_staff_user_has_base_perm_on_diff_stage(self):
-        view_permission = Permission.objects.get(codename='view_mother')
+        view_permission = Permission.objects.get(codename='view_document')
         self.staff_user.user_permissions.add(view_permission)
 
         request = self.factory.get('/')
