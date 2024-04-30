@@ -9,8 +9,10 @@ from django.db.models import QuerySet
 from django.db import models
 from django.contrib import admin, messages
 
+from ban.inlines import BanInline
+
 from mothers.filters import BoardFilter, ActionFilter
-from mothers.inlines import StateInline, PlannedInline, BanInline
+from mothers.inlines import StateInline, PlannedInline
 from mothers.models import Mother
 from mothers.services.mother_classes.command_interface import MoveToBanCommand, ScheduledDateTimeCommand, \
     WhenCreatedCommand

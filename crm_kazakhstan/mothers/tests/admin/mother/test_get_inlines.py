@@ -4,8 +4,11 @@ from django.db import models
 from django.utils import timezone
 
 from mothers.admin import MotherAdmin
-from mothers.inlines import BanInline, StateInline
-from mothers.models import Mother, Ban, State
+from mothers.inlines import StateInline
+from mothers.models import Mother, State
+
+from ban.inlines import BanInline
+from ban.models import Ban
 
 Mother: models
 Ban: models

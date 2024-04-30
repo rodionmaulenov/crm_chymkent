@@ -61,20 +61,20 @@ class StateAdmin(GuardedModelAdmin):
         return False
 
     def has_view_permission(self, request: HttpRequest, state: State = None) -> bool:
-        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME)
-        has_perm = permission_checker.has_permission('view', obj=state)
+        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME, 'view')
+        has_perm = permission_checker.has_permission(obj=state)
         return has_perm
 
     def has_change_permission(self, request: HttpRequest, state: State = None) -> bool:
-        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME)
-        has_perm = permission_checker.has_permission('change', obj=state)
+        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME, 'change')
+        has_perm = permission_checker.has_permission(obj=state)
         return has_perm
 
     def has_add_permission(self, request: HttpRequest) -> bool:
         base = super().has_add_permission(request)
 
         mother_admin = MotherAdmin(Mother, admin.site)
-        class_name = 'ModulePermission'
+        class_name = 'ModuleLevel'
         permission_checker = PermissionCheckerFactory.get_checker(mother_admin, request, class_name)
         has_perm = permission_checker.has_permission(base, on_primary_stage)
         return has_perm

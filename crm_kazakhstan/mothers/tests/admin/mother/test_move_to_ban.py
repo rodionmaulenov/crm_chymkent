@@ -1,5 +1,4 @@
 from datetime import date, time
-from urllib.parse import urlencode
 
 from django.test import TestCase, RequestFactory
 from django.contrib.auth.models import Permission
@@ -14,7 +13,9 @@ from django.urls import reverse
 
 from gmail_messages.services.manager_factory import ManagerFactory
 from mothers.admin import MotherAdmin
-from mothers.models import Mother, Stage, Ban, Planned
+from mothers.models import Mother, Stage, Planned
+
+from ban.models import Ban
 
 User = get_user_model()
 
@@ -55,7 +56,7 @@ class MoveToBanTest(TestCase):
 
         result = self.admin.move_to_ban(request, queryset)
         self.assertEqual(result.status_code, 302)
-        self.assertEqual(result.url, f'/admin/mothers/ban/add/?mother={self.mother.pk}')
+        self.assertEqual(result.url, f'/admin/ban/ban/add/?mother={self.mother.pk}')
 
         messages = list(get_messages(request))
         with self.assertRaises(IndexError):
@@ -77,7 +78,7 @@ class MoveToBanTest(TestCase):
 
         result = self.admin.move_to_ban(request, queryset)
         self.assertEqual(result.status_code, 302)
-        self.assertEqual(result.url, f'/admin/mothers/ban/add/?mother={self.mother.pk}')
+        self.assertEqual(result.url, f'/admin/ban/ban/add/?mother={self.mother.pk}')
 
         messages = list(get_messages(request))
         with self.assertRaises(IndexError):

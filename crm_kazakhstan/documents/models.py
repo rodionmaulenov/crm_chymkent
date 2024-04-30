@@ -5,7 +5,7 @@ from mothers.models import Mother
 
 class Document(models.Model):
     class KindDocumentChoices(models.TextChoices):
-        MAIN = 'MAIN', 'Main'
+        MAIN = 'MAIN', 'Mafrom ban.inlines import BanInlinein'
         ACQUIRED_FOR_PROGRAM = 'ACQUIRED FOR PROGRAM', 'Acquired for program'
         ADDITIONAL = 'ADDITIONAL', 'Additional'
 
@@ -30,6 +30,6 @@ class Document(models.Model):
 
 class DocumentProxy(Mother):
     class Meta:
-        verbose_name = 'document_proxy'
-        verbose_name_plural = 'documents_proxy'
+        verbose_name = 'documentproxy'
+        verbose_name_plural = 'documentsproxys'
         proxy = True

@@ -7,13 +7,13 @@ from django.contrib.admin.sites import AdminSite
 from django.db import models
 from django.utils import timezone
 
-from mothers.models import Mother, State, Planned, Ban, Stage
+from mothers.models import Mother, State, Planned, Stage
 from mothers.admin import MotherAdmin
+
 
 Mother: models
 State: models
 Planned: models
-Ban: models
 Stage: models
 
 User = get_user_model()

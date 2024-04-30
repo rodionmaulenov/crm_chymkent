@@ -11,7 +11,9 @@ from django.utils.html import format_html
 from django.contrib import messages
 from django.db.models import QuerySet
 
-from mothers.models import Stage, Ban, Mother
+from ban.models import Ban
+
+from mothers.models import Stage, Mother
 from mothers.services.mother import redirect_to, simple_redirect, convert_utc_to_local
 from mothers.services.mother_classes.formatter_interface import BoldDayMonthYearHourMinuteFormatter
 
@@ -25,7 +27,7 @@ class Command:
 # Concrete Command
 class MoveToBanCommand(Command):
     _MOTHER_CHANGELIST_URL = reverse_lazy('admin:mothers_mother_changelist')
-    _MOTHER_ADD_URL = reverse_lazy('admin:mothers_ban_add')
+    _MOTHER_ADD_URL = reverse_lazy('admin:ban_ban_add')
     _related_exists: Optional[str] = None
 
     @classmethod

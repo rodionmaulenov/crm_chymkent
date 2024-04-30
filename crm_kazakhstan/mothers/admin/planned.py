@@ -21,7 +21,7 @@ from gmail_messages.services.manager_factory import ManagerFactory
 
 User = get_user_model()
 
-CLASS_NAME = 'ObjectLevelPermission'
+CLASS_NAME = 'ObjectLevel'
 
 
 @admin.register(Planned)
@@ -131,7 +131,7 @@ class PlannedAdmin(admin.ModelAdmin):
         base = super().has_add_permission(request)
 
         mother_admin = MotherAdmin(Mother, admin.site)
-        class_name = 'ModulePermission'
+        class_name = 'ModuleLevel'
         permission_checker = PermissionCheckerFactory.get_checker(mother_admin, request, class_name)
         has_perm = permission_checker.has_permission(base, on_primary_stage)
         return has_perm

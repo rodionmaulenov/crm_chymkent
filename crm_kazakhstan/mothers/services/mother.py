@@ -14,9 +14,11 @@ from django.db import models
 from django.db.models import QuerySet, Q
 from django.utils.html import format_html
 
-from mothers.models import Stage, State, Mother, Ban
+from mothers.models import Stage, State, Mother
 from mothers.services.mother_classes.create_messages import MessageCreator
 from mothers.services.mother_classes.url_decorators import BaseURL, QueryParameterDecorator, MessageDecorator
+
+from ban.models import Ban
 
 Stage: models
 State: models
@@ -92,7 +94,8 @@ def tuple_inlines(obj: Mother, inlines) -> tuple:
     """
     Get inlines if their queryset not none.
     """
-    from mothers.inlines import StateInline, BanInline, PlannedInline
+    from mothers.inlines import StateInline, PlannedInline
+    from ban.inlines import BanInline
     filtered_inlines = []
     for inline in inlines:
         if inline is StateInline:

@@ -3,7 +3,9 @@ from typing import Dict, Any
 from django import forms
 from django.db import models
 
-from mothers.models import State, Ban, Planned
+from mothers.models import State, Planned
+
+from ban.models import Ban
 
 Mother: models
 
