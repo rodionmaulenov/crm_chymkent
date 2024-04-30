@@ -1,16 +1,14 @@
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.db import models
 from django.http import HttpRequest
-from django.utils.html import format_html
-from django.shortcuts import redirect
-from django.urls import reverse
 
 from ban.models import BanProxy
 
 from mothers.admin import MotherAdmin
 from mothers.inlines import PlannedInline, StateInline, BanInline
-from mothers.models import Mother, Stage
+from mothers.models import Mother
 from mothers.services.mother import get_model_objects, on_ban_stage, tuple_inlines
+from mothers.services.mother_classes.command_interface import FromBanCommand
 from mothers.services.mother_classes.permissions import PermissionCheckerFactory
 
 Mother: models
@@ -18,6 +16,7 @@ Mother: models
 
 @admin.register(BanProxy)
 class BanProxyAdmin(admin.ModelAdmin):
+    _mother_admin = MotherAdmin(Mother, admin.site)
     list_per_page = 10
     search_help_text = 'Search description'
     ordering = ('-created',)
@@ -47,9 +46,8 @@ class BanProxyAdmin(admin.ModelAdmin):
     def has_module_permission(self, request: HttpRequest) -> bool:
         base = super().has_module_permission(request)
 
-        mother_admin = MotherAdmin(Mother, admin.site)
-        class_name = 'ModulePermission'
-        permission_checker = PermissionCheckerFactory.get_checker(mother_admin, request, class_name)
+        class_name = 'ModuleLevel'
+        permission_checker = PermissionCheckerFactory.get_checker(self._mother_admin, request, class_name)
         has_perm = permission_checker.has_permission(base, on_ban_stage)
         return has_perm
 
@@ -69,18 +67,16 @@ class BanProxyAdmin(admin.ModelAdmin):
             queryset = on_ban_stage(mothers)
             return queryset
 
-        mother_admin = MotherAdmin(Mother, admin.site)
-        mothers = get_model_objects(mother_admin, request).prefetch_related(
+        mothers = get_model_objects(self._mother_admin, request).prefetch_related(
             'state_set', 'planned_set', 'ban_set', 'stage_set'
         )
         queryset = on_ban_stage(mothers)
         return queryset
 
     def has_view_permission(self, request: HttpRequest, mother: Mother = None):
-        mother_admin = MotherAdmin(Mother, admin.site)
-        class_name = 'ObjectListLevelPermission'
-        permission_checker = PermissionCheckerFactory.get_checker(mother_admin, request, class_name)
-        has_perm = permission_checker.has_permission('view', on_ban_stage, obj=mother)
+        class_name = 'ObjectListLevel'
+        permission_checker = PermissionCheckerFactory.get_checker(self._mother_admin, request, class_name, 'view')
+        has_perm = permission_checker.has_permission(on_ban_stage, obj=mother)
         return has_perm
 
     @admin.display(description='comment', empty_value='')
@@ -90,18 +86,5 @@ class BanProxyAdmin(admin.ModelAdmin):
     @admin.action(description='out from ban')
     def out_from_ban(self, request, queryset):
         """Move on primary stage."""
-        for mother in queryset:
-            stage = mother.stage_set.filter(finished=False).first()
-            stage.finished = True
-            stage.save()
-            new_stage = Stage(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
-            new_stage.save()
-
-            self.message_user(
-                request,
-                format_html(f'<b>{mother}</b> has successfully returned from ban'),
-                messages.SUCCESS,
-            )
-
-        mother_changelist = reverse('admin:mothers_mother_changelist')
-        return redirect(mother_changelist)
+        leave_the_ban = FromBanCommand(self, request, queryset)
+        return leave_the_ban.execute()

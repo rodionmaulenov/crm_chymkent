@@ -33,6 +33,6 @@ class GetFieldsTest(TestCase):
         request = self.factory.get('/')
         fields = self.admin.get_fields(request, obj=None)
 
-        expected_fields = ('mother', 'title', 'document_kind', 'note', 'file')
+        expected_fields = ('mother', 'kind', 'title', 'note', 'file')
 
         self.assertEqual(fields, expected_fields)

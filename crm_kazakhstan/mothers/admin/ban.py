@@ -95,9 +95,9 @@ class BanAdmin(admin.ModelAdmin):
         return queryset
 
     def has_view_permission(self, request: HttpRequest, ban: Ban = None) -> bool:
-        class_name = 'ObjectLevelPermission'
-        permission_checker = PermissionCheckerFactory.get_checker(self, request, class_name)
-        has_perm = permission_checker.has_permission('view', obj=ban)
+        class_name = 'ObjectLevel'
+        permission_checker = PermissionCheckerFactory.get_checker(self, request, class_name, 'view')
+        has_perm = permission_checker.has_permission(obj=ban)
         return has_perm
 
     def has_change_permission(self, request, obj=None):
@@ -107,7 +107,7 @@ class BanAdmin(admin.ModelAdmin):
         base = super().has_add_permission(request)
 
         mother_admin = MotherAdmin(Mother, admin.site)
-        class_name = 'ModulePermission'
+        class_name = 'ModuleLevel'
         permission_checker = PermissionCheckerFactory.get_checker(mother_admin, request, class_name)
         has_perm = permission_checker.has_permission(base)
         return has_perm

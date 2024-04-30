@@ -49,7 +49,7 @@ class GetQuerysetTest(TestCase):
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
         Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
 
-        self.assertEqual(len(queryset), 0)
+        self.assertEqual(len(queryset), 2)
 
     def test_superuser_mix_stage(self):
         request = self.factory.get('/')
@@ -61,7 +61,7 @@ class GetQuerysetTest(TestCase):
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
         Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
 
-        self.assertEqual(len(queryset), 1)
+        self.assertEqual(len(queryset), 2)
 
     def test_empty_queryset_for_superuser(self):
         request = self.factory.get('/')
@@ -119,7 +119,7 @@ class GetQuerysetTest(TestCase):
         mother = Mother.objects.create(name='Mother 1')
         Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
 
-        view_permission = Permission.objects.get(codename='view_document')
+        view_permission = Permission.objects.get(codename='view_documentproxy')
         self.staff_user.user_permissions.add(view_permission)
 
         request = self.factory.get('/')
@@ -129,7 +129,7 @@ class GetQuerysetTest(TestCase):
         self.assertEqual(len(queryset), 1)
 
     def test_staff_user_has_base_perm_on_diff_stage(self):
-        view_permission = Permission.objects.get(codename='view_document')
+        view_permission = Permission.objects.get(codename='view_documentproxy')
         self.staff_user.user_permissions.add(view_permission)
 
         request = self.factory.get('/')

@@ -1,154 +1,143 @@
 from abc import ABC, abstractmethod
+from guardian.shortcuts import get_objects_for_user
 
-from django.urls import reverse_lazy
 from django.contrib.admin import ModelAdmin
+from django.urls import reverse_lazy
 from django.http import HttpRequest
 from django.db.models import QuerySet
 from django.db import models
 
 from mothers.models import Mother
-from mothers.services.mother import get_model_objects
-
-MOTHERS_CHANGE_LIST_URL = reverse_lazy('admin:mothers_mother_changelist')
 
 
-class PermissionChecker(ABC):
-    def __init__(self, admin: ModelAdmin, request: HttpRequest):
+class PermissionConstruct(ABC):
+    def __init__(self, admin: ModelAdmin, request: HttpRequest, action: str = None):
         self.admin = admin
         self.request = request
+        self.action = action
         self.user = request.user
         self._meta = admin.opts
         self.app = self._meta.app_label
         self.model = self._meta.model_name
 
-    def has_base_permission(self, action: str) -> bool:
-        """
-        Check if the user has the base permission for the given action.
-        """
-        base_perm = f'{self.app}.{action}_{self.model}'
-        return self.user.has_perm(base_perm)
+    @property
+    def users_name(self):
+        return self.user.username
 
-    def has_custom_permission(self, obj: models = None) -> bool:
+    @property
+    def users_stage(self):
+        return self.user.stage
+
+    def users_permission(self, permission: str, obj: models.Model = None) -> bool:
+        return self.user.has_perm(permission, obj)
+
+    @property
+    def base_permission(self) -> str:
+        """User`s base permission."""
+        return f'{self.app}.{self.action}_{self.model}'
+
+    @property
+    def custom_permission(self) -> str:
+        """User`s custom permission."""
+        return f'{self.users_stage}_{self.model}_{self.users_name}'.lower()
+
+
+class CheckData(PermissionConstruct):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.klass = self._meta.model
+
+    def users_assign_objs(self) -> QuerySet:
         """
-        Check if the user has a custom permission for the given object.
+        Retrieves a QuerySet of objects from the model associated with the provided ModelAdmin instance (`adm`).
+        The objects are filtered based on the user's permissions. It checks if the user has custom permissions
+        for the objects of the model.
+        Super-user gets all queryset.
         """
-        username = self.user.username
-        stage = self.user.stage
-        custom_perm = f'{stage}_{self.model}_{username}'.lower()
-        return self.user.has_perm(custom_perm, obj)
+        # Retrieve and return the objects for which the user has the specified permissions
+        return get_objects_for_user(user=self.user, perms=self.custom_permission, klass=self.klass)
+
+    def filter_data(self, custom_filter=None) -> QuerySet:
+        return custom_filter(self.users_assign_objs()) if custom_filter is not None else self.users_assign_objs()
+
+    def users_query_exists(self, custom_filter=None) -> bool:
+        """If exists queryset data."""
+        return self.filter_data(custom_filter).exists()
 
     @abstractmethod
-    def has_permission(self, *args, obj: models = None):
-        action = args[0]
-        func = None
-        if len(args) > 1:
-            func = args[1]
-        return action, func
+    def has_permission(self, *args, **kwargs):
+        pass
 
 
-class CheckData:
-    @property
-    def model_objects(self) -> QuerySet:
-        """
-        Get objects owned to user.
-        """
-        return get_model_objects(self.admin, self.request)
-
-    def filtered_data(self, func=None) -> QuerySet:
-        """
-        Add custom filter.
-        """
-        data = func(self.model_objects) if func is not None else self.model_objects
-        return data
-
-    def data_exists(self, func=None) -> bool:
-        """
-        Verify if data exists.
-        """
-        return self.filtered_data(func).exists()
-
-
-class ModulePermission(PermissionChecker, CheckData):
-
-    def has_permission(self, *args, obj: Mother = None) -> bool:
-        """
-        Basic permission is when the user has or when the user has objects assigned to him.
-        """
-        base, func = super().has_permission(*args, obj=obj)
-
+class ModuleLevel(CheckData):
+    def has_permission(self, base, custom_filter=None) -> bool:
+        """Check cases where the user has a base permission
+        or queryset of objects belonging to the administrator class."""
         if not self.user.is_authenticated:
             return False
 
-        users_data = self.data_exists(func)
+        users_data = self.users_query_exists(custom_filter)
         return users_data or base
 
 
-class ObjectListLevelPermission(PermissionChecker, CheckData):
+class ObjectListLevel(CheckData):
+    def has_permission(self, custom_filter=None, obj: Mother = None) -> bool:
+        """
+            If obj:
+              Base permission or custom permission previously assigned to this object.
+            list level:
+              The base permission or query set owned by the user.
+        """
 
-    def has_permission(self, *args, obj: Mother = None) -> bool:
+        base = self.users_permission(self.base_permission)
+
+        match obj:
+            case None:
+                users_data = self.users_query_exists(custom_filter)
+                return users_data or base
+            case _:
+                custom = self.users_permission(self.custom_permission, obj)
+                return custom or base
+
+
+class ObjectLevel(CheckData):
+    def has_permission(self, obj: Mother = None) -> bool:
+        """
+            If obj:
+              Base permission or custom permission previously assigned to this object.
+            list level:
+              False.
+        """
+
+        base = self.users_permission(self.base_permission)
+        custom = self.users_permission(self.custom_permission, obj)
+        return custom or base if obj is not None else False
+
+
+class WrappedUrlObjectList(ObjectListLevel):
+    def has_permission(self, custom_filter=None, obj: Mother = None) -> bool:
         """
         At the object level:
         - When the user has basic permission or when the user is assigned an object.
         List level:
         - Basic permission is when the user has or when the user has objects assigned to him.
         """
-        action, func = super().has_permission(*args, obj=obj)
-
-        base = self.has_base_permission(action)
-        custom = self.has_custom_permission(obj)
-
-        if obj is not None:
-            return custom or base
-
-        users_data = self.data_exists(func)
-        return users_data or base
-
-
-class ObjectLevelPermission(PermissionChecker, CheckData):
-
-    def has_permission(self, *args, obj: Mother = None) -> bool:
-        """
-        At the object level:
-        - When the user has basic permission or when the user is assigned an object.
-        List level:
-        - Always False.
-        """
-        action, func = super().has_permission(*args, obj=obj)
-
-        base = self.has_base_permission(action)
-        custom = self.has_custom_permission(obj)
-
-        if obj is not None:
-            return custom or base
-
-        return False
-
-
-class BasedOnUrlChangePermission(ObjectListLevelPermission):
-
-    def has_permission(self, *args, obj: Mother = None) -> bool:
-        """
-        At the object level:
-        - When the user has basic permission or when the user is assigned an object.
-        List level:
-        - Basic permission is when the user has or when the user has objects assigned to him.
-        """
-
-        if str(MOTHERS_CHANGE_LIST_URL) in self.request.path:
-            return super().has_permission(*args, obj=obj)
+        url = reverse_lazy('admin:mothers_mother_changelist')
+        if str(url) in self.request.path:
+            return super().has_permission(custom_filter, obj)
         return False
 
 
 class PermissionCheckerFactory:
     @staticmethod
-    def get_checker(admin: ModelAdmin, request: HttpRequest, class_name: str):
+    def get_checker(admin: ModelAdmin, request: HttpRequest, class_name: str, action: str = None):
         """
         Factory method that dynamically returns an instance of the specified
         permission checker class based on the class name.
         """
         permission_checker_class = globals().get(class_name)
 
-        if permission_checker_class and issubclass(permission_checker_class, PermissionChecker):
-            return permission_checker_class(admin, request)
+        if permission_checker_class and issubclass(permission_checker_class, PermissionConstruct):
+            return permission_checker_class(admin, request, action)
         else:
             raise ValueError(f'No valid permission checker class found for name: {class_name}')

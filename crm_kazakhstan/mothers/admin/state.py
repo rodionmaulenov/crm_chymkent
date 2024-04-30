@@ -19,7 +19,7 @@ from mothers.services.mother import on_primary_stage, redirect_to
 
 from gmail_messages.services.manager_factory import ManagerFactory
 
-CLASS_NAME: Final[str] = 'ObjectLevelPermission'
+CLASS_NAME: Final[str] = 'ObjectLevel'
 
 
 @admin.register(State)

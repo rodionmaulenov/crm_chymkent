@@ -34,4 +34,4 @@ class MotherDateCreateTest(TestCase):
         )
 
         time_created_in_local_user_time = self.mother_admin_instance.when_created(self.mother_obj)
-        self.assertEqual(time_created_in_local_user_time, '12 December 18:00')
+        self.assertEqual(time_created_in_local_user_time, '<strong>12 December 23/18:00</strong>')

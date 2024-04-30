@@ -6,7 +6,6 @@ from urllib.parse import urlparse, urlencode
 from guardian.shortcuts import get_objects_for_user
 
 from django.contrib.admin import ModelAdmin
-from django.contrib import messages
 from django.db.models import Count
 from django.http import HttpRequest, HttpResponseRedirect
 from django.urls import reverse

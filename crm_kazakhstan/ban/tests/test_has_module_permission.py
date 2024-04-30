@@ -14,6 +14,7 @@ from mothers.admin import MotherAdmin
 from mothers.models import Mother, Ban, Stage
 
 User = get_user_model()
+
 Mother: models
 Ban: models
 Stage: models

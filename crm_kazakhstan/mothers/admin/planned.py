@@ -118,13 +118,13 @@ class PlannedAdmin(admin.ModelAdmin):
         return False
 
     def has_view_permission(self, request: HttpRequest, planned: Planned = None) -> bool:
-        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME)
-        has_perm = permission_checker.has_permission('view', obj=planned)
+        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME, 'view')
+        has_perm = permission_checker.has_permission(obj=planned)
         return has_perm
 
     def has_change_permission(self, request: HttpRequest, planned: Planned = None) -> bool:
-        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME)
-        has_perm = permission_checker.has_permission('change', obj=planned)
+        permission_checker = PermissionCheckerFactory.get_checker(self, request, CLASS_NAME, 'change')
+        has_perm = permission_checker.has_permission(obj=planned)
         return has_perm
 
     def has_add_permission(self, request: HttpRequest) -> bool:

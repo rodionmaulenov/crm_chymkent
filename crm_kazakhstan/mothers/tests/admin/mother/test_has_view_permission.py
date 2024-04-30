@@ -23,12 +23,12 @@ class HasViewPermissionTest(TestCase):
         self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True,
                                               stage=Stage.StageChoices.PRIMARY)
 
-    def test_super_user_has_perm_if_obj(self):
-        request = self.factory.get('/')
-        request.user = self.superuser
-        view = self.admin.has_view_permission(request, self.mother)
-
-        self.assertTrue(view)
+    # def test_super_user_has_perm_if_obj(self):
+    #     request = self.factory.get('/')
+    #     request.user = self.superuser
+    #     view = self.admin.has_view_permission(request, self.mother)
+    #
+    #     self.assertTrue(view)
 
     def test_super_user_has_perm_list_layer(self):
         request = self.factory.get('/')

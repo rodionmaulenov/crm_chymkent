@@ -33,7 +33,7 @@ class ResponseAddTest(TestCase):
                                               stage=Stage.StageChoices.PRIMARY)
 
     def test_url_without_queries(self):
-        url = 'admin/documents/document_proxy/'
+        url = 'admin/documents/documentproxy/'
         query = urlencode({'mother': 1})
 
         request = self.factory.get(url + '?' + query)
@@ -55,7 +55,7 @@ class ResponseAddTest(TestCase):
         self.assertIn(expected_message, str(messages[0]))
 
     def test_url_with_queries(self):
-        url = 'admin/documents/document_proxy/'
+        url = 'admin/documents/documentproxy/'
         query = urlencode({'mother': 1, 'papa': 'karlo'})
 
         request = self.factory.get(url + '?' + query)

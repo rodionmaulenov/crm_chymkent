@@ -12,7 +12,6 @@ from gmail_messages.services.manager_factory import ManagerFactory
 from mothers.models import Mother, Stage
 from mothers.admin import MotherAdmin
 
-
 User = get_user_model()
 Stage: models
 Mother: models
@@ -51,7 +50,7 @@ class HasModulePermissionTest(TestCase):
         self.assertTrue(access)
 
     def test_staff_has_access_with_base_perm(self):
-        view_permission = Permission.objects.get(codename='view_document')
+        view_permission = Permission.objects.get(codename='view_documentproxy')
         self.staff_user.user_permissions.add(view_permission)
 
         request = self.factory.get('/')

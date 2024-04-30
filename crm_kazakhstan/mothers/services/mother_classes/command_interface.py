@@ -1,12 +1,18 @@
-from typing import Optional
+import pytz
+
+from typing import Optional, List
+from datetime import datetime
 
 from django.urls import reverse_lazy
+from django.contrib.admin import ModelAdmin
 from django.http import HttpResponseRedirect, HttpRequest
+from django.shortcuts import redirect
+from django.utils.html import format_html
 from django.contrib import messages
 from django.db.models import QuerySet
 
 from mothers.models import Stage, Ban, Mother
-from mothers.services.mother import redirect_to, simple_redirect, convert_utc_to_local, convert_to_local_time
+from mothers.services.mother import redirect_to, simple_redirect, convert_utc_to_local
 from mothers.services.mother_classes.formatter_interface import BoldDayMonthYearHourMinuteFormatter
 
 
@@ -120,7 +126,6 @@ class ScheduledDateTimeCommand(Command):
 
 
 class WhenCreatedCommand(Command):
-    _format = None
 
     def __init__(self, request: HttpRequest, obj: Mother):
         self.request = request
@@ -128,13 +133,53 @@ class WhenCreatedCommand(Command):
 
     @property
     def users_timezone(self):
-        return getattr(self.request.user, 'timezone', 'UTC')
+        """
+        Returns the current datetime object in the user's timezone. Defaults to UTC if the user's timezone is not set.
+        """
+        timezone_str = getattr(self.request.user, 'timezone', 'UTC')
+        timezone = pytz.timezone(str(timezone_str))
+        return datetime.now(timezone)
 
-    def formated_time(self, local_time):
+    @staticmethod
+    def formated_time(local_time):
         formatter = BoldDayMonthYearHourMinuteFormatter()
-        self._format = formatter.format(local_time)
+        return formatter.format(local_time)
 
     def execute(self, *args, **kwargs):
         """Turns UTC time into the local user time."""
-        self.formated_time(self.users_timezone)
-        return self._format
+        return self.formated_time(self.users_timezone)
+
+
+class FromBanCommand(Command):
+    _mother_changelist = reverse_lazy('admin:mothers_mother_changelist')
+
+    def __init__(self, admin: ModelAdmin, request: HttpRequest, queryset: List[Mother]):
+        self.admin = admin
+        self.request = request
+        self.queryset = queryset
+
+    def add_message(self, mother):
+        self.admin.message_user(
+            self.request,
+            format_html(f'<b>{mother}</b> has successfully returned from ban'),
+            messages.SUCCESS,
+        )
+
+    @staticmethod
+    def add_new_stage(mother):
+        new_stage = Stage(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+        new_stage.save()
+
+    def end_ban_stage(self):
+        for mother in self.queryset:
+            stage = mother.stage_set.filter(finished=False).first()
+            stage.finished = True
+            stage.save()
+
+            self.add_new_stage(mother)
+            self.add_message(mother)
+
+    def execute(self) -> redirect:
+        self.end_ban_stage()
+
+        return redirect(self._mother_changelist)

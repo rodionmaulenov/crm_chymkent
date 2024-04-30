@@ -4,18 +4,23 @@ from mothers.models import Mother
 
 
 class Document(models.Model):
-    class DocumentTitleBase(models.TextChoices):
-        PASSPORT = 'PASSPORT', 'Passport'
-        PSYCHOTHERAPIST = "PSYCHOTHERAPIST", "Psychotherapist"
+    class KindDocumentChoices(models.TextChoices):
+        MAIN = 'MAIN', 'Main'
+        ACQUIRED_FOR_PROGRAM = 'ACQUIRED FOR PROGRAM', 'Acquired for program'
+        ADDITIONAL = 'ADDITIONAL', 'Additional'
 
-    class DocumentChoices(models.TextChoices):
-        MAIN_DOCS = 'MAIN DOCS', 'Main documents'
-        ACQUIRE_DOCS = 'ACQUIRE DOCS', 'Acquire documents'
-        ADDITIONAL_DOCS = 'ADDITIONAL DOCS', 'Additional documents'
+    class MainDocumentChoice(models.TextChoices):
+        PASSPORT = 'PASSPORT', 'Passport'
+        INTERNATIONAL_PASSPORT = 'INTERNATIONAL PASSPORT', 'International passport'
+        NO_CRIMINAL_RECORD = 'NO_CRIMINAL_RECORD', 'No criminal record'
+        NARCOLOGIST = 'NARCOLOGIST', 'Narcologist'
+        PSYCHOTHERAPIST = 'PSYCHOTHERAPIST', 'Psychotherapist'
+        MOTHERS_METRIC = 'MOTHERS METRIC', 'Mother\'s metric'
+        CHILD_METRIC = 'CHILD METRIC', 'Child metric'
 
     mother = models.ForeignKey(Mother, on_delete=models.CASCADE)
-    title = models.CharField(max_length=255, choices=DocumentTitleBase.choices)
-    document_kind = models.CharField(max_length=15, choices=DocumentChoices.choices)
+    kind = models.CharField(max_length=25, choices=KindDocumentChoices.choices)
+    title = models.CharField(max_length=25, choices=MainDocumentChoice.choices)
     note = models.CharField(max_length=255, null=True, blank=True)
     file = models.FileField()
 
@@ -25,6 +30,6 @@ class Document(models.Model):
 
 class DocumentProxy(Mother):
     class Meta:
-        verbose_name = 'document'
-        verbose_name_plural = 'documents'
+        verbose_name = 'document_proxy'
+        verbose_name_plural = 'documents_proxy'
         proxy = True

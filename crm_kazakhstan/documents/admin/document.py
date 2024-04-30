@@ -14,16 +14,15 @@ from gmail_messages.services.manager_factory import ManagerFactory
 from mothers.admin import MotherAdmin
 from mothers.forms import DocumentAdminForm
 from mothers.models import Mother
-from mothers.services.mother_classes.create_messages import MessageCreator
+from mothers.services.mother import redirect_to
 from mothers.services.mother_classes.permissions import PermissionCheckerFactory
-from mothers.services.mother_classes.url_decorators import BaseURL, QueryParameterDecorator, MessageDecorator
 from mothers.services.state import adjust_button_visibility
 
 
 @admin.register(Document)
 class DocumentAdmin(admin.ModelAdmin):
     form = DocumentAdminForm
-    fields = ('mother', 'title', 'document_kind', 'note', 'file')
+    fields = ('mother', 'kind', 'title', 'note', 'file')
     readonly_fields = ('mother',)
 
     def get_fields(self, request: HttpRequest, obj: Optional[Document] = None) -> Tuple[str, ...]:
@@ -31,7 +30,7 @@ class DocumentAdmin(admin.ModelAdmin):
         Define which fields to display on the add and change forms.
         """
         if obj is None:
-            return 'mother', 'title', 'document_kind', 'note', 'file'
+            return 'mother', 'kind', 'title', 'note', 'file'
         else:
             return ()
 
@@ -89,9 +88,9 @@ class DocumentAdmin(admin.ModelAdmin):
         return queryset
 
     def has_view_permission(self, request: HttpRequest, document: Document = None) -> bool:
-        class_name = 'ObjectLevelPermission'
-        permission_checker = PermissionCheckerFactory.get_checker(self, request, class_name)
-        has_perm = permission_checker.has_permission('view', obj=document)
+        class_name = 'ObjectLevel'
+        permission_checker = PermissionCheckerFactory.get_checker(self, request, class_name, 'view')
+        has_perm = permission_checker.has_permission(obj=document)
         return has_perm
 
     def has_change_permission(self, request, obj=None):
@@ -101,7 +100,7 @@ class DocumentAdmin(admin.ModelAdmin):
         base = super().has_add_permission(request)
 
         mother_admin = MotherAdmin(Mother, admin.site)
-        class_name = 'ModulePermission'
+        class_name = 'ModuleLevel'
         permission_checker = PermissionCheckerFactory.get_checker(mother_admin, request, class_name)
         has_perm = permission_checker.has_permission(base)
         return has_perm
@@ -113,13 +112,9 @@ class DocumentAdmin(admin.ModelAdmin):
         As well if changelist has been filtered before add statement,
         it redirects on this filtered change list page.
         """
+        path_dict = {
+            'message_url': reverse('admin:mothers_mother_change', args=[obj.mother.id]),
+            'base_url': reverse('admin:documents_documentproxy_changelist')
+        }
         text = f'{obj}, successfully added for'
-        message_creator = MessageCreator(obj, reverse('admin:mothers_mother_change', args=[obj.mother.id]))
-        message = message_creator.message(text)
-
-        filters = {key: value for key, value in request.GET.items()}
-        del filters['mother']
-        base_url = BaseURL(reverse('admin:documents_documentproxy_changelist'))
-        query_params = QueryParameterDecorator(base_url, filters)
-        message_url = MessageDecorator(query_params, request, message, messages.SUCCESS)
-        return HttpResponseRedirect(message_url.construct_url())
+        return redirect_to(request, obj, text, path_dict, messages.SUCCESS)
