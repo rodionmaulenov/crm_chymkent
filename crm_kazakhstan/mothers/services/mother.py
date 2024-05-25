@@ -68,6 +68,13 @@ def on_primary_stage(queryset: QuerySet) -> QuerySet:
     return queryset.filter(stage__stage=Stage.StageChoices.PRIMARY, stage__finished=False)
 
 
+def on_first_visit_stage(queryset: QuerySet) -> QuerySet:
+    """
+    Gets ``Mother`` instances from ``Stage.StageChoices.PRIMARY``.
+    """
+    return queryset.filter(stage__stage=Stage.StageChoices.FIRST_VISIT, stage__finished=False)
+
+
 def on_ban_stage(queryset: QuerySet) -> QuerySet:
     """
     Gets ``Mother`` instances from ``Stage.StageChoices.PRIMARY``.
@@ -94,6 +101,7 @@ def tuple_inlines(obj: Mother, inlines) -> tuple:
     """
     Get inlines if their queryset not none.
     """
+
     from mothers.inlines import StateInline, PlannedInline
     from ban.inlines import BanInline
     filtered_inlines = []

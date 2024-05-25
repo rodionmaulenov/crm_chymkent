@@ -8,23 +8,23 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from mothers.models import Mother, Stage
 
 from documents.admin import DocumentAdmin
-from documents.models import Document
+from documents.models import MainDocument
 
 User = get_user_model()
 
 Mother: models
-Document: models
+MainDocument: models
 
 
 class RenderChangeFormTest(TestCase):
     def setUp(self):
         self.site = AdminSite()
-        self.admin = DocumentAdmin(Document, self.site)
+        self.admin = DocumentAdmin(MainDocument, self.site)
         self.factory = RequestFactory()
 
         self.mother = Mother.objects.create(name='mother')
         self.mock_file = SimpleUploadedFile('test.txt', b'This is a test file', content_type='text/plain')
-        self.document = Document.objects.create(mother=self.mother, file=self.mock_file, note='some', title='some')
+        self.document = MainDocument.objects.create(mother=self.mother, file=self.mock_file, note='some', title='some')
 
         self.superuser = User.objects.create_superuser(username='superuser', email='test@example.com',
                                                        password='top_secret', stage=Stage.StageChoices.PRIMARY)

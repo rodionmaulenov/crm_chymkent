@@ -1,11 +1,21 @@
 # Surrogate Mother CRM
 
-## Description
+## Description 
 The Surrogate Mother CRM is designed to streamline the management of questionnaires from potential surrogate mothers. It efficiently handles personal information inflow and categorizes it through various stages of a surrogate program, tracking each surrogate mother's journey from entry into the program until birth.
 
+## Usage Documents application
+### User's permission:
+- For only view documents user must have the view_documentproxy permission.
+- The user which has assigned mother instances can see this objs and do some operations on it.
+- Superuser can do anything.
 
-## Usage
-The project is in the initial development phase, with functionalities for creating and managing surrogate mother profiles and their various program stages.
+### User's access:
+- Has access for all mothers instances and actions which filter mother list based on stage.
+- Can add, change, delete new documents on mother instance.
+- Superuser can do anything.
+
+
+
 
 ## Models
 1. **Mother**: Manages surrogate mother profiles, including personal details and program status.

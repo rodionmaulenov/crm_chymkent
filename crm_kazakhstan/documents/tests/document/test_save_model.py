@@ -7,20 +7,20 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from documents.admin import DocumentAdmin
-from documents.models import Document
+from documents.models import MainDocument
 
 from mothers.models import Mother, Stage
 
 User = get_user_model()
 
-Document: models
+MainDocument: models
 Mother: models
 
 
 class SaveModelTest(TestCase):
     def setUp(self):
         self.site = AdminSite()
-        self.admin = DocumentAdmin(Document, self.site)
+        self.admin = DocumentAdmin(MainDocument, self.site)
         self.factory = RequestFactory()
 
         self.mother = Mother.objects.create(name='mother')
@@ -30,7 +30,7 @@ class SaveModelTest(TestCase):
                                               stage=Stage.StageChoices.PRIMARY)
 
     def test_when_add_is_assigned_obj_perm_view(self):
-        document = Document(mother=self.mother, file=self.mock_file, note='some', title='some')
+        document = MainDocument(mother=self.mother, file=self.mock_file, note='some', title='some')
         self.assertIsNone(document.pk)
 
         request = self.factory.get('/')

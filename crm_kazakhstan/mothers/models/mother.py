@@ -17,7 +17,8 @@ class Mother(models.Model):
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.name
+        # if self is None must return '' because if add new document from inline without '' the error raise
+        return self.name if self.name else ''
 
     @property
     def plan(self):

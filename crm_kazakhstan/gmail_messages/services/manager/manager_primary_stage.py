@@ -8,3 +8,11 @@ class PrimaryStageManager(Manager):
     @staticmethod
     def get_stage():
         return Stage.StageChoices.PRIMARY
+
+
+class FirstVisitStageManager(Manager):
+    """Designate user just from first visit stage."""
+
+    @staticmethod
+    def get_stage():
+        return Stage.StageChoices.FIRST_VISIT

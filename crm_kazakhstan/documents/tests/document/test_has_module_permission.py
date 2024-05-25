@@ -3,7 +3,7 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 
 from documents.admin import DocumentAdmin
-from documents.models import Document
+from documents.models import MainDocument
 
 from mothers.models import Stage
 
@@ -14,7 +14,7 @@ User = get_user_model()
 class HasModulePermissionTest(TestCase):
     def setUp(self):
         self.site = AdminSite()
-        self.admin = DocumentAdmin(Document, self.site)
+        self.admin = DocumentAdmin(MainDocument, self.site)
         self.factory = RequestFactory()
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')

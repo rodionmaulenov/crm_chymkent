@@ -82,21 +82,3 @@ class BanAdminForm(forms.ModelForm):
     class Meta:
         model = Ban
         fields = '__all__'
-
-
-class DocumentAdminForm(forms.ModelForm):
-
-    def __init__(self, *args, **kwargs):
-        from mothers.services.state import set_initial_mother_value_on_add, hide_mother_field_on_add
-        request = kwargs.pop('request', None)
-        super().__init__(*args, **kwargs)
-
-        # Hide the mother field
-        hide_mother_field_on_add(self)
-        # Set the mother's ID as the initial value
-        set_initial_mother_value_on_add(self, request)
-
-    class Meta:
-        model = Ban
-        fields = '__all__'
-

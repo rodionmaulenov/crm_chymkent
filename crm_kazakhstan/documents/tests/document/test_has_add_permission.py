@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.db import models
 
 from documents.admin import DocumentAdmin
-from documents.models import Document
+from documents.models import MainDocument
 
 from gmail_messages.services.manager_factory import ManagerFactory
 from mothers.admin import MotherAdmin
@@ -15,12 +15,11 @@ from mothers.models import Mother, Stage
 User = get_user_model()
 
 Mother: models
-Document: models
 
 
 class HasAddPermissionTest(TestCase):
     def setUp(self):
-        self.admin = DocumentAdmin(Document, admin.site)
+        self.admin = DocumentAdmin(MainDocument, admin.site)
         self.mother_admin = MotherAdmin(Mother, admin.site)
         self.factory = RequestFactory()
 

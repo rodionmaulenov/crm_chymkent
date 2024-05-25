@@ -36,17 +36,32 @@ class HasModulePermissionTest(TestCase):
 
         self.assertTrue(access)
 
-    def test_staff_has_access_with_custom_perm(self):
+    def test_staff_has_access_with_custom_perm_on_primary_stage(self):
         Stage.objects.create(mother=self.mother, stage=Stage.StageChoices.PRIMARY)
 
         factory = ManagerFactory()
         primary_manager = factory.create('PrimaryStageManager')
-        primary_manager.assign_user(content_type=self.mother_admin, obj=self.mother)
+        primary_manager.assign_user(content_type=self.mother_admin, obj=self.mother, user=self.staff_user)
 
         request = self.factory.get('/')
         request.user = self.staff_user
         access = self.document_admin.has_module_permission(request)
+        self.assertTrue(access)
 
+    def test_staff_has_access_with_custom_perm_on_first_visit_stage(self):
+        staff_user2 = User.objects.create(username='staff_user2', password='password', is_staff=True,
+                                          stage=Stage.StageChoices.FIRST_VISIT)
+
+        mother = Mother.objects.create(name='Mother 2')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.FIRST_VISIT)
+
+        factory = ManagerFactory()
+        first_visit_manager = factory.create('FirstVisitStageManager')
+        first_visit_manager.assign_user(content_type=self.mother_admin, obj=mother, user=staff_user2)
+
+        request = self.factory.get('/')
+        request.user = staff_user2
+        access = self.document_admin.has_module_permission(request)
         self.assertTrue(access)
 
     def test_staff_has_access_with_base_perm(self):

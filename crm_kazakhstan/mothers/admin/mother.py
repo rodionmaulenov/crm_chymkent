@@ -163,7 +163,12 @@ class MotherAdmin(admin.ModelAdmin):
         return has_perm
 
     def has_change_permission(self, request: HttpRequest, mother: Mother = None) -> bool:
-        class_name = 'WrappedUrlObjectList'
+        # class_name = 'WrappedUrlObjectList'
+        # permission_checker = PermissionCheckerFactory.get_checker(self, request, class_name, 'change')
+        # has_perm = permission_checker.has_permission(on_primary_stage, obj=mother)
+        # return has_perm
+
+        class_name = 'ObjectListLevel'
         permission_checker = PermissionCheckerFactory.get_checker(self, request, class_name, 'change')
         has_perm = permission_checker.has_permission(on_primary_stage, obj=mother)
         return has_perm

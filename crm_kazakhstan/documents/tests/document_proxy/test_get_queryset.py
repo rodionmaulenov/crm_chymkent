@@ -95,11 +95,11 @@ class GetQuerysetTest(TestCase):
         for mother in Mother.objects.all():
             factory = ManagerFactory()
             primary_manager = factory.create('PrimaryStageManager')
-            primary_manager.assign_user(content_type=self.mother_admin, obj=mother)
+            primary_manager.assign_user(content_type=self.mother_admin, obj=mother, user=self.staff_user)
 
         self.assertEqual(len(queryset), 2)
 
-    def test_staff_user_has_custom_perm_on_one_instance(self):
+    def test_staff_user_has_custom_perm_on_primary_stage(self):
         request = self.factory.get('/')
         request.user = self.staff_user
         queryset = self.document_admin.get_queryset(request)
@@ -114,6 +114,32 @@ class GetQuerysetTest(TestCase):
         primary_manager.assign_user(content_type='mothers', obj=mother)
 
         self.assertEqual(len(queryset), 1)
+
+    def test_staff_user_has_custom_perm_on_first_visit(self):
+        mother = Mother.objects.create(name='Mother 1')
+        mother2 = Mother.objects.create(name='Mother 2')
+        Stage.objects.create(mother=mother, stage=Stage.StageChoices.PRIMARY, finished=False)
+        Stage.objects.create(mother=mother2, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
+
+        factory = ManagerFactory()
+        primary_manager = factory.create('PrimaryStageManager')
+        primary_manager.assign_user(content_type='mothers', obj=mother, user=self.staff_user)
+
+        request = self.factory.get('/')
+        request.user = self.staff_user
+        queryset = self.document_admin.get_queryset(request)
+
+        self.assertEqual(len(queryset), 1)
+
+        staff_user2 = User.objects.create(username='staff_user2', password='password', is_staff=True,
+                                          stage=Stage.StageChoices.FIRST_VISIT)
+        primary_manager = factory.create('FirstVisitStageManager')
+        primary_manager.assign_user(content_type='mothers', obj=mother2, user=staff_user2)
+
+        request = self.factory.get('/')
+        request.user = staff_user2
+        queryset2 = self.document_admin.get_queryset(request)
+        self.assertTrue(queryset2.first().name == 'Mother 2')
 
     def test_staff_user_has_base_perm(self):
         mother = Mother.objects.create(name='Mother 1')

@@ -6,7 +6,7 @@ from django.db import models
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from documents.admin import DocumentAdmin
-from documents.models import Document
+from documents.models import MainDocument
 from gmail_messages.services.manager_factory import ManagerFactory
 
 from mothers.models import Mother, Stage
@@ -14,17 +14,17 @@ from mothers.models import Mother, Stage
 User = get_user_model()
 Mother: models
 Stage: models
-Document: models
+MainDocument: models
 
 
 class HasChangePermissionTest(TestCase):
     def setUp(self):
-        self.admin = DocumentAdmin(Document, admin.site)
+        self.admin = DocumentAdmin(MainDocument, admin.site)
         self.factory = RequestFactory()
 
         self.mother = Mother.objects.create(name='mother')
         self.mock_file = SimpleUploadedFile('test.txt', b'This is a test file', content_type='text/plain')
-        self.document = Document.objects.create(mother=self.mother, file=self.mock_file, note='some', title='some')
+        self.document = MainDocument.objects.create(mother=self.mother, file=self.mock_file, note='some', title='some')
 
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
         self.staff_user = User.objects.create(username='staff_user', password='password', is_staff=True,

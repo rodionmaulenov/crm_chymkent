@@ -1,0 +1,33 @@
+/* Base styles for all screen sizes */
+.image-container {
+    width: 100px; /* Set the container width */
+    height: 80px; /* Set the container height */
+    overflow: hidden; /* Hide overflow by default */
+    position: relative; /* Required for centering the image */
+    display: flex; /* Use flexbox to center the image */
+    justify-content: center; /* Center horizontally */
+    align-items: center; /* Center vertically */
+}
+
+.hoverable-image {
+    width: 100%; /* Ensure the image scales proportionally */
+    height: 100%; /* Ensure the image scales proportionally */
+    transition: transform 0.2s ease, top 0.2s ease, left 0.2s ease; /* Smooth transform */
+    transform-origin: center center; /* Ensure scaling from the center */
+    position: relative;
+    z-index: 1;
+}
+
+/* Styles for larger screens only */
+@media (min-width: 768px) {
+    /* Allow overflow for larger screens */
+    .image-container {
+        overflow: visible; /* Allow overflow */
+    }
+
+    /* Enlarge image on hover for larger screens */
+    .image-container:hover .hoverable-image {
+        transform: scale(7); /* Scale uniformly */
+        z-index: 10; /* Ensure the enlarged image is above other elements */
+    }
+}

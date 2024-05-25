@@ -1,0 +1,20 @@
+.add-change-link {
+    padding: 3px 5px;
+    margin-left: 5px;
+    text-decoration: none;
+}
+
+.add-icon {
+    height: 13px;
+    width: 13px;
+}
+
+.change-icon {
+    height: 13px;
+    width: 13px;
+}
+
+.disabled-link {
+    pointer-events: none;
+    color: grey; /* Optional: style the disabled link */
+}

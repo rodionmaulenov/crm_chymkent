@@ -1,0 +1,10 @@
+{% extends "admin/submit_line.html" %}
+{% load i18n admin_urls %}
+
+{% block submit-row %}
+
+{% if custom_buttons_template %}{% include custom_buttons_template %}{% endif %}
+
+{{ block.super }}
+
+{% endblock %}
