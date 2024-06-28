@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.test import TestCase, RequestFactory
 from django.contrib.auth import get_user_model
 import pytz
-from documents.inlines.main import DocumentInline
+from documents.inlines.main import MainInline
 from documents.models import MainDocument
 from mothers.models import Mother
 from freezegun import freeze_time
@@ -25,7 +25,7 @@ class DateCreateTest(TestCase):
         self.request.user = self.user
 
         # Create an instance of the admin class
-        self.admin_instance = DocumentInline(MainDocument, admin.site)
+        self.admin_instance = MainInline(MainDocument, admin.site)
         self.admin_instance.request = self.request  # Attach request to admin instance
 
     @freeze_time("2024-05-21 20:00:00")

@@ -1,0 +1,26 @@
+.custom-file-input {
+    position: relative;
+}
+
+.dropzone {
+    border: 2px dashed #0087F7;
+    border-radius: 5px;
+    padding: 10px;
+    text-align: center;
+    font-size: 14px;
+    color: #aaa;
+}
+
+.dropzone.dragover {
+    border-color: #333;
+    color: #333;
+}
+
+.preview {
+    margin-top: 10px;
+}
+
+.preview img {
+    max-width: 100px;
+    height: auto;
+}

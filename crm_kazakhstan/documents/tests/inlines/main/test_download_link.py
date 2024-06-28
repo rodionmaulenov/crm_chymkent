@@ -2,14 +2,14 @@ from django.test import TestCase
 from django.urls import reverse
 from django.contrib.admin.sites import AdminSite
 
-from documents.inlines.main import DocumentInline
+from documents.inlines.main import MainInline
 from documents.models import MainDocument, Mother
 
 
 class DocumentInlineTests(TestCase):
     def setUp(self):
         self.admin_site = AdminSite()
-        self.inline = DocumentInline(Mother, self.admin_site)
+        self.inline = MainInline(Mother, self.admin_site)
         self.mother = Mother.objects.create(name='test')
         self.document_with_file = MainDocument.objects.create(mother=self.mother, title='PASSPORT', file='path/to/file.png')
         self.document_without_file = MainDocument.objects.create(mother=self.mother, title='PASSPORT', file='')

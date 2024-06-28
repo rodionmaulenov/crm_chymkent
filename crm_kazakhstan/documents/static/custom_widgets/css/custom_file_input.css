@@ -1,0 +1,45 @@
+
+.hidden-file-input {
+    display: none;
+}
+
+.dropzone {
+    border: 2px dashed #0087F7;
+    border-radius: 5px;
+    padding: 5px; /* Reduce padding for smaller size */
+    text-align: center;
+    font-size: 13px; /* Adjust font size */
+    color: #aaa;
+    cursor: pointer;
+    width: 250px; /* Set fixed width */
+    height: 50px; /* Set fixed height */
+    overflow: hidden; /* Ensure content does not overflow */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dropzone.dragover {
+    border-color: #333;
+    color: #333;
+}
+
+.preview {
+    margin-top: 5px; /* Reduce margin */
+    width: 250px; /* Match width of dropzone */
+    height: 50px; /* Set fixed height */
+    overflow: hidden; /* Ensure content does not overflow */
+    text-align: center; /* Center the text */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.preview div {
+    font-size: 12px; /* Adjust font size for file name */
+    color: #333;
+    white-space: normal; /* Allow text to wrap */
+    overflow: hidden; /* Hide overflow text */
+    max-width: 100%; /* Ensure the text does not exceed the container */
+    word-wrap: break-word; /* Break words to fit the container */
+}

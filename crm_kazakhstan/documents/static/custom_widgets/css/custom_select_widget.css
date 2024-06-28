@@ -1,0 +1,17 @@
+select {
+    border: none;
+    box-shadow: none;
+    -webkit-appearance: none;  /* Remove the arrow in Chrome and Safari */
+    -moz-appearance: none;     /* Remove the arrow in Firefox */
+    appearance: none;          /* Remove the arrow in other browsers */
+    background-color: transparent; /* Transparent background */
+    padding: 5px;
+}
+
+select option:nth-child(odd) {
+    background-color: var(--darkened-bg);
+}
+
+select option:nth-child(even) {
+    background-color: var(--body-bg);
+}

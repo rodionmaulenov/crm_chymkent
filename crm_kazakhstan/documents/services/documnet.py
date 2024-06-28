@@ -1,4 +1,4 @@
-from documents.models import MainDocument, RequiredDocument
+from documents.models import MainDocument
 from documents.services.builders import HtmlBuilder
 
 from mothers.models import Mother
@@ -14,7 +14,7 @@ from django.templatetags.static import static
 class IEndPoint:
     @property
     def change_url(self):
-        return BaseURL(reverse('admin:documents_documentproxy_change', args=(self.obj.pk,)))
+        return BaseURL(reverse('admin:documents_document_change', args=(self.obj.pk,)))
 
     def queries(self):
         filters = {key: value for key, value in self.request.GET.items()}
@@ -126,7 +126,7 @@ class ProgressBarADDMain(ProgressBarADD):
     len_documents = len(MainDocument.MainDocumentChoice.choices)
 
     def documents(self):
-        return self.obj.maindocument_set.count()
+        return self.obj.main_document.count()
 
     def queries(self):
         queries = super().queries()
@@ -135,14 +135,14 @@ class ProgressBarADDMain(ProgressBarADD):
         return queries
 
 
-class ProgressBarADDRequired(ProgressBarADD):
-    len_documents = len(RequiredDocument.RequiredDocumentChoice.choices)
+class ProgressBarADDAdditional(ProgressBarADD):
+    len_documents = 8
 
     def documents(self):
-        return self.obj.requireddocument_set.count()
+        return self.obj.additional_document.count()
 
     def queries(self):
         queries = super().queries()
         # add to query new keyword for url
-        queries['documents'] = 'required'
+        queries['documents'] = 'additional'
         return queries

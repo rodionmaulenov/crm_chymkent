@@ -7,6 +7,6 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // Initial hide for both document sets
-    hideDescriptions('maindocument_set');
-    hideDescriptions('requireddocument_set');
+    hideDescriptions('main_document');
+    hideDescriptions('additional_document');
 });

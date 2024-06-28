@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils.html import escape
-from documents.inlines.main import DocumentInline
+from documents.inlines.main import MainInline
 from documents.models import MainDocument, Mother
 from django.contrib.admin.sites import AdminSite
 
@@ -9,7 +9,7 @@ from django.contrib.admin.sites import AdminSite
 class DocumentInlineTests(TestCase):
     def setUp(self):
         self.admin_site = AdminSite()
-        self.inline = DocumentInline(Mother, self.admin_site)
+        self.inline = MainInline(Mother, self.admin_site)
         self.mother = Mother.objects.create(name='test')
 
     def test_get_html_photo_with_image(self):

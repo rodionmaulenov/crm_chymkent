@@ -1,0 +1,6 @@
+
+{# templates/custom_widgets/custom_note_widget.html #}
+
+<textarea name="{{ widget.name }}" {% include "django/forms/widgets/attrs.html" %}
+          style="border: none; border-bottom: 1px solid #000; width: 100%; box-sizing: border-box; overflow-wrap: break-word;"
+          oninput="this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';">{% if widget.value %}{{ widget.value|stringformat:'s' }}{% endif %}</textarea>

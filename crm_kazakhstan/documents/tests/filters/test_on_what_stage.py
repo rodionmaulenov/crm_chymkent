@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib import admin
 from documents.admin import DocumentProxyAdmin
 from documents.filters import OnWhatStageFilter
-from documents.models import DocumentProxy
+from documents.models import Document
 from mothers.models import Mother, Stage
 
 User = get_user_model()
@@ -18,7 +18,7 @@ class OnWhatStageFilterTest(TestCase):
         Stage.objects.create(mother=self.mother1, stage=Stage.StageChoices.PRIMARY, finished=False)
         Stage.objects.create(mother=self.mother2, stage=Stage.StageChoices.FIRST_VISIT, finished=False)
 
-        self.document_admin = DocumentProxyAdmin(DocumentProxy, admin.site)
+        self.document_admin = DocumentProxyAdmin(Document, admin.site)
         self.superuser = User.objects.create_superuser('admin', 'admin@example.com', 'password')
 
     def test_primary_stage_filter(self):

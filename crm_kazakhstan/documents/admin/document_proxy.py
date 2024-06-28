@@ -1,30 +1,32 @@
 from django.contrib import admin
-from django.http import HttpRequest, HttpResponseRedirect, FileResponse, Http404
-from django.db import models
+from django.http import HttpResponseRedirect, FileResponse, Http404
 from django.urls import path, reverse
+from django.utils.html import format_html
 
 from documents.filters import OnWhatStageFilter
-from documents.inlines.required import DocumentRequiredInline
-from documents.inlines.main import DocumentInline
-from documents.models import DocumentProxy, MainDocument, RequiredDocument
-from documents.services.documnet import ProgressBarADDMain, ProgressBarADDRequired
+from documents.inlines.additional import AdditionalInline
+from documents.inlines.main import MainInline
+from documents.models import Document, MainDocument, AdditionalDocument
 
 from mothers.admin import MotherAdmin
 from mothers.models import Mother, Stage
-from mothers.services.mother import get_model_objects
-from mothers.services.mother_classes.permissions import PermissionCheckerFactory
 
-Mother: models
-
-mother_admin = MotherAdmin(Mother, admin.site)
+from guardian.shortcuts import get_objects_for_user
 
 
-@admin.register(DocumentProxy)
+@admin.register(Document)
 class DocumentProxyAdmin(admin.ModelAdmin):
+    # This three class attribute is used for permission logic
+    mothers_admin = MotherAdmin(Mother, admin.site)
+    mothers_model_name = mothers_admin.opts.model_name
+    klass = mothers_admin.opts.model
+    # Attribute for database query
+    prefetched_list = 'state_set', 'planned_set', 'ban_set', 'stage_set', 'main_document', 'additional_document'
+
     list_per_page = 10
-    ordering = ('-created',)
-    list_filter = ('created', OnWhatStageFilter)
-    list_display_links = ('name',)
+    ordering = '-created',
+    list_filter = 'created', OnWhatStageFilter
+    list_display_links = 'name',
     fieldsets = [
         (
             None,
@@ -36,20 +38,120 @@ class DocumentProxyAdmin(admin.ModelAdmin):
             },
         )
     ]
-    list_display = ('id', 'name', 'add_main_docs', 'add_require_docs')
-    inlines = [DocumentInline, DocumentRequiredInline]
+    list_display = 'id', 'name', 'add_main_docs', 'add_additional_docs'
+    inlines = [MainInline, AdditionalInline]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.documents_app_label = self.opts.app_label
+        self.documents_model_name = self.opts.model_name
+        self.klass = self.opts.model # This three class attribute is used for permission logi
+        self.request = None
 
     class Media:
         css = {
-            'all': ('documents/css/add_butt.css',
-                    'documents/css/increase_image_scale.css',)
+            'all': ('documents/css/add_butt.css', 'documents/css/increase_image_scale.css',
+                    'documents/css/add_docs_link.css')
         }
-        js = ('documents/js/hide_history_link.js',
-              'documents/js/hide_p_element.js',
-              'documents/js/add_new_bottom.js',)
+        js = 'documents/js/hide_history_link.js', 'documents/js/hide_p_element.js', 'documents/js/hide_document_tab.js'
+
+    def has_module_permission(self, request) -> bool:
+        """
+        Determines if a user has module-level permission.
+
+        The user is granted full access to the module if they have the base 'view_document' permission.
+        Otherwise, access is only granted if the user was specifically assigned to mother instances at the time
+        they were created.
+        """
+        # Construct the custom permission name for the user at a specific stage
+        custom_permission_name = f'{request.user.stage}_{self.mothers_model_name}_{request.user.username}'.lower()
+        # Base permission name for viewing documents
+        document_view_perm_name = 'documents.view_document'
+        view_perm = request.user.has_perm(document_view_perm_name)
+        # Get all objects assigned to the user on specific stage
+        users_mother_objs = get_objects_for_user(user=request.user, perms=custom_permission_name, klass=self.klass)
+
+        mothers_exist = Mother.objects.all().exists()
+
+        if not request.user.is_authenticated:
+            return False
+        else:
+            return users_mother_objs or (view_perm and mothers_exist)
+
+    def get_queryset(self, request):
+        """
+        Returns the queryset of Mother instances based on user permissions.
+
+        Users with the base 'view_document' permission have access to all instances.
+        Users with custom permissions are granted access only to the objects they are specifically assigned.
+        """
+        self.request = request
+        queryset = Mother.objects.prefetch_related(*self.prefetched_list)
+
+        # Construct the custom permission name for the user at a specific stage
+        custom_permission_name = f'{request.user.stage}_{self.mothers_model_name}_{request.user.username}'.lower()
+        # Base permission name for viewing documents
+        document_view_perm_name = 'documents.view_document'
+        view_perm = request.user.has_perm(document_view_perm_name)
+
+        if view_perm:
+            return queryset
+        else:
+            queryset = get_objects_for_user(user=request.user, perms=custom_permission_name, klass=self.klass)
+            return queryset
+
+    def has_view_permission(self, request, mother_instance: Mother = None):
+        """
+        Determines if a user has view permission.
+
+        If the user has the base 'view_document' permission, they are granted full access to both the list and
+        individual object levels. Otherwise, access is only granted if the user was specifically assigned to
+        the mother instances when they were created.
+        """
+
+        # Construct the custom permission name for the user at a specific stage
+        custom_permission_name = f'{request.user.stage}_{self.mothers_model_name}_{request.user.username}'.lower()
+        custom_perm = request.user.has_perm(custom_permission_name, mother_instance)
+        # Base permission name for viewing documents
+        document_view_perm_name = 'documents.view_document'
+        view_perm = request.user.has_perm(document_view_perm_name)
+        # Get all objects assigned to the user on specific stage
+        users_mother_objs = get_objects_for_user(user=request.user, perms=custom_permission_name,
+                                                 klass=self.klass)
+
+        if mother_instance:
+            return custom_perm or view_perm
+        else:
+            return users_mother_objs or view_perm
+
+    def has_change_permission(self, request, mother_instance: Mother = None):
+        """
+        Determines if a user has change permissions.
+
+        The user is granted full access to both the list and individual object levels if they have
+        the base 'change_document' permission.
+        If not, access is only granted if the user was specifically assigned to the mother instances when they were
+        created and if the 'documents' parameter is present in the request.
+        """
+        # Construct the custom permission name for the user at a specific stage
+        custom_permission_name = f'{request.user.stage}_{self.mothers_model_name}_{request.user.username}'.lower()
+        custom_perm = request.user.has_perm(custom_permission_name, mother_instance)
+        # Base permission name for changing documents
+        document_change_perm_name = 'documents.change_document'
+        change_perm = request.user.has_perm(document_change_perm_name)
+        # Get all objects assigned to the user on specific stage
+        users_mother_objs = get_objects_for_user(user=request.user, perms=custom_permission_name, klass=self.klass)
+
+        if 'documents' in request.GET:
+            if mother_instance:
+                return custom_perm or change_perm
+            else:
+                return users_mother_objs or change_perm
+        else:
+            return False
 
     def get_list_filter(self, request):
-        if request.user.has_perm('documents.view_documentproxy'):
+        if request.user.has_perm('documents.view_document'):
             return super().get_list_filter(request)
         return ('created',)
 
@@ -72,71 +174,11 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         # other stage see all documents
         return super().get_list_display(request)
 
-    def get_actions(self, request):
-        if request.user.has_perm('documents.view_documentproxy'):
-            return super().get_actions(request)
-        return {}
-
-    def has_module_permission(self, request) -> bool:
-        """
-        With base permission 'view_documentproxy' user has full access for module level.
-        In other cases, only if the user was assigned mother instances when they were created.
-        """
-        view_documentproxy = super().has_module_permission(request)
-        class_name = 'ModuleLevel'
-        permission_checker = PermissionCheckerFactory.get_checker(mother_admin, request, class_name)
-        if request.user.is_authenticated:
-            has_perm = permission_checker.has_permission(view_documentproxy)
-        else:
-            has_perm = False
-
-        return has_perm
-
-    def get_queryset(self, request: HttpRequest):
-        # add functionality when empty queryset redirect on main page
-        """
-        A user with base permissions has access to all instances.
-        A user who is assigned custom permission to access an object receives only those objects.
-        """
-        self.request = request
-        user = request.user
-        prefetched_list = ('state_set', 'planned_set', 'ban_set', 'stage_set', 'maindocument_set')
-        queryset = Mother.objects.prefetch_related(*prefetched_list)
-
-        if user.has_module_perms(self.opts.app_label):
-            return queryset
-
-        queryset = get_model_objects(mother_admin, request).prefetch_related(*prefetched_list)
-        return queryset
-
-    def has_view_permission(self, request: HttpRequest, mother: Mother = None):
-        """
-        With base permission 'view_mother' user has full access for list and object level.
-        In other cases, only if the user was assigned mother instances when they were created.
-        """
-        class_name = 'ObjectListLevel'
-        permission_checker = PermissionCheckerFactory.get_checker(mother_admin, request, class_name, 'view')
-        has_perm = permission_checker.has_permission(obj=mother)
-        return has_perm
-
-    def has_change_permission(self, request, mother=None):
-        """
-        With base permission 'change_mother' user has full access for list and object level.
-        In other cases, only if the user was assigned mother instances when they were created.
-        """
-        if 'documents' in request.GET:
-            change_documentproxy = super().has_change_permission(request)
-            class_name = 'ModuleLevel'
-            permission_checker = PermissionCheckerFactory.get_checker(mother_admin, request, class_name)
-            has_perm = permission_checker.has_permission(change_documentproxy)
-            return has_perm
-        return False
-
     def change_view(self, request, object_id, form_url='', extra_context=None):
         extra_context = extra_context or {}
         # new button add in case when user change or add new documents
         if request.GET:
-            extra_context['custom_buttons_template'] = 'admin/documents/documentproxy/custom_buttons.html'
+            extra_context['custom_buttons_template'] = 'admin/documents/document/custom_buttons.html'
         return super().change_view(request, object_id, form_url, extra_context=extra_context)
 
     def response_change(self, request, obj):
@@ -150,40 +192,61 @@ class DocumentProxyAdmin(admin.ModelAdmin):
             elif "_continue" in request.POST:
                 response['Location'] = request.get_full_path()
             elif "_obj_page" in request.POST:
-                custom_url = reverse('admin:documents_documentproxy_change', args=(obj.id, ))
+                custom_url = reverse('admin:documents_document_change', args=(obj.id,))
                 return HttpResponseRedirect(custom_url)
         return response
 
     @admin.display(description='Main Docs')
-    def add_main_docs(self, obj: Mother) -> str:
-        """
-        Add new document with progress bar.
-        """
-        # generates add or chane path with params from previous page and constant mother param
-        # redirect on mother DocumentsInline page
-        progress_bar_add_change = ProgressBarADDMain(self.request, obj)
-        return progress_bar_add_change.execute()
+    def add_main_docs(self, mother_instance: Mother) -> str:
+        main_docs_amount = mother_instance.main_document.count()
+        # Construct the URL for the admin change page
+        url = reverse('admin:documents_document_change', args=(mother_instance.pk,))
 
-    @admin.display(description='Acquired Docs')
-    def add_require_docs(self, obj: Mother) -> str:
-        """
-        Add new document with progress bar.
-        """
-        # generates add or chane path with params from previous page and constant mother param
-        # redirect on mother DocumentsInline page
-        progress_bar_add_change = ProgressBarADDRequired(self.request, obj)
-        return progress_bar_add_change.execute()
+        # Copy filters from the request and add custom parameters
+        filters = {key: value for key, value in self.request.GET.items()}
+        filters['mother'] = mother_instance.pk
+        filters['documents'] = 'main'
+
+        # Construct the query string
+        query_string = '&'.join([f'{key}={value}' for key, value in filters.items()])
+
+        # Construct the final URL with query parameters
+        full_url = f'{url}?{query_string}'
+
+        # Return the HTML link
+        return format_html('<a href="{}" class="center-text">{} of 10</a>', full_url, main_docs_amount)
+
+    @admin.display(description='Additional Docs')
+    def add_additional_docs(self, mother_instance: Mother) -> str:
+
+        additional_docs_amount = mother_instance.additional_document.count()
+        # Construct the URL for the admin change page
+        url = reverse('admin:documents_document_change', args=(mother_instance.pk,))
+
+        # Copy filters from the request and add custom parameters
+        filters = {key: value for key, value in self.request.GET.items()}
+        filters['mother'] = mother_instance.pk
+        filters['documents'] = 'additional'
+
+        # Construct the query string
+        query_string = '&'.join([f'{key}={value}' for key, value in filters.items()])
+
+        # Construct the final URL with query parameters
+        full_url = f'{url}?{query_string}'
+
+        # Return the HTML link
+        return format_html('<a href="{}" class="center-text">{}</a>', full_url, additional_docs_amount)
 
     def get_inline_instances(self, request, obj=None):
         """Assign custom names for inlines."""
         inline_instances = super().get_inline_instances(request, obj)
         for inline in inline_instances:
-            if isinstance(inline, DocumentInline):
+            if isinstance(inline, MainInline):
                 inline.verbose_name = 'Main Document'
                 inline.verbose_name_plural = 'Main Documents'
-            elif isinstance(inline, DocumentRequiredInline):
-                inline.verbose_name = 'Required Document'
-                inline.verbose_name_plural = 'Required Documents'
+            elif isinstance(inline, AdditionalDocument):
+                inline.verbose_name = 'Additional Document'
+                inline.verbose_name_plural = 'Additional Documents'
         return inline_instances
 
     def get_urls(self):
@@ -194,8 +257,8 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         custom_urls = [
             path('download_main/<int:document_id>/', self.admin_site.admin_view(self.download_file),
                  name='document_main_download'),
-            path('download_required/<int:document_id>/', self.admin_site.admin_view(self.download_required_file),
-                 name='document_required_download'),
+            path('download_additional/<int:document_id>/', self.admin_site.admin_view(self.download_additional_file),
+                 name='document_additional_download'),
         ]
         return custom_urls + urls
 
@@ -212,13 +275,13 @@ class DocumentProxyAdmin(admin.ModelAdmin):
             raise Http404("Document does not exist")
 
     @staticmethod
-    def download_required_file(request, document_id):
+    def download_additional_file(request, document_id):
         """
-        Handle file download for a given required document ID.
+        Handle file download for a given additional document ID.
         """
         try:
-            document = RequiredDocument.objects.get(id=document_id)
+            document = AdditionalDocument.objects.get(id=document_id)
             response = FileResponse(document.file.open(), as_attachment=True, filename=document.file.name)
             return response
-        except RequiredDocument.DoesNotExist:
+        except AdditionalDocument.DoesNotExist:
             raise Http404("Document does not exist")
