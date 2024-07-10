@@ -1,7 +1,5 @@
 from django.db import models
 
-Stage: models
-
 
 class Stage(models.Model):
     class StageChoices(models.TextChoices):

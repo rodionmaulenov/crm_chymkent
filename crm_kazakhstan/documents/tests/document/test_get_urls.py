@@ -16,8 +16,6 @@ class TestDocumentProxyAdminURLs(TestCase):
     def test_custom_urls(self):
         # Verify that the custom URLs include the download paths
         download_main_url = reverse('admin:document_main_download', args=[1])
-        download_required_url = reverse('admin:document_required_download', args=[1])
 
         # Check that the URLs resolve correctly
         self.assertEqual(resolve(download_main_url).view_name, 'admin:document_main_download')
-        self.assertEqual(resolve(download_required_url).view_name, 'admin:document_required_download')

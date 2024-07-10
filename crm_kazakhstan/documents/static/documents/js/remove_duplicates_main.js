@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const container = document.querySelector('#maindocument_set-group'); // Ensure the correct selector here
+    const container = document.querySelector('#main_document-group'); // Ensure the correct selector here
 
     // Function to update all dropdowns based on selected values
     const updateTitleDropdowns = () => {

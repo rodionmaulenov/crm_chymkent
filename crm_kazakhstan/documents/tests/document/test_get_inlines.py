@@ -4,8 +4,7 @@ from django.contrib.auth import get_user_model
 
 from documents.admin import DocumentProxyAdmin
 from documents.inlines.main import MainInline
-from documents.inlines.required import RequiredInline
-from documents.models import Document, MainDocument, RequiredDocument
+from documents.models import Document, MainDocument
 
 from mothers.models import Mother
 
@@ -24,7 +23,6 @@ class TestDocumentProxyAdminInlines(TestCase):
     def test_get_inlines_with_instances_and_documents_not_in_get(self):
         # Create instances of MainDocument and RequiredDocument for the mother
         MainDocument.objects.create(mother=self.mother, title='PASSPORT', file='testfile1.txt')
-        RequiredDocument.objects.create(mother=self.mother, title='BANK_ACCOUNT', file='testfile2.txt')
 
         request = self.factory.get('/')
         request.user = self.staff_user
@@ -32,7 +30,6 @@ class TestDocumentProxyAdminInlines(TestCase):
 
         # Check that both inlines are returned since both have instances and 'documents' not in GET
         self.assertTrue(any(issubclass(inline, MainInline) for inline in inlines))
-        self.assertTrue(any(issubclass(inline, RequiredInline) for inline in inlines))
 
     def test_get_inlines_without_instances_and_documents_not_in_get(self):
         request = self.factory.get('/')
@@ -41,12 +38,10 @@ class TestDocumentProxyAdminInlines(TestCase):
 
         # Check that no inlines are returned since no instances exist and 'documents' not in GET
         self.assertFalse(any(issubclass(inline, MainInline) for inline in inlines))
-        self.assertFalse(any(issubclass(inline, RequiredInline) for inline in inlines))
 
     def test_get_inlines_with_documents_in_get(self):
         # Create instances of MainDocument and RequiredDocument for the mother
         MainDocument.objects.create(mother=self.mother, title='PASSPORT', file='testfile1.txt')
-        RequiredDocument.objects.create(mother=self.mother, title='BANK_ACCOUNT', file='testfile2.txt')
 
         request = self.factory.get('/', {'documents': 'test'})
         request.user = self.staff_user
@@ -54,7 +49,6 @@ class TestDocumentProxyAdminInlines(TestCase):
 
         # Check that all inlines are returned since 'documents' is in GET
         self.assertTrue(any(issubclass(inline, MainInline) for inline in inlines))
-        self.assertTrue(any(issubclass(inline, RequiredInline) for inline in inlines))
 
     def test_get_inlines_without_instances_and_documents_in_get(self):
         request = self.factory.get('/', {'documents': 'test'})
@@ -63,5 +57,4 @@ class TestDocumentProxyAdminInlines(TestCase):
 
         # Check that all inlines are returned even though no instances exist since 'documents' is in GET
         self.assertTrue(any(issubclass(inline, MainInline) for inline in inlines))
-        self.assertTrue(any(issubclass(inline, RequiredInline) for inline in inlines))
 

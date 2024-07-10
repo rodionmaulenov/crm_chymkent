@@ -180,7 +180,7 @@ def inject_request_into_form(form: Type[forms.ModelForm], request: HttpRequest) 
     return RequestForm
 
 
-def convert_to_utc_and_save(request: HttpRequest, obj: Union[State, Planned]) -> None:
+def convert_to_utc_and_save(request: HttpRequest, obj: Mother) -> None:
     """
     Converts the scheduled date and time from the user's local timezone to UTC.
     """

@@ -13,7 +13,7 @@ class AdditionalDocumentForm(forms.ModelForm):
         fields = '__all__'
         widgets = {
             'file': CustomFileInput,
-            'note': forms.Textarea(attrs={'rows': 2, 'cols': 40, 'maxlength': 80}),
+            'note': forms.Textarea(attrs={'rows': 3, 'cols': 45, 'maxlength': 300}),
         }
 
 
@@ -26,7 +26,11 @@ class AdditionalInline(admin.TabularInline):
     max_num = len(MainDocument.MainDocumentChoice.choices)
 
     class Media:
-        js = ('documents/js/redirect_on_additional_docs.js',)
+        css = {
+            'all': ('documents/css/increase_image_scale.css', 'documents/css/text_move_another_line_note.css')
+        }
+        js = ('documents/js/redirect_on_additional_docs.js',  'documents/js/hide_document_tab.js',
+              'documents/js/text_move_another_line_note.js',  "documents/js/increase_image_scale.js", )
 
     def get_queryset(self, request):
         self.request = request
@@ -38,7 +42,7 @@ class AdditionalInline(admin.TabularInline):
             return 'mother', 'title', 'file', 'note'
         else:
             # cases when read
-            return 'short_file_path', 'get_html_photo', 'note', 'date_create', 'download_link'
+            return 'short_file_path', 'get_html_photo', 'date_create', 'download_link', 'note'
 
     def has_view_permission(self, request, obj=None):
         return True
@@ -83,7 +87,7 @@ class AdditionalInline(admin.TabularInline):
                     </div>
                 """)
 
-    get_html_photo.short_description = 'Image'
+    get_html_photo.short_description = 'Screenshot'
 
     def date_create(self, obj):
         utc_date = obj.created.date()

@@ -26,7 +26,7 @@ class GetListDisplayTest(TestCase):
         request = self.factory.get('/')
         request.user = self.staff_user
         list_display = self.document_admin.get_list_display(request)
-        expected = ('id', 'name', 'add_main_docs')
+        expected = ('custom_name', 'add_main_docs')
         self.assertEqual(list_display, expected)
 
     def test_user_on_first_visit_stage(self):
@@ -35,5 +35,5 @@ class GetListDisplayTest(TestCase):
         request = self.factory.get('/')
         request.user = staff_first_visit
         list_display = self.document_admin.get_list_display(request)
-        expected = ('id', 'name', 'add_main_docs', 'add_require_docs', 'add_additional_docs')
+        expected = ('custom_name', 'add_main_docs', 'add_additional_docs')
         self.assertEqual(list_display, expected)

@@ -27,7 +27,7 @@ class DocumentInlineTests(TestCase):
         request = self.factory.get('/admin/documents/')
         request.user = self.staff_user
         fields = self.inline.get_fields(request, obj=self.mother)
-        expected_fields = ('short_file_path', 'get_html_photo', 'note', 'date_create', 'download_link')
+        expected_fields = ('short_file_path', 'get_html_photo', 'date_create', 'download_link', 'note')
         self.assertEqual(fields, expected_fields)
 
 

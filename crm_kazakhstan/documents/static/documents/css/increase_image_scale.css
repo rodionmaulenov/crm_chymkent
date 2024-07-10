@@ -16,12 +16,18 @@
     transform-origin: center center; /* Ensure scaling from the center */
     position: relative;
     z-index: 1;
+    image-rendering: auto; /* Let the browser optimize image rendering */
+    image-rendering: -moz-crisp-edges; /* Firefox */
+    image-rendering: -o-crisp-edges; /* Opera */
+    image-rendering: -webkit-optimize-contrast; /* Webkit (non-standard naming) */
+    image-rendering: crisp-edges; /* CSS3 */
+    image-rendering: pixelated; /* CSS4 */
 }
 
 /* Styles for larger screens only */
 @media (min-width: 768px) {
-    /* Move and scale image to the center of the screen on hover */
-    .image-container:hover .hoverable-image {
+    /* Move and scale image to the center of the screen on click */
+    .clicked-image {
         transform: translate(-50%, -50%) scale(0.55); /* Adjust scale value to control size */
         top: 50%; /* Center vertically */
         left: 50%; /* Center horizontally */

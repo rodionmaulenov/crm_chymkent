@@ -3,13 +3,14 @@ from django.http import HttpResponseRedirect, FileResponse, Http404
 from django.urls import path, reverse
 from django.utils.html import format_html
 
-from documents.filters import OnWhatStageFilter
 from documents.inlines.additional import AdditionalInline
 from documents.inlines.main import MainInline
 from documents.models import Document, MainDocument, AdditionalDocument
 
+from gmail_messages.tasks import Stage
+
 from mothers.admin import MotherAdmin
-from mothers.models import Mother, Stage
+from mothers.models import Mother
 
 from guardian.shortcuts import get_objects_for_user
 
@@ -22,38 +23,26 @@ class DocumentProxyAdmin(admin.ModelAdmin):
     klass = mothers_admin.opts.model
     # Attribute for database query
     prefetched_list = 'state_set', 'planned_set', 'ban_set', 'stage_set', 'main_document', 'additional_document'
-
+    search_fields = 'name',
     list_per_page = 10
     ordering = '-created',
-    list_filter = 'created', OnWhatStageFilter
-    list_display_links = 'name',
-    fieldsets = [
-        (
-            None,
-            {
-                "fields": ['name', 'age', 'number', 'program', 'blood', 'maried', 'citizenship', 'residence',
-                           'height_and_weight', 'caesarean', 'children_age', 'bad_habits'],
-
-                'description': 'Client personal data',
-            },
-        )
-    ]
-    list_display = 'id', 'name', 'add_main_docs', 'add_additional_docs'
+    # list_display_links = 'custom_name',
+    list_display = 'custom_name', 'add_main_docs', 'add_additional_docs'
     inlines = [MainInline, AdditionalInline]
+    change_list_template = "admin/documents/document/change_list.html"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.documents_app_label = self.opts.app_label
         self.documents_model_name = self.opts.model_name
-        self.klass = self.opts.model # This three class attribute is used for permission logi
+        self.klass = self.opts.model  # This three class attribute is used for permission logi
         self.request = None
 
     class Media:
         css = {
-            'all': ('documents/css/add_butt.css', 'documents/css/increase_image_scale.css',
-                    'documents/css/add_docs_link.css')
+            'all': ('documents/css/add_butt.css',)
         }
-        js = 'documents/js/hide_history_link.js', 'documents/js/hide_p_element.js', 'documents/js/hide_document_tab.js'
+        js = 'documents/js/hide_history_link.js', 'documents/js/hide_p_element.js', 'documents/js/hide_document_tab.js',
 
     def has_module_permission(self, request) -> bool:
         """
@@ -63,8 +52,12 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         Otherwise, access is only granted if the user was specifically assigned to mother instances at the time
         they were created.
         """
+        if not request.user.is_authenticated:
+            return False
+
+        user_stage = getattr(request.user, 'stage', None)
         # Construct the custom permission name for the user at a specific stage
-        custom_permission_name = f'{request.user.stage}_{self.mothers_model_name}_{request.user.username}'.lower()
+        custom_permission_name = f'{user_stage}_{self.mothers_model_name}_{request.user.username}'.lower()
         # Base permission name for viewing documents
         document_view_perm_name = 'documents.view_document'
         view_perm = request.user.has_perm(document_view_perm_name)
@@ -72,11 +65,7 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         users_mother_objs = get_objects_for_user(user=request.user, perms=custom_permission_name, klass=self.klass)
 
         mothers_exist = Mother.objects.all().exists()
-
-        if not request.user.is_authenticated:
-            return False
-        else:
-            return users_mother_objs or (view_perm and mothers_exist)
+        return bool(users_mother_objs) or (view_perm and mothers_exist)
 
     def get_queryset(self, request):
         """
@@ -88,8 +77,9 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         self.request = request
         queryset = Mother.objects.prefetch_related(*self.prefetched_list)
 
+        user_stage = getattr(request.user, 'stage', None)
         # Construct the custom permission name for the user at a specific stage
-        custom_permission_name = f'{request.user.stage}_{self.mothers_model_name}_{request.user.username}'.lower()
+        custom_permission_name = f'{user_stage}_{self.mothers_model_name}_{request.user.username}'.lower()
         # Base permission name for viewing documents
         document_view_perm_name = 'documents.view_document'
         view_perm = request.user.has_perm(document_view_perm_name)
@@ -109,20 +99,20 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         the mother instances when they were created.
         """
 
+        user_stage = getattr(request.user, 'stage', None)
         # Construct the custom permission name for the user at a specific stage
-        custom_permission_name = f'{request.user.stage}_{self.mothers_model_name}_{request.user.username}'.lower()
+        custom_permission_name = f'{user_stage}_{self.mothers_model_name}_{request.user.username}'.lower()
         custom_perm = request.user.has_perm(custom_permission_name, mother_instance)
         # Base permission name for viewing documents
         document_view_perm_name = 'documents.view_document'
         view_perm = request.user.has_perm(document_view_perm_name)
         # Get all objects assigned to the user on specific stage
-        users_mother_objs = get_objects_for_user(user=request.user, perms=custom_permission_name,
-                                                 klass=self.klass)
+        users_mother_objs = get_objects_for_user(user=request.user, perms=custom_permission_name, klass=self.klass)
 
         if mother_instance:
             return custom_perm or view_perm
         else:
-            return users_mother_objs or view_perm
+            return bool(users_mother_objs or view_perm)
 
     def has_change_permission(self, request, mother_instance: Mother = None):
         """
@@ -133,8 +123,10 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         If not, access is only granted if the user was specifically assigned to the mother instances when they were
         created and if the 'documents' parameter is present in the request.
         """
+
+        user_stage = getattr(request.user, 'stage', None)
         # Construct the custom permission name for the user at a specific stage
-        custom_permission_name = f'{request.user.stage}_{self.mothers_model_name}_{request.user.username}'.lower()
+        custom_permission_name = f'{user_stage}_{self.mothers_model_name}_{request.user.username}'.lower()
         custom_perm = request.user.has_perm(custom_permission_name, mother_instance)
         # Base permission name for changing documents
         document_change_perm_name = 'documents.change_document'
@@ -146,14 +138,16 @@ class DocumentProxyAdmin(admin.ModelAdmin):
             if mother_instance:
                 return custom_perm or change_perm
             else:
-                return users_mother_objs or change_perm
+                return bool(users_mother_objs or change_perm)
         else:
             return False
 
-    def get_list_filter(self, request):
-        if request.user.has_perm('documents.view_document'):
-            return super().get_list_filter(request)
-        return ('created',)
+    def get_list_display(self, request):
+        # choose display fields based on user stage
+        if request.user.stage == Stage.StageChoices.PRIMARY:
+            return 'custom_name', 'add_main_docs'
+        # other stage see all documents
+        return super().get_list_display(request)
 
     def get_inlines(self, request, obj):
         # When an inline has one or more instances and then return these inlines
@@ -166,13 +160,6 @@ class DocumentProxyAdmin(admin.ModelAdmin):
             ]
             return filtered_inlines
         return super().get_inlines(request, obj)
-
-    def get_list_display(self, request):
-        # choose display fields based on user stage
-        if request.user.stage == Stage.StageChoices.PRIMARY:
-            return 'id', 'name', 'add_main_docs'
-        # other stage see all documents
-        return super().get_list_display(request)
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
         extra_context = extra_context or {}
@@ -196,6 +183,20 @@ class DocumentProxyAdmin(admin.ModelAdmin):
                 return HttpResponseRedirect(custom_url)
         return response
 
+    @admin.display(description='Name')
+    def custom_name(self, obj):
+        """
+           Renders the 'name' field in the admin list view with conditional clickability.
+
+           This method adds hidden data to indicate whether the 'Mother' instance has related documents.
+           If related documents exist, the 'name' field is a clickable link; otherwise, it is plain text.
+        """
+        hidden_data = format_html('<span class="hidden-data" data-related-docs="{}"></span>', obj.has_related_documents)
+        if obj.has_related_documents:
+            url = reverse('admin:documents_document_change', args=[obj.pk])
+            return format_html('{}<a href="{}">{}</a>', hidden_data, url, obj.name)
+        return format_html('{}{}', hidden_data, obj.name)
+
     @admin.display(description='Main Docs')
     def add_main_docs(self, mother_instance: Mother) -> str:
         main_docs_amount = mother_instance.main_document.count()
@@ -214,7 +215,11 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         full_url = f'{url}?{query_string}'
 
         # Return the HTML link
-        return format_html('<a href="{}" class="center-text">{} of 10</a>', full_url, main_docs_amount)
+        document_view_perm_name = 'documents.view_document'
+        view_perm = self.request.user.has_perm(document_view_perm_name)
+        if view_perm and not self.request.user.is_superuser:
+            return format_html('{}', main_docs_amount)
+        return format_html('<a href="{}">{} of 10</a>', full_url, main_docs_amount)
 
     @admin.display(description='Additional Docs')
     def add_additional_docs(self, mother_instance: Mother) -> str:
@@ -235,7 +240,11 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         full_url = f'{url}?{query_string}'
 
         # Return the HTML link
-        return format_html('<a href="{}" class="center-text">{}</a>', full_url, additional_docs_amount)
+        document_view_perm_name = 'documents.view_document'
+        view_perm = self.request.user.has_perm(document_view_perm_name)
+        if view_perm and not self.request.user.is_superuser:
+            return format_html('{}', additional_docs_amount)
+        return format_html('<a href="{}">{}</a>', full_url, additional_docs_amount)
 
     def get_inline_instances(self, request, obj=None):
         """Assign custom names for inlines."""

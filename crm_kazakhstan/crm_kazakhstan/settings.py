@@ -60,7 +60,6 @@ INSTALLED_APPS = [
     'documents',
 ]
 
-
 # setup django-admin theme
 X_FRAME_OPTIONS = "SAMEORIGIN"
 SILENCED_SYSTEM_CHECKS = ["security.W019"]
@@ -125,9 +124,13 @@ CELERY_BROKER_URL = "redis://redis:6379/0"
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 CELERY_BEAT_SCHEDULE = {
-    "save_message": {
-        "task": "gmail_messages.tasks.save_message",
-        "schedule": crontab(minute="*/1"),
+    'delete_weekday_objects': {
+        'task': 'mothers.tasks.delete_weekday_objects',
+        'schedule': crontab(hour='0', minute='0', day_of_week='monday'),  # Every Monday at midnight
+    },
+    'delete_weekend_objects': {
+        'task': 'mothers.tasks.delete_weekend_objects',
+        'schedule': crontab(hour='0', minute='0', day_of_week='saturday'),  # Every Saturday at midnight
     },
 }
 
@@ -167,7 +170,6 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'static'
-
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'

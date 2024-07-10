@@ -1,25 +1,17 @@
-from typing import Any, Dict, Optional, Tuple, Union
-
-from rangefilter.filters import DateRangeFilter
-
+from typing import Any, Dict, Optional
 from django.contrib.admin.helpers import AdminForm
-from django.http import HttpRequest, HttpResponseRedirect
-from django.urls import reverse
-from django.db.models import QuerySet
+from django.http import HttpRequest
 from django.db import models
-from django.contrib import admin, messages
-
-from ban.inlines import BanInline
-
-from mothers.filters import BoardFilter, ActionFilter
-from mothers.inlines import StateInline, PlannedInline
+from django.db.models import Q
+from django.utils.html import format_html
+from django.contrib import admin
+from django.forms import ModelForm
+from django.utils import timezone
+from guardian.shortcuts import get_objects_for_user
+from mothers.filters.applications import DayOfWeekFilter, convert_utc_to_local, UsersObjectsFilter
 from mothers.models import Mother
-from mothers.services.mother_classes.command_interface import MoveToBanCommand, ScheduledDateTimeCommand, \
-    WhenCreatedCommand
-from mothers.services.mother_classes.permissions import PermissionCheckerFactory
-
+from mothers.services_main import assign_user
 from mothers.services.state import adjust_button_visibility
-from mothers.services.mother import on_primary_stage, tuple_inlines, redirect_to, check_cond, get_model_objects
 
 # Globally disable delete selected
 admin.site.disable_action('delete_selected')
@@ -32,68 +24,71 @@ class MotherAdmin(admin.ModelAdmin):
     list_per_page = 10
     search_help_text = 'Search description'
     ordering = ('-created',)
-    inlines = (PlannedInline, StateInline, BanInline)
-    list_filter = (
-        ('created', DateRangeFilter),
-        ActionFilter, BoardFilter,
-    )
-    list_display_links = ('name',)
-    search_fields = ('name__icontains', 'number__icontains', 'program__icontains', 'residence__icontains',
-                     'state__reason__icontains')
+    list_filter = (DayOfWeekFilter, UsersObjectsFilter)
+    search_fields = 'name__icontains',
     fieldsets = [
         (
             None,
             {
                 "fields": [
-                    'name', 'age', 'number'
-                ],
-
-                'description': 'Client personal data',
-            },
-        ),
-        (
-            "The rest of data",
-            {
-                "classes": ["collapse"],
-                "fields": [
-                    'program', 'blood', 'maried', 'citizenship', 'residence', 'height_and_weight', 'caesarean',
-                    'children_age', 'bad_habits'
+                    'name', 'age', 'residence', 'height', 'weight', 'caesarean', 'blood', 'children', 'maried'
                 ],
             },
         ),
-
     ]
-    list_display = (
-        'id', 'when_created', 'name', 'number', 'age', 'blood', 'create_plan', 'create_state'
-    )
-
-    actions = ['move_to_ban']
+    list_display = 'name', 'age', 'residence', 'height', 'weight', 'caesarean', 'blood', 'maried', 'date_create'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mother_admin = self
+        self.request = None
+        
+    def get_list_filter(self, request):
+        user_permission = request.user.user_permissions
+        if not self.get_queryset(request).exists():
+            return []
+        if (all(perm.codename.startswith('view') for perm in user_permission.all())
+                and user_permission.filter(codename='view_mother').exists()):
+            return [DayOfWeekFilter, UsersObjectsFilter]
+        return [DayOfWeekFilter]
 
-    def get_inlines(self, request, obj):
-        inlines = super().get_inlines(request, obj)
-        return tuple_inlines(obj, inlines)
+    @admin.display(description='Date create')
+    def date_create(self, obj):
+        local_datetime = convert_utc_to_local(self.request, obj.created)
+        return format_html("<strong>{}</strong>", local_datetime.strftime("%A %H:%M"))
 
-    def get_list_display(self, request: HttpRequest) -> Tuple[str, ...]:
+    def get_queryset(self, request):
         """
-        Display another tuple of fields depends on filtered queryset
+           Returns a queryset of Mother instances, filtered for null fields and user-specific permissions.
+
+           This method:
+           1. Retrieves the initial queryset.
+           2. Filters instances where any of the fields (age, residence, height, weight, caesarean, children) are null.
+           3. Constructs a custom permission name based on the model name and user's username.
+           4. Retrieves objects the user has permissions for and applies the same filter.
+           5. Returns the user-specific filtered queryset if it exists, otherwise returns the general filtered queryset.
         """
-        if request.GET.get('filter_set') == 'scheduled_event':
-            return ('id', 'name', 'number', 'age', 'blood',
-                    'create_state', 'state_datetime', 'reason')
 
-        if request.GET.get('actions') == 'state_actions':
-            return ('id', 'name', 'number', 'age', 'blood',
-                    'create_state', 'reason', 'state_datetime')
+        self.request = request
+        
+        filter_null_fields = (
+                Q(age__isnull=True) | Q(residence__isnull=True) | Q(height__isnull=True) | Q(weight__isnull=True) |
+                Q(caesarean__isnull=True) | Q(children__isnull=True)
+        )
+        queryset = super().get_queryset(request).filter(filter_null_fields)
 
-        if request.GET.get('actions') == 'planned_actions':
-            return ('id', 'name', 'number', 'age', 'blood',
-                    'create_plan')
+        mother_model_name = self.opts.model_name
+        custom_permission_name = f'{mother_model_name}_{request.user.username}'.lower()
+        klass = self.opts.model
+        user_permission = request.user.user_permissions
 
-        return super().get_list_display(request)
+        users_objs = get_objects_for_user(request.user, perms=custom_permission_name, klass=klass).filter(
+            filter_null_fields)
+
+        if (all(perm.codename.startswith('view') for perm in user_permission.all())
+                and user_permission.filter(codename='view_mother').exists()):
+            return queryset
+
+        return users_objs
 
     def render_change_form(self, request: HttpRequest, context: Dict[str, Any],
                            add: bool = False, change: bool = False,
@@ -113,109 +108,17 @@ class MotherAdmin(admin.ModelAdmin):
         return super().render_change_form(request, context, add=add, change=change,
                                           form_url=form_url, obj=obj)
 
-    def response_change(self, request: HttpRequest, obj: Mother) -> HttpResponseRedirect:
+    def save_model(self, request: HttpRequest, obj: Mother, form: ModelForm, change: bool) -> None:
         """
-        Redirect on filtered or without filters change list page.
+        Handles the saving of a Application instance in the Django admin interface.
+        Converts scheduled time to UTC, saves the instance, and assigns permissions if it's a new instance.
         """
-        text = 'Successfully changed'
-        path_dict = {
-            'message_url': reverse('admin:mothers_mother_change', args=[obj.pk]),
-            'base_url': reverse('admin:mothers_mother_changelist')
-        }
+        obj.created = timezone.now()
 
-        return redirect_to(request, obj, text, path_dict, messages.SUCCESS)
+        is_new = not obj.pk  # Check if the object is new (has no primary key yet)
 
-    def has_module_permission(self, request: HttpRequest) -> bool:
-        """
-        A user with basic permission or assigned objs permission.
-        """
-        base = super().has_module_permission(request)
-        class_name = 'ModuleLevel'
-        examine = PermissionCheckerFactory.get_checker(self.mother_admin, request, class_name)
-        if_permission = examine.has_permission(base, on_primary_stage)
-        return if_permission
+        super().save_model(request, obj, form, change)
 
-    def get_queryset(self, request: HttpRequest) -> QuerySet:
-        """
-        Queryset contains exclusively the Mother instances where Stage is Primary.
-        """
-        queryset = super().get_queryset(request)
-        # assign request for using in custom MotherAdmin methods
-        self.request = request
-        user = request.user
-
-        prefetch_query = queryset.prefetch_related(
-            'state_set', 'planned_set', 'ban_set', 'stage_set'
-        )
-
-        if user.has_module_perms(self.opts.app_label):
-            queryset = on_primary_stage(prefetch_query)
-            return queryset
-
-        data = get_model_objects(self, request)
-        users_mothers = on_primary_stage(data)
-        return users_mothers
-
-    def has_view_permission(self, request: HttpRequest, mother: Mother = None) -> bool:
-        class_name = 'ObjectListLevel'
-        permission_checker = PermissionCheckerFactory.get_checker(self, request, class_name, 'view')
-        has_perm = permission_checker.has_permission(on_primary_stage, obj=mother)
-        return has_perm
-
-    def has_change_permission(self, request: HttpRequest, mother: Mother = None) -> bool:
-        # class_name = 'WrappedUrlObjectList'
-        # permission_checker = PermissionCheckerFactory.get_checker(self, request, class_name, 'change')
-        # has_perm = permission_checker.has_permission(on_primary_stage, obj=mother)
-        # return has_perm
-
-        class_name = 'ObjectListLevel'
-        permission_checker = PermissionCheckerFactory.get_checker(self, request, class_name, 'change')
-        has_perm = permission_checker.has_permission(on_primary_stage, obj=mother)
-        return has_perm
-
-    @admin.display(description='created')
-    def when_created(self, obj: Mother) -> str:
-        """
-        Converts the UTC creation date to the user's local time.
-        """
-        date_creation = WhenCreatedCommand(self.request, obj)
-        return date_creation.execute()
-
-    @admin.display(description='extra reason')
-    def reason(self, obj: Mother) -> str:
-        return obj.state.first().reason
-
-    @admin.display(description='state')
-    def create_state(self, mother: Mother) -> Union[str, None]:
-        """
-        Generate links for different states:
-          First, if the state exists, the URL for changing is generated;
-          Second, if another related instance already exists, nothing is returned;
-          Third, returns the URL for adding if no instances exist.
-        """
-        return check_cond(self.request, mother, 'state')
-
-    @admin.display(description='scheduled date/time')
-    def state_datetime(self, mother: Mother) -> Union[str, None]:
-        """
-        Show scheduled time for mother state.
-        """
-        scheduled_date = ScheduledDateTimeCommand(self.request, mother)
-        return scheduled_date.execute()
-
-    @admin.display(description='plan')
-    def create_plan(self, mother: Mother) -> Union[str, None]:
-        """
-        Prepares client for sending into laboratory.
-
-        Generate links for different states:
-          First, if the plan exists, the URL for changing is generated;
-          Second, if another related instance already exists, nothing is returned;
-          Third, returns the URL for adding if no instances exist.
-        """
-        return check_cond(self.request, mother, 'planned')
-
-    @admin.action(description='move to ban')
-    def move_to_ban(self, request, queryset):
-        send_to_ban = MoveToBanCommand(request, queryset)
-        return send_to_ban.execute()
+        if is_new:
+            mother_admin = self
+            assign_user(request, mother_admin, obj)

@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     var documentTab = document.getElementById('tablink-document');
-//    var documentTabContent = document.getElementById('tabcontent-document');
     var mainDocumentTab = document.getElementById('tablink-main-documents');
+    var additionalDocumentTab = document.getElementById('tablink-additional-documents');
 
     if (documentTab) {
         documentTab.style.display = 'none';
@@ -9,5 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (mainDocumentTab) {
         mainDocumentTab.click();
+    } else if (additionalDocumentTab) {
+        additionalDocumentTab.click();
     }
 });
