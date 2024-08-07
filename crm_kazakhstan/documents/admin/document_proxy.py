@@ -6,8 +6,8 @@ from django.utils.html import format_html
 from documents.inlines.additional import AdditionalInline
 from documents.inlines.main import MainInline
 from documents.models import Document, MainDocument, AdditionalDocument
-
-from gmail_messages.tasks import Stage
+#
+# from gmail_messages.tasks import Stage
 
 from mothers.admin import MotherAdmin
 from mothers.models import Mother
@@ -22,7 +22,7 @@ class DocumentProxyAdmin(admin.ModelAdmin):
     mothers_model_name = mothers_admin.opts.model_name
     klass = mothers_admin.opts.model
     # Attribute for database query
-    prefetched_list = 'state_set', 'planned_set', 'ban_set', 'stage_set', 'main_document', 'additional_document'
+    prefetched_list = 'main_document', 'additional_document'
     search_fields = 'name',
     list_per_page = 10
     ordering = '-created',
@@ -142,13 +142,6 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         else:
             return False
 
-    def get_list_display(self, request):
-        # choose display fields based on user stage
-        if request.user.stage == Stage.StageChoices.PRIMARY:
-            return 'custom_name', 'add_main_docs'
-        # other stage see all documents
-        return super().get_list_display(request)
-
     def get_inlines(self, request, obj):
         # When an inline has one or more instances and then return these inlines
         # Cases when read
@@ -215,8 +208,7 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         full_url = f'{url}?{query_string}'
 
         # Return the HTML link
-        document_view_perm_name = 'documents.view_document'
-        view_perm = self.request.user.has_perm(document_view_perm_name)
+        view_perm = self.request.user.has_perm('documents.view_document')
         if view_perm and not self.request.user.is_superuser:
             return format_html('{}', main_docs_amount)
         return format_html('<a href="{}">{} of 10</a>', full_url, main_docs_amount)
@@ -240,8 +232,7 @@ class DocumentProxyAdmin(admin.ModelAdmin):
         full_url = f'{url}?{query_string}'
 
         # Return the HTML link
-        document_view_perm_name = 'documents.view_document'
-        view_perm = self.request.user.has_perm(document_view_perm_name)
+        view_perm = self.request.user.has_perm('documents.view_document')
         if view_perm and not self.request.user.is_superuser:
             return format_html('{}', additional_docs_amount)
         return format_html('<a href="{}">{}</a>', full_url, additional_docs_amount)

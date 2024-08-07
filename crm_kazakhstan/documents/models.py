@@ -1,15 +1,9 @@
 from django.db import models
 import os
+
+from documents.services import validate_max_length
 from mothers.models import Mother
 import re
-from django.core.exceptions import ValidationError
-
-
-def validate_max_length(value):
-    if len(value) > 300:
-        raise ValidationError(
-            'This field cannot exceed 80 characters.'
-        )
 
 
 def clean_filepath(filename):

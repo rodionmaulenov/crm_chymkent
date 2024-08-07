@@ -2,30 +2,12 @@ from django.contrib import admin
 from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
-from datetime import datetime
 from guardian.shortcuts import get_objects_for_user
-import pytz
 
 from mothers.models import Mother
+from mothers.services.application import convert_utc_to_local
 
 User = get_user_model()
-
-
-def convert_utc_to_local(request, utc_datetime: datetime) -> datetime:
-    user_timezone = getattr(request.user, 'timezone', 'UTC')
-    # Convert string to a timezone object
-    user_timezone = pytz.timezone(str(user_timezone))
-
-    # Make the datetime object timezone-aware in UTC
-    if utc_datetime.tzinfo is None:
-        utc_datetime = pytz.utc.localize(utc_datetime)
-    else:
-        utc_datetime = utc_datetime.astimezone(pytz.utc)
-
-    # Convert the UTC timezone-aware datetime to user's local timezone
-    local_datetime = utc_datetime.astimezone(user_timezone)
-
-    return local_datetime
 
 
 class DayOfWeekFilter(admin.SimpleListFilter):

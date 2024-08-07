@@ -1,2 +1,1 @@
-from .state import StateInline
-from .planned import PlannedInline
+from .scheduled_event import ScheduledEventInline

@@ -1,6 +1,5 @@
 from typing import Any, Dict, Optional
 from django.contrib.admin.helpers import AdminForm
-from django.http import HttpRequest
 from django.db import models
 from django.db.models import Q
 from django.utils.html import format_html
@@ -10,8 +9,7 @@ from django.utils import timezone
 from guardian.shortcuts import get_objects_for_user
 from mothers.filters.applications import DayOfWeekFilter, convert_utc_to_local, UsersObjectsFilter
 from mothers.models import Mother
-from mothers.services_main import assign_user
-from mothers.services.state import adjust_button_visibility
+from mothers.services.application import assign_user
 
 # Globally disable delete selected
 admin.site.disable_action('delete_selected')
@@ -90,7 +88,7 @@ class MotherAdmin(admin.ModelAdmin):
 
         return users_objs
 
-    def render_change_form(self, request: HttpRequest, context: Dict[str, Any],
+    def render_change_form(self, request, context: Dict[str, Any],
                            add: bool = False, change: bool = False,
                            form_url: str = '', obj: Optional[Mother] = None) -> AdminForm:
         """
@@ -103,12 +101,15 @@ class MotherAdmin(admin.ModelAdmin):
         instance is being changed.
         """
 
-        adjust_button_visibility(context, add, change)
+        if add or change:
+            context['show_save_and_add_another'] = False  # Remove "Save and add another" button
+            context['show_save_and_continue'] = False  # Remove "Save and continue editing" button
+            context['show_save'] = True  # Ensure "Save" button is visible
 
         return super().render_change_form(request, context, add=add, change=change,
                                           form_url=form_url, obj=obj)
 
-    def save_model(self, request: HttpRequest, obj: Mother, form: ModelForm, change: bool) -> None:
+    def save_model(self, request, obj: Mother, form: ModelForm, change: bool) -> None:
         """
         Handles the saving of a Application instance in the Django admin interface.
         Converts scheduled time to UTC, saves the instance, and assigns permissions if it's a new instance.

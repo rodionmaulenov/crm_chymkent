@@ -1,21 +1,27 @@
 from typing import Dict, Any, Optional
 from mothers.admin import MotherAdmin
-from mothers.models.mother import Questionnaire, Mother
+from mothers.filters.questionnaire import UsersObjectsFilter, IsNewFilter
+from mothers.inlines import ScheduledEventInline
+from mothers.models.mother import Questionnaire, Mother, ScheduledEvent
 from django.contrib import admin
 from guardian.shortcuts import get_objects_for_user
-from django.db.models import Q
 from django.contrib.admin.helpers import AdminForm
-from mothers.services.state import adjust_button_visibility
 from mothers.filters.applications import convert_utc_to_local
 from django.utils.html import format_html
+from django.urls import reverse
+import pytz
+
+from mothers.services.questionnaire import get_mothers_without_incomplete_event
 
 
 @admin.register(Questionnaire)
 class QuestionnaireAdmin(admin.ModelAdmin):
     list_per_page = 10
-    search_help_text = 'Search description'
-    ordering = ('-created',)
+    search_help_text = ("IS_NEW field shows new instances if they have no associated scheduled events,"
+                        " otherwise they are old questionnaires.")
+    ordering = '-created',
     search_fields = 'name__icontains',
+    inlines = [ScheduledEventInline]
     fieldsets = [
         (
             None,
@@ -26,42 +32,72 @@ class QuestionnaireAdmin(admin.ModelAdmin):
             },
         ),
     ]
-    list_display = 'name', 'mass_index', 'date_create'
+    list_display = 'name', 'mass_index', 'scheduled_event', 'add_laboratory_link', 'date_create', 'is_new'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.request = None
+
+    class Media:
+        css = {
+            'all': ('questionnaire/css/timezonewarning_remove.css',)
+        }
+
+        js = 'questionnaire/js/redirect_on_add_change_event_tab.js', 'questionnaire/js/hide_p_elements.js',
+
+    def get_list_filter(self, request):
+        user_permission = request.user.user_permissions
+        if not self.get_queryset(request).exists():
+            return []
+        if (all(perm.codename.startswith('view') for perm in user_permission.all())
+                and user_permission.filter(codename='view_questionnaire').exists()):
+            return [UsersObjectsFilter, IsNewFilter]
+        return [IsNewFilter]
+
+    def get_inlines(self, request, obj):
+        # When an inline has one or more instances and then return these inlines
+        # Cases when read
+        if request.GET.get('add_or_change', False):
+            return super().get_inlines(request, obj)
+        else:
+            inlines = super().get_inlines(request, obj)
+            filtered_inlines = [
+                inline for inline in inlines
+                if inline.model.objects.filter(mother=obj).exists()
+            ]
+            return filtered_inlines
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
     def has_module_permission(self, request) -> bool:
         """
             Determines if the user has permission to access the module.
 
             1. Checks if the user is authenticated. If not, returns False.
-            2. Filters the queryset to include instances where certain fields (age, residence, height,
-               weight, caesarean, children) are not null.
-            3. Returns True if the user has the custom permissions for any objects or the 'view_questionnaire'
-               permission along with non-null field queryset.
+            2. Filters the queryset to include instances where certain fields (age, residence, height, weight,
+            caesarean, children) are not null.
+            3. Excludes instances where related ScheduledEvent instances have `is_completed=False`.
+            4. Returns True if the user has custom permissions for any objects or the 'view_questionnaire'
+            permission along with the filtered queryset.
         """
         if not request.user.is_authenticated:
             return False
 
         view_questionnaire = super().has_module_permission(request)
 
-        filter_not_null_fields = (
-                Q(age__isnull=False) & Q(residence__isnull=False) & Q(height__isnull=False) | Q(weight__isnull=False) &
-                Q(caesarean__isnull=False) & Q(children__isnull=False)
-
-        )
-
-        queryset = Mother.objects.all().filter(filter_not_null_fields)
+        queryset = get_mothers_without_incomplete_event(Mother.objects.all())
 
         mother_admin = MotherAdmin(Mother, admin.site)
         mother_model_name = mother_admin.opts.model_name
         custom_permission_name = f'{mother_model_name}_{request.user.username}'.lower()
         klass = mother_admin.opts.model
 
-        users_objs = get_objects_for_user(request.user, perms=custom_permission_name, klass=klass).filter(
-            filter_not_null_fields)
+        users_objs = get_objects_for_user(request.user, perms=custom_permission_name, klass=klass)
+        users_objs = get_mothers_without_incomplete_event(users_objs)
 
         return bool(users_objs) or (view_questionnaire and queryset)
 
@@ -71,20 +107,15 @@ class QuestionnaireAdmin(admin.ModelAdmin):
 
             1. Filters the queryset to include instances where certain fields (age, residence, height,
                weight, caesarean, children) are not null.
-            2. Checks if the user has a custom permission and filters the queryset further based on this permission.
-            3. If the user has all permissions starting with 'view' and specifically the 'view_questionnaire' permission,
+            2. Excludes instances where related ScheduledEvent instances have `is_completed=False`.
+            3. Checks if the user has a custom permission and filters the queryset further based on this permission.
+            4. If the user has all permissions starting with 'view' and specifically the 'view_questionnaire' permission,
                returns the initially filtered queryset.
-            4. Otherwise, returns the queryset filtered by both the custom permission and non-null fields.
+            5. Otherwise, returns the queryset filtered by both the custom permission and non-null fields.
         """
         self.request = request
 
-        filter_not_null_fields = (
-                Q(age__isnull=False) & Q(residence__isnull=False) & Q(height__isnull=False) | Q(weight__isnull=False) &
-                Q(caesarean__isnull=False) & Q(children__isnull=False)
-
-        )
-
-        queryset = Mother.objects.all().filter(filter_not_null_fields)
+        queryset = get_mothers_without_incomplete_event(Mother.objects.all())
 
         mother_admin = MotherAdmin(Mother, admin.site)
         mother_model_name = mother_admin.opts.model_name
@@ -92,8 +123,8 @@ class QuestionnaireAdmin(admin.ModelAdmin):
         klass = mother_admin.opts.model
         user_permission = request.user.user_permissions
 
-        users_objs = get_objects_for_user(request.user, perms=custom_permission_name, klass=klass).filter(
-            filter_not_null_fields)
+        users_objs = get_objects_for_user(request.user, perms=custom_permission_name, klass=klass)
+        users_objs = get_mothers_without_incomplete_event(users_objs)
 
         if (all(perm.codename.startswith('view') for perm in user_permission.all())
                 and user_permission.filter(codename='view_questionnaire').exists()):
@@ -114,15 +145,24 @@ class QuestionnaireAdmin(admin.ModelAdmin):
         instance is being changed.
         """
 
-        adjust_button_visibility(context, add, change)
+        if add or change:
+            context['show_save_and_add_another'] = False  # Remove "Save and add another" button
+            context['show_save_and_continue'] = False  # Remove "Save and continue editing" button
+            context['show_save'] = True  # Ensure "Save" button is visible
 
         return super().render_change_form(request, context, add=add, change=change,
                                           form_url=form_url, obj=obj)
 
-    @admin.display(description='Date create')
+    @admin.display(description='Creation Date')
     def date_create(self, obj):
         local_datetime = convert_utc_to_local(self.request, obj.created)
-        return format_html("<strong>{}</strong>", local_datetime.strftime("%A %H:%M, %d %B"))
+        return format_html(
+            "{} {}, {} {}",
+            local_datetime.strftime("%A"),
+            local_datetime.strftime("%H:%M"),
+            local_datetime.strftime("%d"),
+            local_datetime.strftime("%B")
+        )
 
     @staticmethod
     def classify_bmi(bmi):
@@ -149,3 +189,73 @@ class QuestionnaireAdmin(admin.ModelAdmin):
             return format_html(f"{formatted_value}/{classification}")
         else:
             return format_html(f"<span style='color: red;'>{formatted_value}/{classification}</span>")
+
+    @admin.display(description='Scheduled event')
+    def scheduled_event(self, mother_instance: Mother) -> str:
+        # Construct the URL for the admin change page
+        url = reverse('admin:mothers_questionnaire_change', args=(mother_instance.pk,))
+
+        # Copy filters from the request and add custom parameters
+        filters = {key: value for key, value in self.request.GET.items()}
+        # Determine event type
+        filters['add_or_change'] = 'add'
+
+        # Construct the query string
+        query_string = '&'.join([f'{key}={value}' for key, value in filters.items()])
+
+        # Construct the final URL with query parameters
+        full_url = f'{url}?{query_string}'
+
+        user_permission = self.request.user.user_permissions
+        # Return the HTML link
+        if (all(perm.codename.startswith('view') for perm in user_permission.all())
+                and user_permission.filter(codename='view_questionnaire').exists()):
+            return format_html('add event')
+        return format_html('<a href="{}">add event</a>', full_url)
+
+    def save_related(self, request, form, formsets, change):
+        """
+            Save related objects (inlines), converting scheduled time to UTC for ScheduledEvent instances.
+        """
+        for formset in formsets:
+            formset.save(commit=False)
+            for form in formset.forms:
+                if form.is_valid():
+                    instance = form.save(commit=False)
+                    if isinstance(instance, ScheduledEvent):
+                        # Example: Convert the scheduled time to UTC before saving
+                        utc_time = instance.scheduled_time.astimezone(pytz.utc)
+                        instance.scheduled_time = utc_time
+
+                        instance.save()
+                    form.save_m2m()
+            formset.save_m2m()
+
+        super().save_related(request, form, formsets, change)
+
+    @admin.display(description='Is new?', boolean=True)
+    def is_new(self, obj):
+        is_new = not bool(obj.scheduled_event.exists())
+        return is_new
+
+    @admin.display(description='Add laboratory')
+    def add_laboratory_link(self, obj):
+        # Generate the URL for adding an instance of the Laboratory model
+        add_url = reverse('admin:mothers_laboratory_add')
+
+        # Copy filters from the request and add custom parameters
+        filters = {key: value for key, value in self.request.GET.items()}
+        # Determine event type
+        filters['mother'] = obj.id
+
+        # Construct the query string
+        query_string = '&'.join([f'{key}={value}' for key, value in filters.items()])
+
+        # Construct the final URL with query parameters
+        full_url = f'{add_url}?{query_string}'
+
+        user_permission = self.request.user.user_permissions
+        if (all(perm.codename.startswith('view') for perm in user_permission.all())
+                and user_permission.filter(codename='view_questionnaire').exists()):
+            return format_html('Add Laboratory')
+        return format_html('<a href="{}">Add Laboratory</a>', full_url)

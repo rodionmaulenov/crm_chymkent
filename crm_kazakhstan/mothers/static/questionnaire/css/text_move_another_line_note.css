@@ -1,0 +1,18 @@
+.inline-group .field-note {
+    display: flex;
+    align-items: center; /* Center align items vertically */
+    white-space: pre-wrap; /* Preserve whitespace and wrap text as needed */
+    overflow: hidden; /* Hide overflow text */
+    width: 60ch; /* Set the width of the element */
+    padding: 10px 0; /* Optional: Adjust padding to fine-tune vertical position */
+    line-height: 1.5; /* Set a consistent line height */
+    font-family: 'Courier New', Courier, monospace; /* Use a monospaced font */
+    word-break: break-word; /* Ensure long words break correctly */
+    text-decoration: none; /* Remove underline */
+    border: none; /* Remove any border */
+}
+
+.inline-group .field-note p {
+    text-decoration: none; /* Remove underline from paragraph */
+    border: none; /* Ensure no border is applied to paragraph */
+}

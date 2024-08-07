@@ -1,14 +1,12 @@
 from django.test import TestCase, RequestFactory
 from django.contrib.auth import get_user_model
-
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.auth.models import Permission
 from guardian.shortcuts import assign_perm, remove_perm
-
 from mothers.admin.questionnaire import QuestionnaireAdmin
-from mothers.models import Mother
-
+from mothers.models import Mother, ScheduledEvent
 from django.contrib import admin
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -35,6 +33,19 @@ class GetQuerysetTest(TestCase):
                                              caesarean=1, children=2)
         self.mother7 = Mother.objects.create(name="Mother7", age=30)
 
+        # Create ScheduledEvent instances
+        # Create timezone-aware ScheduledEvent instances
+        aware_datetime1 = timezone.make_aware(timezone.datetime(2024, 7, 20, 15, 0, 0))
+        aware_datetime2 = timezone.make_aware(timezone.datetime(2024, 7, 20, 15, 0, 0))
+        aware_datetime3 = timezone.make_aware(timezone.datetime(2024, 7, 20, 15, 0, 0))
+
+        self.scheduled_event1 = ScheduledEvent.objects.create(mother=self.mother1, scheduled_time=aware_datetime1,
+                                                              is_completed=True)
+        self.scheduled_event2 = ScheduledEvent.objects.create(mother=self.mother2, scheduled_time=aware_datetime2,
+                                                              is_completed=False)
+        self.scheduled_event3 = ScheduledEvent.objects.create(mother=self.mother3, scheduled_time=aware_datetime3,
+                                                              is_completed=True)
+
     def set_custom_permission(self, user, obj):
         model_name = obj.__class__.__name__.lower()
         codename = f'{model_name}_{user.username}'
@@ -53,17 +64,23 @@ class GetQuerysetTest(TestCase):
 
     def test_get_queryset_user1_with_custom_perm(self):
         # Set permissions for user1
+        self.mother9 = Mother.objects.create(name="Mother6", age=30, residence="New York", height="170", weight="65",
+                                             caesarean=1, children=2)
+        aware_datetime3 = timezone.make_aware(timezone.datetime(2024, 7, 20, 15, 0, 0))
+        self.scheduled_event3 = ScheduledEvent.objects.create(mother=self.mother3, scheduled_time=aware_datetime3,
+                                                              is_completed=True)
         self.set_custom_permission(self.user1, self.mother1)
         self.set_custom_permission(self.user1, self.mother2)
+        self.set_custom_permission(self.user1, self.mother9)
 
         request = self.factory.get('/')
         request.user = self.user1
 
         queryset = self.admin_instance.get_queryset(request)
 
-        # user1 should only see mother1 and mother2
+        # user1 should see mother1 (completed event) but not mother2 (incomplete event)
         self.assertIn(self.mother1, queryset)
-        self.assertIn(self.mother2, queryset)
+        self.assertNotIn(self.mother2, queryset)
         self.assertNotIn(self.mother3, queryset)
         self.assertNotIn(self.mother4, queryset)
         self.assertNotIn(self.mother5, queryset)
@@ -80,9 +97,9 @@ class GetQuerysetTest(TestCase):
 
         queryset = self.admin_instance.get_queryset(request)
 
-        # user2 should see all mothers except mother7 (since it has no null fields)
+        # user2 should see all mothers except mother2 (incomplete event) and mother7 (null fields)
         self.assertIn(self.mother1, queryset)
-        self.assertIn(self.mother2, queryset)
+        self.assertNotIn(self.mother2, queryset)
         self.assertIn(self.mother3, queryset)
         self.assertIn(self.mother4, queryset)
         self.assertIn(self.mother5, queryset)
@@ -100,9 +117,9 @@ class GetQuerysetTest(TestCase):
 
         queryset = self.admin_instance.get_queryset(request)
 
-        # user2 should see all mothers except mother7 (since it has no null fields)
+        # user2 should see all mothers except mother2 (incomplete event) and mother7 (null fields)
         self.assertIn(self.mother1, queryset)
-        self.assertIn(self.mother2, queryset)
+        self.assertNotIn(self.mother2, queryset)
         self.assertIn(self.mother3, queryset)
         self.assertIn(self.mother4, queryset)
         self.assertIn(self.mother5, queryset)
@@ -120,7 +137,7 @@ class GetQuerysetTest(TestCase):
 
         queryset = self.admin_instance.get_queryset(request)
 
-        # user2 should see all mothers except mother7 (since it has no null fields)
+        # user2 should see no mothers as permissions are not view-only
         self.assertNotIn(self.mother1, queryset)
         self.assertNotIn(self.mother2, queryset)
         self.assertNotIn(self.mother3, queryset)
@@ -139,21 +156,18 @@ class GetQuerysetTest(TestCase):
 
         queryset = self.admin_instance.get_queryset(request)
 
-        # user1 should not see any mothers as permissions are removed
+        # user1 should see mother1 (completed event) but not mother2 (incomplete event)
         self.assertIn(self.mother1, queryset)
-        self.assertIn(self.mother2, queryset)
+        self.assertNotIn(self.mother2, queryset)
         self.assertNotIn(self.mother3, queryset)
         self.assertNotIn(self.mother4, queryset)
         self.assertNotIn(self.mother5, queryset)
         self.assertNotIn(self.mother6, queryset)
         self.assertNotIn(self.mother7, queryset)
 
-        # delete permissions for user1
+        # Remove permissions for user1
         self.remove_custom_permission(self.user1, self.mother1)
         self.remove_custom_permission(self.user1, self.mother2)
-
-        request = self.factory.get('/')
-        request.user = self.user1
 
         queryset = self.admin_instance.get_queryset(request)
 
@@ -176,16 +190,16 @@ class GetQuerysetTest(TestCase):
 
         queryset = self.admin_instance.get_queryset(request)
 
-        # user1 should not see any mothers as permissions are removed
+        # user1 should see mother1 (completed event) but not mother2 (incomplete event)
         self.assertIn(self.mother1, queryset)
-        self.assertIn(self.mother2, queryset)
+        self.assertNotIn(self.mother2, queryset)
         self.assertNotIn(self.mother3, queryset)
         self.assertNotIn(self.mother4, queryset)
         self.assertNotIn(self.mother5, queryset)
         self.assertNotIn(self.mother6, queryset)
         self.assertNotIn(self.mother7, queryset)
 
-        # Set permissions for user1
+        # Set permissions for user2
         self.set_custom_permission(self.user2, self.mother3)
         self.set_custom_permission(self.user2, self.mother4)
 
@@ -194,7 +208,7 @@ class GetQuerysetTest(TestCase):
 
         queryset = self.admin_instance.get_queryset(request)
 
-        # user1 should not see any mothers as permissions are removed
+        # user2 should see mother3 (completed event) and mother4 (completed event)
         self.assertNotIn(self.mother1, queryset)
         self.assertNotIn(self.mother2, queryset)
         self.assertIn(self.mother3, queryset)

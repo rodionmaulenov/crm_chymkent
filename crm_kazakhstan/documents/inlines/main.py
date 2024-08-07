@@ -2,11 +2,9 @@ from documents.models import MainDocument
 from django.contrib import admin
 from django.utils.html import format_html, mark_safe
 from django.urls import reverse
-
 from django import forms
-
 from documents.widget import CustomFileInput, CustomSelectWidget
-from mothers.services.mother import convert_utc_to_local
+from mothers.services.application import convert_utc_to_local
 
 
 class MainDocumentForm(forms.ModelForm):
@@ -93,10 +91,8 @@ class MainInline(admin.TabularInline):
     get_html_photo.short_description = 'Screenshot'
 
     def date_create(self, obj):
-        utc_date = obj.created.date()
-        utc_time = obj.created.time()
 
-        local_datetime = convert_utc_to_local(self.request, utc_date, utc_time)
+        local_datetime = convert_utc_to_local(self.request, obj.created)
         return local_datetime.strftime("%B %Y, %H:%M")
 
     date_create.short_description = 'Created'

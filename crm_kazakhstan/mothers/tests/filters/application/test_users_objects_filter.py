@@ -5,7 +5,7 @@ from django.db.models import Q
 from mothers.filters.applications import UsersObjectsFilter
 from mothers.models import Mother
 from mothers.admin import MotherAdmin
-from mothers.services_main import assign_user
+from mothers.services.application import assign_user
 
 User = get_user_model()
 

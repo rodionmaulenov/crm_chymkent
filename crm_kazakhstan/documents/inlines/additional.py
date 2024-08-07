@@ -4,7 +4,7 @@ from django.utils.html import format_html, mark_safe
 from django.urls import reverse
 from django import forms
 from documents.widget import CustomFileInput
-from mothers.services.mother import convert_utc_to_local
+from mothers.services.application import convert_utc_to_local
 
 
 class AdditionalDocumentForm(forms.ModelForm):
@@ -29,8 +29,8 @@ class AdditionalInline(admin.TabularInline):
         css = {
             'all': ('documents/css/increase_image_scale.css', 'documents/css/text_move_another_line_note.css')
         }
-        js = ('documents/js/redirect_on_additional_docs.js',  'documents/js/hide_document_tab.js',
-              'documents/js/text_move_another_line_note.js',  "documents/js/increase_image_scale.js", )
+        js = ('documents/js/redirect_on_additional_docs.js', 'documents/js/hide_document_tab.js',
+              'documents/js/text_move_another_line_note.js', "documents/js/increase_image_scale.js",)
 
     def get_queryset(self, request):
         self.request = request
@@ -90,10 +90,8 @@ class AdditionalInline(admin.TabularInline):
     get_html_photo.short_description = 'Screenshot'
 
     def date_create(self, obj):
-        utc_date = obj.created.date()
-        utc_time = obj.created.time()
 
-        local_datetime = convert_utc_to_local(self.request, utc_date, utc_time)
+        local_datetime = convert_utc_to_local(self.request, obj.created)
         return local_datetime.strftime("%B %Y, %H:%M")
 
     date_create.short_description = 'Created'

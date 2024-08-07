@@ -54,7 +54,6 @@ INSTALLED_APPS = [
     # MY APPS
     'mothers',
     'ban',
-    'first_visit',
     'gmail_messages',
     # many-to-one relationships with mother
     'documents',
@@ -120,6 +119,10 @@ DATABASES = {
 }
 
 CELERY_BROKER_URL = "redis://redis:6379/0"
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
 # CELERY BEAT SCHEDULER
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
@@ -184,3 +187,20 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
     'guardian.backends.ObjectPermissionBackend',
 )
+
+# LOGGING = {
+#     'version': 1,
+#     'disable_existing_loggers': True,  # Disable all existing loggers
+#     'handlers': {
+#         'console': {
+#             'class': 'logging.StreamHandler',
+#         },
+#     },
+#     'loggers': {
+#         'custom_logger': {  # Define a custom logger
+#             'handlers': ['console'],
+#             'level': 'DEBUG',
+#             'propagate': False,  # Do not propagate to other loggers
+#         },
+#     },
+# }
