@@ -3,8 +3,13 @@ from django.contrib import admin
 from mothers.tasks import send_telegram_message
 from documents.models import MainDocument
 from mothers.forms import LaboratoryAdminForm
-from mothers.models.mother import Laboratory, LaboratoryFile
-from django.utils import timezone
+from mothers.models.mother import Laboratory
+from django.http import HttpResponseRedirect
+from django.urls import reverse
+from django.contrib.auth import get_user_model
+
+
+User = get_user_model()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,9 +42,6 @@ class LaboratoryAdmin(admin.ModelAdmin):
         return True
 
     def has_change_permission(self, request, obj=None):
-        if obj is not None:
-            if obj.scheduled_time == timezone.now():
-                return False
         return True
 
     def get_form(self, request, obj=None, **kwargs):
@@ -58,7 +60,6 @@ class LaboratoryAdmin(admin.ModelAdmin):
         instance.save()
         form.save_m2m()  # Ensure many-to-many relationships are saved
         selected_analysis_types = form.cleaned_data.get('analysis_types')
-
         # Extract the IDs of the selected analysis types
         selected_analysis_type_ids = list(selected_analysis_types.values_list('id', flat=True))
 
@@ -71,6 +72,7 @@ class LaboratoryAdmin(admin.ModelAdmin):
             ).first()
 
             if not existing_passport or existing_passport.file != passport_file:
+                # and delete from local storage
                 if existing_passport:
                     existing_passport.delete()
                 # If there's no existing passport or the file has changed, save the new file
@@ -80,39 +82,23 @@ class LaboratoryAdmin(admin.ModelAdmin):
                     file=passport_file
                 )
 
-        if change:
-            # Retrieve current analysis types for the instance
-            current_analysis_types = set(instance.analysis_types.all())
-            selected_analysis_types_set = set(selected_analysis_types)
-
-            # Analysis types to be added and removed
-            analysis_types_to_add = selected_analysis_types_set - current_analysis_types
-            analysis_types_to_remove = current_analysis_types - selected_analysis_types_set
-
-            # Add new LaboratoryFile instances
-            for analysis_type in analysis_types_to_add:
-                LaboratoryFile.objects.create(
-                    laboratory=instance,
-                    analysis_type=analysis_type
-                )
-
-            # Remove LaboratoryFile instances that are no longer selected and no file have
-            LaboratoryFile.objects.filter(
-                laboratory=instance,
-                analysis_type__in=analysis_types_to_remove,
-                file__isnull=False
-            ).delete()
-
-        else:
-            # Handle the initial creation case
-            if selected_analysis_types:
-                LaboratoryFile.objects.filter(laboratory=instance).delete()
-                for analysis_type in selected_analysis_types:
-                    LaboratoryFile.objects.create(
-                        laboratory=instance,
-                        analysis_type=analysis_type
-                    )
         user_id = request.user.id
-        # Trigger the Celery task
-        send_telegram_message.delay('-1002171039112', instance.id, selected_analysis_type_ids, user_id)
+
+        user = User.objects.get(id=user_id)
+        user_timezone = str(user.timezone)
+        print(user_timezone)
+
+        if not instance.is_completed:
+            # Trigger the Celery task
+            send_telegram_message.delay('-1002171039112', instance.id, selected_analysis_type_ids, user_id)
+
+    def response_add(self, request, obj, post_url_continue=None):
+        # Redirect to a specific URL after adding
+        return HttpResponseRedirect(reverse('admin:mothers_questionnaire_changelist'))
+
+    def response_change(self, request, obj):
+        # Redirect to a specific URL after changing
+        return HttpResponseRedirect(reverse('admin:mothers_plannedlaboratory_changelist'))
+
+
 

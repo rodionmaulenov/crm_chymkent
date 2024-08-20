@@ -1,4 +1,4 @@
-from mothers.models.mother import Laboratory
+from mothers.models.mother import Laboratory, Mother
 from django import forms
 from documents.models import MainDocument
 from django.forms import HiddenInput
@@ -28,21 +28,20 @@ class LaboratoryAdminForm(forms.ModelForm):
             self.fields['mother'].widget = HiddenInput()
             self.fields['mother'].initial = mother_id
 
-        if instance and instance.mother:
-            # Check if the mother has a passport document
-            existing_passport = MainDocument.objects.filter(
-                mother=instance.mother,
-                title=MainDocument.MainDocumentChoice.PASSPORT
-            ).first()
+        # Check if the mother has a passport document
+        existing_passport = MainDocument.objects.filter(
+            mother=Mother.objects.get(id=mother_id),
+            title=MainDocument.MainDocumentChoice.PASSPORT
+        ).first()
 
-            if existing_passport:
-                # Set a placeholder or initial for displaying the existing file name
-                self.fields['passport_file'].widget.attrs['placeholder'] = existing_passport.file.name
+        if existing_passport:
+            # Set a placeholder or initial for displaying the existing file name
+            self.fields['passport_file'].widget.attrs['placeholder'] = existing_passport.file.name
 
-                # Display a link to the existing file if it's not a new form
-                self.fields['passport_file'].help_text = (
-                    f'Existing File: <a href="{existing_passport.file.url}" target="_blank">{existing_passport.file.name}</a>'
-                )
+            # Display a link to the existing file if it's not a new form
+            self.fields['passport_file'].help_text = (
+                f'Existing File: <a href="{existing_passport.file.url}" target="_blank">{existing_passport.file.name}</a>'
+            )
 
-                # Make file upload optional since there's already an existing file
-                self.fields['passport_file'].required = False
+            # Make file upload optional since there's already an existing file
+            self.fields['passport_file'].required = False

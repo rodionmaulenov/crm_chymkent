@@ -2,7 +2,6 @@ from django.contrib import admin
 from django.db.models import Q, Count
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
-from django.utils import timezone
 from guardian.shortcuts import get_objects_for_user
 
 from mothers.models import Mother

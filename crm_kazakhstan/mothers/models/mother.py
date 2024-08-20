@@ -1,11 +1,32 @@
-import logging
-
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
-
 from documents.services import validate_max_length
+import re
+import logging
 
-logger = logging.getLogger('custom_logger')
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def clean_filepath(filename):
+    # Define a regular expression pattern to match prohibited characters, including apostrophes
+    prohibited_characters = r'[\\/*?:"<>|\'`]'
+    # Replace prohibited characters with an empty string
+    cleaned_filename = re.sub(prohibited_characters, '', filename)
+    return cleaned_filename
+
+
+def directory_path(instance, filename):
+    return f'Laboratory_files/{clean_filepath(instance.laboratory.mother.name)}/{instance.laboratory.id}/{filename}'
+
+
+def directory_path_video(instance, filename):
+    return f'Laboratory_files/{clean_filepath(instance.laboratory.mother.name)}/video/{instance.laboratory.id}/{filename}'
+
+
+def directory_path_file(instance, filename):
+    return f'Laboratory_files/{clean_filepath(instance.laboratory.mother.name)}/file/{instance.laboratory.id}/{filename}'
 
 
 class ScheduledEvent(models.Model):
@@ -19,19 +40,29 @@ class ScheduledEvent(models.Model):
 class LaboratoryFile(models.Model):
     laboratory = models.ForeignKey("Laboratory", on_delete=models.CASCADE, related_name='files_laboratory')
     analysis_type = models.ForeignKey("AnalysisType", on_delete=models.CASCADE, related_name='files_analysis')
-    file = models.FileField(upload_to='laboratory_files/', blank=True, null=True)
+    file = models.FileField(upload_to=directory_path_file, blank=True, null=True)
+    video = models.FileField(upload_to=directory_path_video, null=True, blank=True)
+    hash = models.CharField(max_length=64, null=True, blank=True)
     created = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"File for {self.laboratory} - {self.analysis_type}"
 
+class LaboratoryMessage(models.Model):
+    laboratory = models.ForeignKey("Laboratory", on_delete=models.CASCADE, related_name='messages_laboratory')
+    chat_id = models.BigIntegerField()
+    message_id = models.IntegerField()
+    is_posted = models.BooleanField(null=True, blank=True)
+    sent_at = models.DateTimeField(auto_now_add=True)
 
 class AnalysisType(models.Model):
     SEROLOGY = 'SEROLOGY'
     CYTOLOGY = 'CYTOLOGY'
+    ULTRASOUND = 'ULTRASOUND'
     ANALYSIS_TYPE_CHOICES = [
         (SEROLOGY, 'Serology'),
-        (CYTOLOGY, 'Cytology')
+        (CYTOLOGY, 'Cytology'),
+        (ULTRASOUND, 'Ultrasound')
     ]
 
     name = models.CharField(max_length=20, choices=ANALYSIS_TYPE_CHOICES, unique=True)
@@ -42,12 +73,8 @@ class AnalysisType(models.Model):
 
 class DoctorAnswer(models.Model):
     laboratory = models.OneToOneField('Laboratory', on_delete=models.CASCADE)
-    description = models.TextField()
     is_completed = models.BooleanField(default=False)
     sent_at = models.DateTimeField(auto_now_add=True)
-
-    # def __str__(self):
-    #     return f"Message {self.message_id} for Laboratory {self.laboratory_id}"
 
 
 class Laboratory(models.Model):
@@ -55,8 +82,9 @@ class Laboratory(models.Model):
     description = models.TextField(blank=True, null=True)
     scheduled_time = models.DateTimeField()
     created = models.DateTimeField(auto_now_add=True)
+    is_coming = models.BooleanField(blank=True, null=True)
     is_completed = models.BooleanField(default=False)
-    analysis_types = models.ManyToManyField(AnalysisType, related_name='laboratories')
+    analysis_types = models.ManyToManyField(AnalysisType, related_name='analysis_types')
 
     def __str__(self):
         return f"Planning a visit Laboratory for {self.mother.name}"

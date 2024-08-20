@@ -51,6 +51,13 @@ class MainDocument(models.Model):
         # if self is None must return '' because if add new document from inline without '' the error raise
         return str(self.title).title() if self.title else ''
 
+    def delete(self, *args, **kwargs):
+        # Delete the associated file from the filesystem
+        if self.file and os.path.isfile(self.file.path):
+            os.remove(self.file.path)
+        # Call the superclass delete method
+        super().delete(*args, **kwargs)
+
 
 class AdditionalDocument(models.Model):
     mother = models.ForeignKey(Mother, on_delete=models.CASCADE, related_name='additional_document')
