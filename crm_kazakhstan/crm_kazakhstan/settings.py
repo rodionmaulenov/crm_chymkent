@@ -188,19 +188,19 @@ AUTHENTICATION_BACKENDS = (
     'guardian.backends.ObjectPermissionBackend',
 )
 
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': True,  # Disable all existing loggers
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'loggers': {
-        'custom_logger': {  # Define a custom logger
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': False,  # Do not propagate to other loggers
-        },
-    },
-}
+# LOGGING = {
+#     'version': 1,
+#     'disable_existing_loggers': True,  # Disable all existing loggers
+#     'handlers': {
+#         'console': {
+#             'class': 'logging.StreamHandler',
+#         },
+#     },
+#     'loggers': {
+#         'custom_logger': {  # Define a custom logger
+#             'handlers': ['console'],
+#             'level': 'DEBUG',
+#             'propagate': False,  # Do not propagate to other loggers
+#         },
+#     },
+# }

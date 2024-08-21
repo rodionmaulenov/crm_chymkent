@@ -1,0 +1,22 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_list admin_urls static %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    <link rel="stylesheet" type="text/css" href="{% static 'planned_laboratory/css/button_is_completed.css' %}">
+{% endblock %}
+
+
+{% block pagination %}
+    <!-- Include Default Pagination Controls -->
+    {{ block.super }}  <!-- This will render the default Django pagination controls -->
+
+    <!-- Additional Custom Pagination Content -->
+    {% if show_update_button %}
+    <div class="wrapper-custom-btn">
+        <input type="button" id="update-checked" value="Update" class="custom-update-button">
+    </div>
+    {% endif %}
+
+{% endblock %}
+

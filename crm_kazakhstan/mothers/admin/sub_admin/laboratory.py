@@ -85,8 +85,9 @@ class LaboratoryAdmin(admin.ModelAdmin):
         user_id = request.user.id
 
         user = User.objects.get(id=user_id)
-        user_timezone = str(user.timezone)
-        print(user_timezone)
+        # user_timezone = str(user.timezone)
+        # if user_timezone == 'Asia/Tashkent':
+        #     group = '-1002171039112'
 
         if not instance.is_completed:
             # Trigger the Celery task

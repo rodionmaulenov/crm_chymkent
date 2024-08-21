@@ -82,7 +82,8 @@ class Laboratory(models.Model):
     description = models.TextField(blank=True, null=True)
     scheduled_time = models.DateTimeField()
     created = models.DateTimeField(auto_now_add=True)
-    is_coming = models.BooleanField(blank=True, null=True)
+    is_came = models.BooleanField(blank=True, null=True)
+    is_filled = models.BooleanField(default=False)
     is_completed = models.BooleanField(default=False)
     analysis_types = models.ManyToManyField(AnalysisType, related_name='analysis_types')
 
@@ -145,3 +146,4 @@ class PlannedLaboratory(Mother):
         proxy = True
         verbose_name = 'Laboratory'
         verbose_name_plural = 'Laboratories'
+

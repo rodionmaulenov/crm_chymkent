@@ -1,0 +1,25 @@
+.wrapper-custom-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.custom-update-button {
+    border: 1px solid var(--border-color) !important;
+    font-size: 13px !important;
+    padding: 4px 8px !important;
+    margin: 0 !important;
+    margin-left: auto !important; /* Ensure the button aligns to the right */
+    vertical-align: middle !important;
+    background: var(--body-bg) !important;
+    box-shadow: 0 -15px 20px -10px rgba(0, 0, 0, 0.15) inset !important;
+    cursor: pointer !important;
+    color: var(--body-fg) !important;
+}
+
+.custom-update-button:hover {
+    background-color: var(--body-bg) !important; /* Maintain the same background color */
+    border: 1px solid #000 !important;  /* Emphasize the border on hover with a specific color */
+}
+
+

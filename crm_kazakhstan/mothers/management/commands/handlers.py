@@ -77,7 +77,7 @@ async def sure_mother_not_comes(callback_query: CallbackQuery):
 
     # The altered state in which the mothers came to the Laboratory
     laboratory_obj = await Laboratory.objects.aget(id=laboratory_obj_id)
-    laboratory_obj.is_coming = False
+    laboratory_obj.is_came = False
     await laboratory_obj.asave()
 
     # Display a pop-up confirmation dialog
@@ -203,7 +203,7 @@ async def mother_come_to_laboratory(callback_query: CallbackQuery):
 
     # The altered state in which the mothers came to the Laboratory
     laboratory_obj = await Laboratory.objects.aget(id=laboratory_obj_id)
-    laboratory_obj.is_coming = True
+    laboratory_obj.is_came = True
     await laboratory_obj.asave()
 
     # Fetch analysis types asynchronously

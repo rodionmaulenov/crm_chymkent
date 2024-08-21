@@ -19,7 +19,7 @@ ContentType: models
 
 @admin.register(Mother)
 class MotherAdmin(admin.ModelAdmin):
-    list_per_page = 10
+    list_per_page = 1
     search_help_text = 'Search description'
     ordering = ('-created',)
     list_filter = (DayOfWeekFilter, UsersObjectsFilter)

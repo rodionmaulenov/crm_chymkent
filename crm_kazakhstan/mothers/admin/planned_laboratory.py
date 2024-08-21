@@ -3,15 +3,26 @@ from guardian.shortcuts import get_objects_for_user
 from mothers.admin import MotherAdmin
 from mothers.filters.planned_laboratory import TimeToVisitLaboratoryFilter, UsersObjectsFilter
 from mothers.inlines.laboratory import LaboratoryInline
-from mothers.models.mother import PlannedLaboratory, Mother, AnalysisType
+from mothers.models.mother import PlannedLaboratory, Mother, AnalysisType, Laboratory
 from django.urls import reverse
 from django.utils.html import format_html
 from mothers.services.application import convert_utc_to_local
-from mothers.services.planned_laboratory import mothers_which_on_laboratory_stage
+from mothers.services.planned_laboratory import mothers_which_on_laboratory_stage, filter_for_pagination_queryset
+from django.http import JsonResponse
+from django.shortcuts import redirect
+from django.utils.translation import gettext_lazy as _
+import json
+from django.db.models import Q
+from django.utils import timezone
+from django.urls import path
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 
 
 @admin.register(PlannedLaboratory)
 class PlannedLaboratoryAdmin(admin.ModelAdmin):
+    list_per_page = 2
+    search_fields = 'name__icontains',
     fieldsets = [
         (
             None,
@@ -22,7 +33,7 @@ class PlannedLaboratoryAdmin(admin.ModelAdmin):
             },
         ),
     ]
-    list_display = 'name', 'change_laboratory_link', 'custom_scheduled_time', 'custom_analysis_type'
+    list_display = 'name', 'change_laboratory_link', 'custom_scheduled_time', 'custom_analysis_type',
     inlines = [LaboratoryInline, ]
     list_filter = [TimeToVisitLaboratoryFilter, UsersObjectsFilter]
 
@@ -31,15 +42,18 @@ class PlannedLaboratoryAdmin(admin.ModelAdmin):
         self.request = None
 
     class Media:
-        js = 'planned_laboratory/js/redirect_to_tab.js', 'planned_laboratory/js/rename_tab.js'
+        js = ('planned_laboratory/js/redirect_to_tab.js', 'planned_laboratory/js/rename_tab.js',
+              'planned_laboratory/js/save_is_completed.js', 'planned_laboratory/js/ajax_filters.js')
 
-    def _get_list_editable_queryset(self, request, prefix):
-        print(prefix)
-        return super()._get_list_editable_queryset(request, prefix)
+        css = {
+            'all': ('planned_laboratory/css/button_is_completed.css',)
+        }
 
     def get_list_display(self, request):
         if request.GET.get('time_new_visit') == 'new_visit':
             return ['name', 'custom_scheduled_time', 'custom_analysis_type']
+        if request.GET.get('time_new_visit') == 'not_visit':
+            return ['name', 'custom_scheduled_time', 'custom_analysis_type', 'is_completed_checkbox']
         return super().get_list_display(request)
 
     def get_list_filter(self, request):
@@ -55,7 +69,7 @@ class PlannedLaboratoryAdmin(admin.ModelAdmin):
         return True
 
     def has_change_permission(self, request, obj=None):
-        return False
+        return True
 
     def has_delete_permission(self, request, obj=None):
         return False
@@ -97,9 +111,9 @@ class PlannedLaboratoryAdmin(admin.ModelAdmin):
 
         if (all(perm.codename.startswith('view') for perm in user_permission.all())
                 and user_permission.filter(codename='view_plannedlaboratory').exists()):
-            return queryset
+            return filter_for_pagination_queryset(queryset, request)
 
-        return users_objs
+        return filter_for_pagination_queryset(users_objs, request)
 
     @admin.display(description='Add laboratory')
     def change_laboratory_link(self, mother_instance):
@@ -140,6 +154,86 @@ class PlannedLaboratoryAdmin(admin.ModelAdmin):
         for num, analyze_tye in enumerate(laboratory.analysis_types.all()):
             files += f'{num + 1}.{analyze_tye.get_name_display()}</a><br>'
         return format_html(files)
+
+    @admin.display(description='Complete')
+    def is_completed_checkbox(self, mother_instance):
+        checkbox_html = format_html(
+            '<input type="checkbox" class="is-new-checkbox" data-mother-id="{}">',
+            mother_instance.pk,
+        )
+        return checkbox_html
+
+    def changelist_view(self, request, extra_context=None):
+
+        # if not queryset.exists():
+        #     return redirect(reverse('admin:index'))
+
+        extra_context = extra_context or {}
+        extra_context['show_update_button'] = request.GET.get('time_new_visit') == 'not_visit'
+        extra_context['update_url'] = reverse('admin:update_is_completed')
+
+        return super().changelist_view(request, extra_context=extra_context)
+
+    @method_decorator(csrf_exempt)
+    # this method update mother related laboratory instance 'is_completed' field
+    def update_is_completed(self, request):
+
+        if request.method == 'POST':
+            data = json.loads(request.body)
+            mother_ids = data.get('mother_ids', [])
+            for mother_id in mother_ids:
+                mother_instance = Mother.objects.get(pk=mother_id)
+                laboratory = Laboratory.objects.filter(mother=mother_instance, is_came=False,
+                                                       is_completed=False).first()
+                if laboratory:
+                    laboratory.is_completed = not laboratory.is_completed
+                    laboratory.save()
+            return JsonResponse({'status': 'success'})
+
+
+    def get_filter_choices(self, request):
+        mothers_queryset = self.get_queryset(request)
+
+        choices = []
+
+        # Check if 'not_visit' condition has results
+        not_visit = mothers_queryset.filter(
+            Q(laboratories__is_completed=False) &
+            Q(laboratories__is_came=False) &
+            Q(laboratories__scheduled_time__lte=timezone.now())
+        )
+        if not_visit.exists():
+            choices.append({'value': 'not_visit', 'display': _('Did not visit')})
+
+        # Check if 'visit' condition has results
+        already_visit = mothers_queryset.filter(
+            Q(laboratories__is_completed=False) &
+            Q(laboratories__is_came=True) &
+            Q(laboratories__scheduled_time__lte=timezone.now())
+        )
+        if already_visit.exists():
+            choices.append({'value': 'visit', 'display': _('Already visit')})
+
+        # Check if 'new_visit' condition has results
+        new_visit = mothers_queryset.filter(
+            Q(laboratories__is_completed=False) &
+            Q(laboratories__is_came__exact='') &
+            Q(laboratories__scheduled_time__lte=timezone.now())
+        )
+        if new_visit.exists():
+            choices.append({'value': 'new_visit', 'display': _('New visit')})
+
+        return JsonResponse({'choices': choices})
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('update_is_completed/', self.admin_site.admin_view(self.update_is_completed),
+                 name='update_is_completed'),
+            path('get_filter_choices/', self.admin_site.admin_view(self.get_filter_choices),
+                 name='get_filter_choices'),
+        ]
+        return custom_urls + urls
 
 
 @admin.register(AnalysisType)

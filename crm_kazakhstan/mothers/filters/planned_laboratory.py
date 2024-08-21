@@ -16,14 +16,43 @@ class TimeToVisitLaboratoryFilter(admin.SimpleListFilter):
 
     def lookups(self, request, model_admin):
         mothers_queryset = model_admin.get_queryset(request)
+
+        # When is it time to visit laboratory
         time_new_visit = mothers_queryset.filter(Q(laboratories__is_completed=False) &
+                                                 Q(laboratories__is_came__exact='') &
                                                  Q(laboratories__scheduled_time__lte=timezone.now()))
+        # When not visited laboratory at all
+        not_visit = mothers_queryset.filter(Q(laboratories__is_completed=False) &
+                                            Q(laboratories__is_came=False) &
+                                            Q(laboratories__scheduled_time__lte=timezone.now()))
+
+        # When visited laboratory
+        already_visit = mothers_queryset.filter(Q(laboratories__is_completed=False) &
+                                                Q(laboratories__is_came=True) &
+                                                Q(laboratories__scheduled_time__lte=timezone.now()))
+
         if time_new_visit:
-            yield 'new_visit', _('New Visit')
+            yield 'new_visit', _('New visit')
+        if not_visit:
+            yield 'not_visit', _('Did not visit')
+        if already_visit:
+            yield 'visit', _('Already visit')
+
 
     def queryset(self, request, mothers_queryset):
         if self.value() == 'new_visit':
             return mothers_queryset.filter(Q(laboratories__is_completed=False) &
+                                           Q(laboratories__is_came__exact='') &
+                                           Q(laboratories__scheduled_time__lte=timezone.now()))
+
+        if self.value() == 'not_visit':
+            return mothers_queryset.filter(Q(laboratories__is_completed=False) &
+                                           Q(laboratories__is_came=False) &
+                                           Q(laboratories__scheduled_time__lte=timezone.now()))
+
+        if self.value() == 'visit':
+            return mothers_queryset.filter(Q(laboratories__is_completed=False) &
+                                           Q(laboratories__is_came=True) &
                                            Q(laboratories__scheduled_time__lte=timezone.now()))
 
 
