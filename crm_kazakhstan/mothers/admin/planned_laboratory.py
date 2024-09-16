@@ -7,21 +7,20 @@ from mothers.models.mother import PlannedLaboratory, Mother, AnalysisType, Labor
 from django.urls import reverse
 from django.utils.html import format_html
 from mothers.services.application import convert_utc_to_local
-from mothers.services.planned_laboratory import mothers_which_on_laboratory_stage, filter_for_pagination_queryset
+from mothers.services.planned_laboratory import mothers_which_on_laboratory_stage, get_users_objs, \
+    get_filter_choices_for_laboratories
 from django.http import JsonResponse
-from django.shortcuts import redirect
-from django.utils.translation import gettext_lazy as _
 import json
-from django.db.models import Q
-from django.utils import timezone
 from django.urls import path
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
+from django.db.models import Q
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
 @admin.register(PlannedLaboratory)
 class PlannedLaboratoryAdmin(admin.ModelAdmin):
-    list_per_page = 2
+    list_per_page = 5
     search_fields = 'name__icontains',
     fieldsets = [
         (
@@ -42,11 +41,13 @@ class PlannedLaboratoryAdmin(admin.ModelAdmin):
         self.request = None
 
     class Media:
-        js = ('planned_laboratory/js/redirect_to_tab.js', 'planned_laboratory/js/rename_tab.js',
-              'planned_laboratory/js/save_is_completed.js', 'planned_laboratory/js/ajax_filters.js')
+        js = 'planned_laboratory/js/redirect_to_tab.js', \
+            'planned_laboratory/js/rename_tab.js', \
+            'planned_laboratory/js/save_is_completed.js', \
+            'planned_laboratory/js/filters/ajax_filters.js',
 
         css = {
-            'all': ('planned_laboratory/css/button_is_completed.css',)
+            'all': ('planned_laboratory/css/button_is_completed.css', 'planned_laboratory/css/filters_animation.css')
         }
 
     def get_list_display(self, request):
@@ -63,7 +64,7 @@ class PlannedLaboratoryAdmin(admin.ModelAdmin):
         if (all(perm.codename.startswith('view') for perm in user_permission.all())
                 and user_permission.filter(codename='view_plannedlaboratory').exists()):
             return [TimeToVisitLaboratoryFilter, UsersObjectsFilter]
-        return [TimeToVisitLaboratoryFilter, ]
+        return [TimeToVisitLaboratoryFilter, UsersObjectsFilter]
 
     def has_view_permission(self, request, obj=None):
         return True
@@ -111,9 +112,9 @@ class PlannedLaboratoryAdmin(admin.ModelAdmin):
 
         if (all(perm.codename.startswith('view') for perm in user_permission.all())
                 and user_permission.filter(codename='view_plannedlaboratory').exists()):
-            return filter_for_pagination_queryset(queryset, request)
+            return users_objs
 
-        return filter_for_pagination_queryset(users_objs, request)
+        return queryset
 
     @admin.display(description='Add laboratory')
     def change_laboratory_link(self, mother_instance):
@@ -174,10 +175,9 @@ class PlannedLaboratoryAdmin(admin.ModelAdmin):
 
         return super().changelist_view(request, extra_context=extra_context)
 
-    @method_decorator(csrf_exempt)
-    # this method update mother related laboratory instance 'is_completed' field
-    def update_is_completed(self, request):
-
+    @staticmethod
+    def update_is_completed(request):
+        # this method update mother related laboratory instance 'is_completed' field
         if request.method == 'POST':
             data = json.loads(request.body)
             mother_ids = data.get('mother_ids', [])
@@ -190,38 +190,21 @@ class PlannedLaboratoryAdmin(admin.ModelAdmin):
                     laboratory.save()
             return JsonResponse({'status': 'success'})
 
-
     def get_filter_choices(self, request):
         mothers_queryset = self.get_queryset(request)
+        choices = get_filter_choices_for_laboratories(mothers_queryset)
+        return JsonResponse({'choices': choices})
+
+
+    def get_users_objects_choices(self, request):
+        queryset = self.get_queryset(request)
+        users_with_country = User.objects.exclude(Q(country__isnull=True) | Q(country=''))
 
         choices = []
-
-        # Check if 'not_visit' condition has results
-        not_visit = mothers_queryset.filter(
-            Q(laboratories__is_completed=False) &
-            Q(laboratories__is_came=False) &
-            Q(laboratories__scheduled_time__lte=timezone.now())
-        )
-        if not_visit.exists():
-            choices.append({'value': 'not_visit', 'display': _('Did not visit')})
-
-        # Check if 'visit' condition has results
-        already_visit = mothers_queryset.filter(
-            Q(laboratories__is_completed=False) &
-            Q(laboratories__is_came=True) &
-            Q(laboratories__scheduled_time__lte=timezone.now())
-        )
-        if already_visit.exists():
-            choices.append({'value': 'visit', 'display': _('Already visit')})
-
-        # Check if 'new_visit' condition has results
-        new_visit = mothers_queryset.filter(
-            Q(laboratories__is_completed=False) &
-            Q(laboratories__is_came__exact='') &
-            Q(laboratories__scheduled_time__lte=timezone.now())
-        )
-        if new_visit.exists():
-            choices.append({'value': 'new_visit', 'display': _('New visit')})
+        for user in users_with_country:
+            if bool(get_users_objs(user, queryset)):
+                display_text = f'{user.get_country_display()} {user.username}'
+                choices.append({'value': user.username, 'display': display_text})
 
         return JsonResponse({'choices': choices})
 
@@ -232,6 +215,8 @@ class PlannedLaboratoryAdmin(admin.ModelAdmin):
                  name='update_is_completed'),
             path('get_filter_choices/', self.admin_site.admin_view(self.get_filter_choices),
                  name='get_filter_choices'),
+            path('get_users_objects_choices/', self.admin_site.admin_view(self.get_users_objects_choices),
+                 name='get_users_objects_choices'),
         ]
         return custom_urls + urls
 

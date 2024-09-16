@@ -282,13 +282,13 @@ async def construct_message(instance, analysis_types_list, user_id):
     description = await sync_to_async(lambda: instance.description)()
 
     # # Format the local scheduled time into a more readable format
-    formatted_time = local_scheduled_time.strftime("🗓️ %A, %d %B \n⏰ %H:%M")
+    formatted_time = local_scheduled_time.strftime("🗓️ %A, %d %B\n⏰ %H:%M")
 
     return (
         f"*New Laboratory Created:*\n"
         f"*ID:* `{instance_id}`\n"
         f"*Mother:* `{mother_name}`\n"
-        f"*Scheduled Time:* `{formatted_time}`\n"
+        f"*Scheduled Time:*\n`{formatted_time}`\n"
         f"*Analysis Types:*\n`{analysis_types_list}`\n\n"
         f"*Description:* `{description}`\n\n"
         f"Please attach the result files for each analysis.📎\n"

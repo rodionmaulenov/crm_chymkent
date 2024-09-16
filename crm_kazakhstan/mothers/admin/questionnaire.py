@@ -51,8 +51,8 @@ class QuestionnaireAdmin(admin.ModelAdmin):
             return []
         if (all(perm.codename.startswith('view') for perm in user_permission.all())
                 and user_permission.filter(codename='view_questionnaire').exists()):
-            return [UsersObjectsFilter, IsNewFilter]
-        return [IsNewFilter]
+            return [UsersObjectsFilter, IsNewFilter, 'created']
+        return [IsNewFilter, 'created']
 
     def get_inlines(self, request, obj):
         # When an inline has one or more instances and then return these inlines

@@ -1,0 +1,8 @@
+.newly-added {
+    background-color: yellow; /* Example background color for new items */
+    transition: background-color 1s ease-in-out;
+}
+
+.newly-added.fade-out {
+    background-color: transparent; /* Transition back to transparent */
+}
